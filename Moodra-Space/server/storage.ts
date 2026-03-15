@@ -1,9 +1,10 @@
 import { db } from "./db";
-import { books, chapters, characters, notes, sources, users, hypotheses, boards, drafts } from "@shared/schema";
+import { books, chapters, characters, notes, sources, users, hypotheses, boards, drafts, noteCollections } from "@shared/schema";
 import type {
   Book, InsertBook, Chapter, InsertChapter, Character, InsertCharacter,
   Note, InsertNote, Source, InsertSource, User,
-  Hypothesis, InsertHypothesis, Board, Draft, InsertDraft
+  Hypothesis, InsertHypothesis, Board, Draft, InsertDraft,
+  NoteCollection, InsertNoteCollection
 } from "@shared/schema";
 import { eq, desc, asc } from "drizzle-orm";
 
@@ -51,6 +52,11 @@ export interface IStorage {
   createDraft(draft: InsertDraft): Promise<Draft>;
   updateDraft(id: number, data: Partial<InsertDraft>): Promise<Draft | undefined>;
   deleteDraft(id: number): Promise<void>;
+
+  getNoteCollections(bookId: number): Promise<NoteCollection[]>;
+  createNoteCollection(col: InsertNoteCollection): Promise<NoteCollection>;
+  updateNoteCollection(id: number, data: Partial<InsertNoteCollection>): Promise<NoteCollection | undefined>;
+  deleteNoteCollection(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {

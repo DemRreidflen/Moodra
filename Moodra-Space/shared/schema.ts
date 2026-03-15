@@ -84,16 +84,30 @@ export const notes = pgTable("notes", {
   chapterId: integer("chapter_id"),
   title: text("title").notNull(),
   content: text("content").default(""),
-  type: text("type").default("idea"),
+  type: text("type").default("quick_thought"),
   tags: text("tags").default(""),
   color: text("color").default("yellow"),
-  status: text("status").default("active"),
+  status: text("status").default("inbox"),
   collection: text("collection").default(""),
+  collectionIds: text("collection_ids").default(""),
   isPinned: text("is_pinned").default("false"),
+  isQuick: text("is_quick").default("false"),
   importance: text("importance").default("normal"),
   linkedNoteIds: text("linked_note_ids").default(""),
+  linkedSourceIds: text("linked_source_ids").default(""),
+  linkedDraftIds: text("linked_draft_ids").default(""),
+  semanticTags: text("semantic_tags").default(""),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const noteCollections = pgTable("note_collections", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").default("#F59E0B"),
+  description: text("description").default(""),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const sources = pgTable("sources", {
@@ -155,6 +169,7 @@ export const insertNoteSchema = createInsertSchema(notes).omit({ id: true, creat
 export const insertSourceSchema = createInsertSchema(sources).omit({ id: true, createdAt: true });
 export const insertHypothesisSchema = createInsertSchema(hypotheses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDraftSchema = createInsertSchema(drafts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertNoteCollectionSchema = createInsertSchema(noteCollections).omit({ id: true, createdAt: true });
 
 export type User = typeof users.$inferSelect;
 export type Book = typeof books.$inferSelect;
@@ -172,3 +187,5 @@ export type InsertHypothesis = z.infer<typeof insertHypothesisSchema>;
 export type Board = typeof boards.$inferSelect;
 export type Draft = typeof drafts.$inferSelect;
 export type InsertDraft = z.infer<typeof insertDraftSchema>;
+export type NoteCollection = typeof noteCollections.$inferSelect;
+export type InsertNoteCollection = z.infer<typeof insertNoteCollectionSchema>;
