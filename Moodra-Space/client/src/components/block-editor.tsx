@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import React, { useState, useCallback, useEffect, useLayoutEffect, useRef, forwardRef, type ReactNode } from "react";
 import {
   DndContext,
   closestCenter,
@@ -1667,7 +1667,10 @@ function renderBlockContent(
   }
 }
 
-function BlockContainer({ icon: Icon, label, bgColor, hideControls, ...props }: any) {
+const BlockContainer = forwardRef<HTMLDivElement, any>(function BlockContainer(
+  { icon: Icon, label, bgColor, hideControls, ...props },
+  ref
+) {
   return (
     <div className={cn("p-4 rounded-lg flex flex-col gap-2", bgColor, hideControls && "p-3 opacity-90")}>
       {!hideControls && (
@@ -1676,10 +1679,10 @@ function BlockContainer({ icon: Icon, label, bgColor, hideControls, ...props }: 
           {label}
         </div>
       )}
-      <div {...props} className={cn(props.className, "text-lg font-serif")} />
+      <div ref={ref} {...props} className={cn(props.className, "text-lg font-serif")} />
     </div>
   );
-}
+});
 
 export function blocksToPlainText(blocks: Block[]): string {
   return blocks
