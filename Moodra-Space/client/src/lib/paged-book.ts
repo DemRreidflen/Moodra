@@ -486,7 +486,15 @@ hr.bdiv {
 
 /* ── Print overrides ────────────────────────────────────────── */
 @media print {
-  html, body { color: #000; }
+  html, body { color: #000; background: #fff !important; }
+  /* Remove box-shadow from page wrappers — the shadow bleeds into the PDF
+     page area and creates a gray stripe at the bottom of each page.      */
+  .pagedjs_page,
+  .pagedjs_sheet,
+  .pagedjs_pages {
+    box-shadow: none !important;
+    filter: none !important;
+  }
 }
 
 /* ── Pagedjs preview styles ─────────────────────────────────── */
@@ -810,7 +818,7 @@ export function generatePagedJsHtml(opts: PagedBookOptions): string {
   const printOverrideCss = printMode ? `
 @media screen {
   body { background: #fff !important; }
-  .pagedjs_page { box-shadow: none !important; }
+  .pagedjs_page, .pagedjs_sheet, .pagedjs_pages { box-shadow: none !important; }
 }` : "";
 
   const bridge = printMode ? PRINT_BRIDGE_SCRIPT : makeBridgeScript(zoom);
