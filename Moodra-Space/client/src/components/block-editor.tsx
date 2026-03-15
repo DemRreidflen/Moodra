@@ -213,7 +213,15 @@ const LINE_SPACINGS = [
   { value: "2.5",   label: "2.5" },
 ];
 
-function FormatToolbar({ visible }: { visible: boolean }) {
+function FormatToolbar({
+  visible,
+  lineSpacing,
+  onLineSpacingChange,
+}: {
+  visible: boolean;
+  lineSpacing: string;
+  onLineSpacingChange: (v: string) => void;
+}) {
   const { lang } = useLang();
   const s = BLOCK_EDITOR_I18N[lang] || BLOCK_EDITOR_I18N.en;
   const [formats, setFormats] = useState({
@@ -223,27 +231,42 @@ function FormatToolbar({ visible }: { visible: boolean }) {
     superscript: false, subscript: false,
   });
   const [fontFamily, setFontFamily] = useState("");
-  const [fontSize, setFontSize] = useState("3");
   const [showTextColors, setShowTextColors] = useState(false);
   const [showHighlightColors, setShowHighlightColors] = useState(false);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("https://");
   const colorRef = useRef<HTMLDivElement>(null);
   const hlRef = useRef<HTMLDivElement>(null);
+  const linkRef = useRef<HTMLDivElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
   const savedRange = useRef<Range | null>(null);
+  const lastFocusedEl = useRef<HTMLElement | null>(null);
 
-  const saveSelection = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      savedRange.current = sel.getRangeAt(0).cloneRange();
-    }
-  };
+  useEffect(() => {
+    const handleFocus = (e: FocusEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.contentEditable === "true") lastFocusedEl.current = el;
+    };
+    document.addEventListener("focusin", handleFocus);
+    return () => document.removeEventListener("focusin", handleFocus);
+  }, []);
+
+  useEffect(() => {
+    const handleSel = () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        savedRange.current = sel.getRangeAt(0).cloneRange();
+      }
+    };
+    document.addEventListener("selectionchange", handleSel);
+    return () => document.removeEventListener("selectionchange", handleSel);
+  }, []);
 
   const restoreSelection = () => {
+    if (lastFocusedEl.current) lastFocusedEl.current.focus();
     if (!savedRange.current) return;
     const sel = window.getSelection();
-    if (sel) {
-      sel.removeAllRanges();
-      sel.addRange(savedRange.current);
-    }
+    if (sel) { sel.removeAllRanges(); sel.addRange(savedRange.current); }
   };
 
   const updateFormats = () => {
@@ -264,12 +287,11 @@ function FormatToolbar({ visible }: { visible: boolean }) {
       });
       const fn = document.queryCommandValue("fontName");
       if (fn) setFontFamily(fn.replace(/['"]/g, ""));
-      const fs = document.queryCommandValue("fontSize");
-      if (fs) setFontSize(fs);
     } catch {}
   };
 
   const cmd = (command: string, value?: string) => {
+    restoreSelection();
     document.execCommand(command, false, value);
     setTimeout(updateFormats, 0);
   };
@@ -283,148 +305,208 @@ function FormatToolbar({ visible }: { visible: boolean }) {
     const close = (e: MouseEvent) => {
       if (colorRef.current && !colorRef.current.contains(e.target as Node)) setShowTextColors(false);
       if (hlRef.current && !hlRef.current.contains(e.target as Node)) setShowHighlightColors(false);
+      if (linkRef.current && !linkRef.current.contains(e.target as Node)) setShowLinkInput(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+
+  useEffect(() => {
+    if (showLinkInput) setTimeout(() => linkInputRef.current?.focus(), 50);
+  }, [showLinkInput]);
 
   const fmtBtn = (active: boolean, title: string, onClick: () => void, children: ReactNode) => (
     <button
       title={title}
       onMouseDown={(e) => { e.preventDefault(); onClick(); }}
       className={cn(
-        "h-7 w-7 flex items-center justify-center rounded-md transition-colors text-sm font-medium",
+        "h-7 w-7 flex items-center justify-center rounded-lg transition-colors text-sm font-medium",
         active
           ? "bg-primary/15 text-primary"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+          : "text-muted-foreground hover:bg-accent/70 hover:text-foreground"
       )}
     >
       {children}
     </button>
   );
 
-  const Sep = () => <div className="w-px h-5 bg-border/60 mx-0.5 flex-shrink-0" />;
+  const Sep = () => <div className="w-px h-4 bg-border/50 mx-0.5 flex-shrink-0" />;
 
   if (!visible) return null;
 
   return (
-    <div className="sticky top-0 z-30 border-b border-border/60 bg-background/95 backdrop-blur-sm px-2 py-1 flex items-center gap-0.5 flex-wrap">
-      {/* Undo / Redo */}
-      {fmtBtn(false, "Отменить (Ctrl+Z)", () => cmd("undo"), <Undo2 className="h-3.5 w-3.5" />)}
-      {fmtBtn(false, "Повторить (Ctrl+Y)", () => cmd("redo"), <Redo2 className="h-3.5 w-3.5" />)}
+    <div className="sticky top-2 z-30 flex justify-center px-3 mb-3 pointer-events-none">
+      <div className="pointer-events-auto flex items-center gap-0.5 flex-wrap px-2.5 py-1.5 rounded-2xl border border-border/50 bg-background/96 backdrop-blur-md shadow-lg shadow-black/[0.08] ring-1 ring-white/5">
+        {fmtBtn(false, "Отменить (Ctrl+Z)", () => cmd("undo"), <Undo2 className="h-3.5 w-3.5" />)}
+        {fmtBtn(false, "Повторить (Ctrl+Y)", () => cmd("redo"), <Redo2 className="h-3.5 w-3.5" />)}
 
-      <Sep />
+        <Sep />
 
-      {/* Font family */}
-      <select
-        value={fontFamily}
-        onChange={e => { const v = e.target.value; setFontFamily(v); if (v) { restoreSelection(); cmd("fontName", v); } }}
-        onMouseDown={e => { e.stopPropagation(); saveSelection(); }}
-        className="h-7 text-xs text-foreground bg-background border border-border/60 rounded-md px-1.5 pr-5 appearance-none cursor-pointer hover:border-primary/50 transition-colors min-w-[110px]"
-        title={s.font}
-      >
-        {FONT_FAMILIES.map(f => (
-          <option key={f.value} value={f.value} style={{ fontFamily: f.value || "inherit" }}>{f.key ? s[f.key] || f.label : f.label}</option>
-        ))}
-      </select>
-
-      <Sep />
-
-      {fmtBtn(formats.bold, s.bold, () => cmd("bold"), <Bold className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.italic, s.italic, () => cmd("italic"), <Italic className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.underline, s.underline, () => cmd("underline"), <Underline className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.strikeThrough, s.strikethrough, () => cmd("strikeThrough"), <Strikethrough className="h-3.5 w-3.5" />)}
-
-      <Sep />
-
-      {/* Text color */}
-      <div ref={colorRef} className="relative">
-        <button
-          title={s.textColor}
-          onMouseDown={(e) => { e.preventDefault(); setShowTextColors(v => !v); setShowHighlightColors(false); }}
-          className="h-7 w-7 flex flex-col items-center justify-center rounded-md hover:bg-accent/60 transition-colors gap-0.5"
+        <select
+          value={fontFamily}
+          onChange={e => { const v = e.target.value; setFontFamily(v); if (v) { restoreSelection(); cmd("fontName", v); } }}
+          onMouseDown={e => e.stopPropagation()}
+          className="h-7 text-xs text-foreground bg-transparent border border-border/40 rounded-lg px-1.5 pr-5 appearance-none cursor-pointer hover:border-primary/50 transition-colors min-w-[100px]"
+          title={s.font}
         >
-          <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-        {showTextColors && (
-          <div className="absolute top-full left-0 mt-1 p-2 bg-background border border-border rounded-xl shadow-lg z-50 grid grid-cols-5 gap-1 w-32">
-            {TEXT_COLORS.map(c => (
-              <button
-                key={c}
-                onMouseDown={(e) => { e.preventDefault(); cmd("foreColor", c); setShowTextColors(false); }}
-                className="w-5 h-5 rounded-full border border-border/40 hover:scale-110 transition-transform"
-                style={{ backgroundColor: c }}
-                title={c}
+          {FONT_FAMILIES.map(f => (
+            <option key={f.value} value={f.value} style={{ fontFamily: f.value || "inherit" }}>{f.key ? s[f.key as keyof typeof s] || f.label : f.label}</option>
+          ))}
+        </select>
+
+        <Sep />
+
+        {fmtBtn(formats.bold, s.bold, () => cmd("bold"), <Bold className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.italic, s.italic, () => cmd("italic"), <Italic className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.underline, s.underline, () => cmd("underline"), <Underline className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.strikeThrough, s.strikethrough, () => cmd("strikeThrough"), <Strikethrough className="h-3.5 w-3.5" />)}
+
+        <Sep />
+
+        <div ref={colorRef} className="relative">
+          <button
+            title={s.textColor}
+            onMouseDown={(e) => { e.preventDefault(); setShowTextColors(v => !v); setShowHighlightColors(false); setShowLinkInput(false); }}
+            className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-accent/70 transition-colors"
+          >
+            <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          {showTextColors && (
+            <div className="absolute top-full left-0 mt-2 p-2 bg-background border border-border rounded-2xl shadow-xl z-50 grid grid-cols-5 gap-1 w-32">
+              {TEXT_COLORS.map(c => (
+                <button
+                  key={c}
+                  onMouseDown={(e) => { e.preventDefault(); restoreSelection(); cmd("foreColor", c); setShowTextColors(false); }}
+                  className="w-5 h-5 rounded-full border border-border/40 hover:scale-110 transition-transform"
+                  style={{ backgroundColor: c }}
+                  title={c}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div ref={hlRef} className="relative">
+          <button
+            title={s.highlight}
+            onMouseDown={(e) => { e.preventDefault(); setShowHighlightColors(v => !v); setShowTextColors(false); setShowLinkInput(false); }}
+            className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-accent/70 transition-colors"
+          >
+            <Highlighter className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          {showHighlightColors && (
+            <div className="absolute top-full left-0 mt-2 p-2 bg-background border border-border rounded-2xl shadow-xl z-50 grid grid-cols-5 gap-1 w-36">
+              {HIGHLIGHT_COLORS.map(c => (
+                <button
+                  key={c}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    restoreSelection();
+                    if (c) cmd("backColor", c); else cmd("removeFormat");
+                    setShowHighlightColors(false);
+                  }}
+                  className={cn(
+                    "w-5 h-5 rounded border hover:scale-110 transition-transform",
+                    c ? "border-border/40" : "border-dashed border-border flex items-center justify-center"
+                  )}
+                  style={{ backgroundColor: c || "transparent" }}
+                  title={c || s.removeHL}
+                >
+                  {!c && <span className="text-[8px] text-muted-foreground">✕</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <Sep />
+
+        {fmtBtn(formats.justifyLeft, s.alignLeft, () => cmd("justifyLeft"), <AlignLeft className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.justifyCenter, s.alignCenter, () => cmd("justifyCenter"), <AlignCenter className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.justifyRight, s.alignRight, () => cmd("justifyRight"), <AlignRight className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.justifyFull, s.justify, () => cmd("justifyFull"), <AlignJustify className="h-3.5 w-3.5" />)}
+
+        <Sep />
+
+        {fmtBtn(formats.insertUnorderedList, s.bulletList, () => cmd("insertUnorderedList"), <List className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.insertOrderedList, s.numberedList, () => cmd("insertOrderedList"), <ListOrdered className="h-3.5 w-3.5" />)}
+        {fmtBtn(false, s.increaseIndent, () => cmd("indent"), <Indent className="h-3.5 w-3.5" />)}
+        {fmtBtn(false, s.decreaseIndent, () => cmd("outdent"), <Outdent className="h-3.5 w-3.5" />)}
+
+        <Sep />
+
+        {fmtBtn(formats.superscript, s.superscript, () => cmd("superscript"), <Superscript className="h-3.5 w-3.5" />)}
+        {fmtBtn(formats.subscript, s.subscript, () => cmd("subscript"), <Subscript className="h-3.5 w-3.5" />)}
+
+        <Sep />
+
+        <div ref={linkRef} className="relative">
+          <button
+            title={s.insertLink}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setShowLinkInput(v => !v);
+              setShowTextColors(false);
+              setShowHighlightColors(false);
+              setLinkUrl("https://");
+            }}
+            className={cn(
+              "h-7 w-7 flex items-center justify-center rounded-lg transition-colors",
+              showLinkInput ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+            )}
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </button>
+          {showLinkInput && (
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-background border border-border/60 rounded-2xl shadow-xl p-2 flex gap-1.5 min-w-[240px]">
+              <input
+                ref={linkInputRef}
+                type="url"
+                value={linkUrl}
+                onChange={e => setLinkUrl(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const url = linkUrl.trim();
+                    if (url && url !== "https://") { restoreSelection(); cmd("createLink", url); }
+                    setShowLinkInput(false);
+                  }
+                  if (e.key === "Escape") setShowLinkInput(false);
+                }}
+                placeholder="https://..."
+                className="flex-1 text-xs border border-border/40 rounded-xl px-2.5 py-1.5 outline-none focus:border-primary/50 bg-muted/40"
               />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Highlight */}
-      <div ref={hlRef} className="relative">
-        <button
-          title={s.highlight}
-          onMouseDown={(e) => { e.preventDefault(); setShowHighlightColors(v => !v); setShowTextColors(false); }}
-          className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-accent/60 transition-colors"
-        >
-          <Highlighter className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-        {showHighlightColors && (
-          <div className="absolute top-full left-0 mt-1 p-2 bg-background border border-border rounded-xl shadow-lg z-50 grid grid-cols-5 gap-1 w-36">
-            {HIGHLIGHT_COLORS.map(c => (
               <button
-                key={c}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  if (c) cmd("backColor", c); else cmd("removeFormat");
-                  setShowHighlightColors(false);
+                  const url = linkUrl.trim();
+                  if (url && url !== "https://") { restoreSelection(); cmd("createLink", url); }
+                  setShowLinkInput(false);
                 }}
-                className={cn(
-                  "w-5 h-5 rounded border hover:scale-110 transition-transform",
-                  c ? "border-border/40" : "border-dashed border-border flex items-center justify-center"
-                )}
-                style={{ backgroundColor: c || "transparent" }}
-                title={c || s.removeHL}
+                className="px-2.5 py-1 text-xs font-semibold rounded-xl bg-primary/15 text-primary hover:bg-primary/25 transition-colors whitespace-nowrap"
               >
-                {!c && <span className="text-[8px] text-muted-foreground">✕</span>}
+                OK
               </button>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+
+        {fmtBtn(false, s.clearFormat, () => cmd("removeFormat"), <RemoveFormatting className="h-3.5 w-3.5" />)}
+
+        <Sep />
+
+        <select
+          value={lineSpacing}
+          onChange={e => onLineSpacingChange(e.target.value)}
+          onMouseDown={e => e.stopPropagation()}
+          className="h-7 text-xs text-muted-foreground bg-transparent border border-border/40 rounded-lg px-1 appearance-none cursor-pointer hover:border-primary/50 transition-colors w-14 text-center"
+          title={s.lineSpacing}
+        >
+          {LINE_SPACINGS.map(ls => (
+            <option key={ls.value} value={ls.value}>{ls.label}</option>
+          ))}
+        </select>
       </div>
-
-      <Sep />
-
-      {fmtBtn(formats.justifyLeft, s.alignLeft, () => cmd("justifyLeft"), <AlignLeft className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.justifyCenter, s.alignCenter, () => cmd("justifyCenter"), <AlignCenter className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.justifyRight, s.alignRight, () => cmd("justifyRight"), <AlignRight className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.justifyFull, s.justify, () => cmd("justifyFull"), <AlignJustify className="h-3.5 w-3.5" />)}
-
-      <Sep />
-
-      {fmtBtn(formats.insertUnorderedList, s.bulletList, () => { restoreSelection(); cmd("insertUnorderedList"); }, <List className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.insertOrderedList, s.numberedList, () => { restoreSelection(); cmd("insertOrderedList"); }, <ListOrdered className="h-3.5 w-3.5" />)}
-      {fmtBtn(false, s.increaseIndent, () => { restoreSelection(); cmd("indent"); }, <Indent className="h-3.5 w-3.5" />)}
-      {fmtBtn(false, s.decreaseIndent, () => { restoreSelection(); cmd("outdent"); }, <Outdent className="h-3.5 w-3.5" />)}
-
-      <Sep />
-
-      {fmtBtn(formats.superscript, s.superscript, () => cmd("superscript"), <Superscript className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.subscript, s.subscript, () => cmd("subscript"), <Subscript className="h-3.5 w-3.5" />)}
-
-      <Sep />
-
-      {/* Link — save selection before prompt (prompt blurs editor) */}
-      {fmtBtn(false, s.insertLink, () => {
-        saveSelection();
-        const url = window.prompt(s.enterUrl, "https://");
-        if (url) { restoreSelection(); cmd("createLink", url); }
-      }, <Link2 className="h-3.5 w-3.5" />)}
-
-      {/* Clear formatting */}
-      {fmtBtn(false, s.clearFormat, () => cmd("removeFormat"), <RemoveFormatting className="h-3.5 w-3.5" />)}
-
     </div>
   );
 }
@@ -796,7 +878,11 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
 
   return (
     <div className="flex flex-col">
-    <FormatToolbar visible={!hideControls && !hideFormattingToolbar} />
+    <FormatToolbar
+      visible={!hideControls && !hideFormattingToolbar}
+      lineSpacing={lineSpacing}
+      onLineSpacingChange={setLineSpacing}
+    />
     <div
       ref={containerRef}
       className={cn("w-full max-w-3xl mx-auto py-10 px-4 relative", hideControls && "py-0 px-0")}

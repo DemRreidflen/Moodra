@@ -1122,17 +1122,6 @@ export function ChapterEditor({
             )}
           </div>
 
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className={cn("h-8 w-8 transition-colors", isReadingMode ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground")}
-            onClick={() => setIsReadingMode(v => !v)}
-            data-testid="button-reading-mode"
-            title={s.readingMode || "Reading mode"}
-          >
-            <BookOpen className="h-4 w-4" />
-          </Button>
-
           <div className="w-px h-4 bg-border/60 mx-0.5" />
 
           {isDirty && (
@@ -1229,7 +1218,7 @@ export function ChapterEditor({
         )}
           style={{
             maxWidth: isReadingMode ? 640 : editorMaxWidth,
-            fontSize: `${editorFontScale}%`,
+            zoom: editorFontScale / 100,
           }}
         >
           {/* Chapter title — always visible, editable in write/focus modes */}
