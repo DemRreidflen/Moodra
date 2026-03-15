@@ -84,9 +84,16 @@ const CHAPTER_GENERATORS = [
 interface NarrativeContext {
   coreIdea?: string;
   themes?: string;
+  subthemes?: string;
   structure?: string;
   tone?: string;
+  toneDetails?: string;
   targetReader?: string;
+  targetReaderProfile?: string;
+  keyArguments?: string;
+  characterArcs?: string;
+  pacingNotes?: string;
+  writingStyleNotes?: string;
 }
 
 const AGENTS = [

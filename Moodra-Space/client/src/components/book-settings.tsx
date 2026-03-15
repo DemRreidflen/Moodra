@@ -211,6 +211,20 @@ export function BookSettings({ book }: { book: Book }) {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
+  const nc = book.narrativeContext || {};
+  const [ncCoreIdea, setNcCoreIdea] = useState(nc.coreIdea || "");
+  const [ncThemes, setNcThemes] = useState(nc.themes || "");
+  const [ncSubthemes, setNcSubthemes] = useState(nc.subthemes || "");
+  const [ncStructure, setNcStructure] = useState(nc.structure || "");
+  const [ncTone, setNcTone] = useState(nc.tone || "");
+  const [ncToneDetails, setNcToneDetails] = useState(nc.toneDetails || "");
+  const [ncTargetReader, setNcTargetReader] = useState(nc.targetReader || "");
+  const [ncTargetReaderProfile, setNcTargetReaderProfile] = useState(nc.targetReaderProfile || "");
+  const [ncKeyArguments, setNcKeyArguments] = useState(nc.keyArguments || "");
+  const [ncCharacterArcs, setNcCharacterArcs] = useState(nc.characterArcs || "");
+  const [ncPacingNotes, setNcPacingNotes] = useState(nc.pacingNotes || "");
+  const [ncWritingStyleNotes, setNcWritingStyleNotes] = useState(nc.writingStyleNotes || "");
+
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
       const updated = await apiRequest("PATCH", `/api/books/${book.id}`, data);
@@ -256,8 +270,23 @@ export function BookSettings({ book }: { book: Book }) {
   });
   const [pendingInfluence, setPendingInfluence] = useState<Record<number, number>>({});
 
+  const buildNarrativeContext = () => ({
+    ...(ncCoreIdea && { coreIdea: ncCoreIdea }),
+    ...(ncThemes && { themes: ncThemes }),
+    ...(ncSubthemes && { subthemes: ncSubthemes }),
+    ...(ncStructure && { structure: ncStructure }),
+    ...(ncTone && { tone: ncTone }),
+    ...(ncToneDetails && { toneDetails: ncToneDetails }),
+    ...(ncTargetReader && { targetReader: ncTargetReader }),
+    ...(ncTargetReaderProfile && { targetReaderProfile: ncTargetReaderProfile }),
+    ...(ncKeyArguments && { keyArguments: ncKeyArguments }),
+    ...(ncCharacterArcs && { characterArcs: ncCharacterArcs }),
+    ...(ncPacingNotes && { pacingNotes: ncPacingNotes }),
+    ...(ncWritingStyleNotes && { writingStyleNotes: ncWritingStyleNotes }),
+  });
+
   const handleSave = () => {
-    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, coverColor });
+    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, coverColor, narrativeContext: buildNarrativeContext() });
   };
 
   const mark = () => setIsDirty(true);
@@ -470,6 +499,50 @@ export function BookSettings({ book }: { book: Book }) {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* ── Narrative Context ─────────────────────────────────── */}
+          <div className="space-y-3 pt-4 border-t border-border">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(249,109,28,0.10)" }}>
+                <Sliders className="h-3.5 w-3.5" style={{ color: "#F96D1C" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm">
+                  {lang === "ru" ? "Контекст книги" : lang === "ua" ? "Контекст книги" : lang === "de" ? "Buchkontext" : "Book Context"}
+                </h3>
+                <p className="text-[10px] text-muted-foreground/55 leading-tight">
+                  {lang === "ru" ? "Используется ИИ при анализе и генерации" : lang === "ua" ? "Використовується ІІ при аналізі і генерації" : lang === "de" ? "Wird von der KI bei Analyse & Generierung genutzt" : "Used by AI during analysis & generation"}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: lang === "ru" ? "Основная идея" : "Core idea", value: ncCoreIdea, set: setNcCoreIdea, rows: 2 },
+                { label: lang === "ru" ? "Темы" : "Themes", value: ncThemes, set: setNcThemes, rows: 2 },
+                { label: lang === "ru" ? "Подтемы" : "Subthemes", value: ncSubthemes, set: setNcSubthemes, rows: 2 },
+                { label: lang === "ru" ? "Структура" : "Structure", value: ncStructure, set: setNcStructure, rows: 2 },
+                { label: lang === "ru" ? "Тон" : "Tone", value: ncTone, set: setNcTone, rows: 1 },
+                { label: lang === "ru" ? "Детали тона" : "Tone details", value: ncToneDetails, set: setNcToneDetails, rows: 2 },
+                { label: lang === "ru" ? "Целевой читатель" : "Target reader", value: ncTargetReader, set: setNcTargetReader, rows: 1 },
+                { label: lang === "ru" ? "Профиль читателя" : "Reader profile", value: ncTargetReaderProfile, set: setNcTargetReaderProfile, rows: 2 },
+                { label: lang === "ru" ? "Ключевые аргументы" : "Key arguments", value: ncKeyArguments, set: setNcKeyArguments, rows: 2 },
+                { label: lang === "ru" ? "Арки персонажей" : "Character arcs", value: ncCharacterArcs, set: setNcCharacterArcs, rows: 2 },
+                { label: lang === "ru" ? "Темп и ритм" : "Pacing notes", value: ncPacingNotes, set: setNcPacingNotes, rows: 2 },
+                { label: lang === "ru" ? "Стиль письма" : "Writing style notes", value: ncWritingStyleNotes, set: setNcWritingStyleNotes, rows: 2 },
+              ].map(field => (
+                <div key={field.label} className="space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground/70">{field.label}</Label>
+                  <Textarea
+                    value={field.value}
+                    onChange={e => { field.set(e.target.value); mark(); }}
+                    rows={field.rows}
+                    placeholder="…"
+                    className="bg-background rounded-xl resize-none border-border text-xs py-2"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* ── Role Models / Co-Authors ─────────────────────────── */}

@@ -530,9 +530,27 @@ export function ChapterEditor({
   const [sprintExpanded, setSprintExpanded] = useState(false);
   const sprintTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Editor-local view controls (don't affect PDF layout)
-  const [editorFontScale, setEditorFontScale] = useState(100); // 75–150 %
-  const [editorMaxWidth, setEditorMaxWidth] = useState(768);    // 480–1200 px
+  // Editor-local view controls (don't affect PDF layout) — persisted in localStorage
+  const [editorFontScale, setEditorFontScaleRaw] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem("moodra_editorFontScale")); return v >= 70 && v <= 160 ? v : 100; } catch { return 100; }
+  });
+  const [editorMaxWidth, setEditorMaxWidthRaw] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem("moodra_editorMaxWidth")); return v >= 480 && v <= 1010 ? v : 768; } catch { return 768; }
+  });
+  const setEditorFontScale = (updater: number | ((v: number) => number)) => {
+    setEditorFontScaleRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem("moodra_editorFontScale", String(next)); } catch {}
+      return next;
+    });
+  };
+  const setEditorMaxWidth = (updater: number | ((v: number) => number)) => {
+    setEditorMaxWidthRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem("moodra_editorMaxWidth", String(next)); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (chapter) {
@@ -1031,7 +1049,7 @@ export function ChapterEditor({
               <span className="tabular-nums w-8 text-center">{editorMaxWidth}</span>
             </button>
             <button
-              onClick={() => setEditorMaxWidth(v => Math.min(1200, v + 60))}
+              onClick={() => setEditorMaxWidth(v => Math.min(1010, v + 60))}
               className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors"
               title={s.editorWider}
             ><Plus className="h-3 w-3" /></button>

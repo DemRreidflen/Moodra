@@ -41,9 +41,16 @@ export const books = pgTable("books", {
   narrativeContext: jsonb("narrative_context").$type<{
     coreIdea?: string;
     themes?: string;
+    subthemes?: string;
     structure?: string;
     tone?: string;
+    toneDetails?: string;
     targetReader?: string;
+    targetReaderProfile?: string;
+    keyArguments?: string;
+    characterArcs?: string;
+    pacingNotes?: string;
+    writingStyleNotes?: string;
   }>().default({}),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),

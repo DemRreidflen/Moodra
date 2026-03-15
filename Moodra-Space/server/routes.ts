@@ -546,6 +546,65 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (e) { res.status(500).json({ error: "Error deleting role model" }); }
   });
 
+  // ─── File Text Extraction ───────────────────────────────────────────────────
+  // POST /api/extract-file-text — extract plain text from EPUB / FB2 / TXT
+  const uploadFileText = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 30 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const allowed = [".epub", ".fb2", ".txt", ".md", ".text"];
+      if (allowed.includes(ext)) cb(null, true);
+      else cb(new Error("Unsupported file type. Use EPUB, FB2, or TXT."));
+    },
+  });
+
+  app.post("/api/extract-file-text", isAuthenticated, uploadFileText.single("file"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      let text = "";
+
+      if (ext === ".epub") {
+        // EPUB is a ZIP file — extract text from HTML/XHTML content files
+        const zip = await JSZip.loadAsync(req.file.buffer);
+        const textParts: string[] = [];
+        for (const [filename, file] of Object.entries(zip.files)) {
+          if (filename.endsWith(".html") || filename.endsWith(".xhtml") || filename.endsWith(".htm")) {
+            const html = await (file as any).async("string");
+            // Strip HTML tags
+            const plain = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s{2,}/g, " ")
+              .trim();
+            if (plain.length > 50) textParts.push(plain);
+          }
+        }
+        text = textParts.join("\n\n");
+      } else if (ext === ".fb2") {
+        // FB2 is XML — strip tags and decode entities
+        const raw = req.file.buffer.toString("utf-8");
+        text = raw
+          .replace(/<binary[^>]*>[\s\S]*?<\/binary>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+      } else {
+        // TXT / MD
+        text = req.file.buffer.toString("utf-8");
+      }
+
+      // Limit to ~80k characters to avoid token overflow
+      const trimmed = text.slice(0, 80000);
+      res.json({ text: trimmed, chars: trimmed.length });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Text extraction failed" });
+    }
+  });
+
   // ─── Deep Structural Analysis ─────────────────────────────────────────────
   // POST /api/role-models/:id/deep-analyze
   // Reconstructs the creative model of an author from source material.

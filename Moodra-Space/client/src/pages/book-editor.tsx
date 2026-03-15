@@ -15,14 +15,12 @@ import { ResearchPanel } from "@/components/research-panel";
 import { BookSettings } from "@/components/book-settings";
 import { IdeaBoard } from "@/components/idea-board";
 import { LayoutMode } from "@/components/layout-mode";
-import { PredictiveInsights } from "@/components/predictive-insights";
 import { FocusTimer } from "@/components/focus-timer";
 import { LanguagePicker } from "@/components/language-picker";
-import type { Insight } from "@/lib/agent-engine";
 import {
   ArrowLeft, Sparkles, Users, BookOpen, FileText,
-  FlaskConical, Settings, Brain, Download, Columns2,
-  File, LayoutList, Lightbulb, X, FileText as FileText2,
+  Settings, Brain, Download, Columns2,
+  File, LayoutList, X, FileText as FileText2, PenLine,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -60,7 +58,6 @@ export default function BookEditor() {
   const [aiContext, setAiContext] = useState("");
   const [aiInsertCallback, setAiInsertCallback] = useState<((text: string) => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("sheets");
-  const [showInsights, setShowInsights] = useState(false);
 
   const { data: book, isLoading: bookLoading } = useQuery<Book>({
     queryKey: ["/api/books", bookId],
@@ -106,12 +103,6 @@ export default function BookEditor() {
 
   const selectedChapter = chapters.find(c => c.id === selectedChapterId);
 
-  /** Navigate to the relevant tab when an insight action is triggered */
-  const handleInsightAction = useCallback((insight: Insight) => {
-    const target = insight.actionTarget;
-    setActiveTab(target.tab as EditorTab);
-    setShowInsights(false);
-  }, []);
 
   if (bookLoading) {
     return (
@@ -139,7 +130,7 @@ export default function BookEditor() {
     { id: "editor" as EditorTab, icon: BookOpen, label: "Редактор" },
     ...(book.mode === "fiction" ? [{ id: "characters" as EditorTab, icon: Users, label: "Персонажи" }] : []),
     { id: "notes" as EditorTab, icon: FileText, label: "Заметки" },
-    { id: "research" as EditorTab, icon: FlaskConical, label: "Исследования" },
+    { id: "research" as EditorTab, icon: PenLine, label: "Черновики и ролевые модели" },
     { id: "board" as EditorTab, icon: Brain, label: "Доска идей" },
     { id: "layout" as EditorTab, icon: Columns2, label: "Верстка" },
     { id: "settings" as EditorTab, icon: Settings, label: "Настройки" },
@@ -241,24 +232,6 @@ export default function BookEditor() {
           <div className="flex-shrink-0">
             <FocusTimer />
           </div>
-
-          {/* Smart Insights button — internal agent engine surface */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                className={`relative h-8 w-8 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
-                  showInsights
-                    ? "bg-amber-100 text-amber-600"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }`}
-                onClick={() => setShowInsights(v => !v)}
-                data-testid="button-smart-insights"
-              >
-                <Lightbulb className="h-4 w-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs">Smart Insights</TooltipContent>
-          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -373,35 +346,6 @@ export default function BookEditor() {
           {activeTab === "layout" && <LayoutMode bookId={bookId} book={book} />}
           {activeTab === "settings" && <BookSettings book={book} />}
         </main>
-
-        {/* Smart Insights drawer — engine surface, not user-facing tools */}
-        {showInsights && (
-          <div className="w-80 flex-shrink-0 border-l border-border/60 bg-background/95 backdrop-blur-sm flex flex-col overflow-hidden z-40">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.12)" }}>
-                  <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
-                </div>
-                <span className="text-sm font-semibold">Smart Insights</span>
-              </div>
-              <button
-                onClick={() => setShowInsights(false)}
-                className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <PredictiveInsights
-                notes={notes}
-                sources={sources}
-                boardDataRaw={boardDataRaw}
-                chapters={chapters}
-                onAction={handleInsightAction}
-              />
-            </div>
-          </div>
-        )}
 
         {showAI && !isDeepWritingMode && activeTab === "editor" && (
           <AiPanel

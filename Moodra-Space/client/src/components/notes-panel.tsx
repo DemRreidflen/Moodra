@@ -333,16 +333,31 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
         <p className="text-[11px] leading-relaxed line-clamp-3 flex-1" style={{ color: `${col.text}90` }}>{note.content}</p>
       )}
 
-      {/* Tags */}
-      {note.tags && (
-        <div className="flex flex-wrap gap-1 mt-0.5">
-          {note.tags.split(",").map(t => t.trim()).filter(Boolean).slice(0, 3).map(tag => (
-            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${col.clip}14`, color: `${col.clip}CC` }}>
-              #{tag}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Pills row — type + status + importance */}
+      <div className="flex flex-wrap gap-1 mt-auto pt-1">
+        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5"
+          style={{ background: `${type.accent}18`, color: type.accent }}>
+          <Icon className="h-2 w-2" />
+          {s.types[type.value as keyof typeof s.types]}
+        </span>
+        {(note as any).status && (note as any).status !== "active" && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+            style={{ background: `${getStatus((note as any).status).color}18`, color: getStatus((note as any).status).color }}>
+            {s.statuses[(note as any).status as keyof typeof s.statuses]}
+          </span>
+        )}
+        {importance && importance !== "normal" && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+            style={{ background: importance === "core" ? "#EF444418" : "#F59E0B18", color: importance === "core" ? "#EF4444" : "#F59E0B" }}>
+            {s.importance[importance as keyof typeof s.importance]}
+          </span>
+        )}
+        {note.tags && note.tags.split(",").slice(0, 1).map(t => t.trim()).filter(Boolean).map(tag => (
+          <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${col.clip}14`, color: `${col.clip}CC` }}>
+            #{tag}
+          </span>
+        ))}
+      </div>
 
       {/* Action row — appears on hover */}
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2.5 right-2.5" onClick={e => e.stopPropagation()}>
@@ -521,8 +536,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }} onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-        style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)" }}
+        className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] bg-card border border-border"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -569,10 +583,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
             value={title}
             onChange={e => setTitle(e.target.value)}
             placeholder={s.titlePlaceholder}
-            className="w-full rounded-xl px-3 py-2.5 outline-none text-sm font-semibold placeholder:font-normal placeholder:text-muted-foreground transition-all"
-            style={{ background: col.bg, border: `1.5px solid ${col.border}`, color: col.text }}
-            onFocus={e => { e.currentTarget.style.borderColor = col.clip; }}
-            onBlur={e => { e.currentTarget.style.borderColor = col.border; }}
+            className="w-full rounded-xl px-3 py-2.5 outline-none text-sm font-semibold placeholder:font-normal placeholder:text-muted-foreground transition-all bg-secondary/60 border border-border focus:border-primary/50"
             onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSave(); }}
             autoFocus
           />
@@ -584,10 +595,9 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
             onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSave(); } }}
             rows={4}
             placeholder={s.contentPlaceholder}
-            className="w-full rounded-xl px-3 py-2.5 outline-none text-sm resize-none placeholder:text-muted-foreground leading-relaxed transition-all"
-            style={{ background: col.bg, border: `1.5px solid ${col.border}`, color: col.text, minHeight: "100px", maxHeight: "240px", overflow: "auto" }}
-            onFocus={e => { e.currentTarget.style.borderColor = col.clip; autoResize(); }}
-            onBlur={e => { e.currentTarget.style.borderColor = col.border; }}
+            className="w-full rounded-xl px-3 py-2.5 outline-none text-sm resize-none placeholder:text-muted-foreground leading-relaxed transition-all bg-secondary/60 border border-border focus:border-primary/50"
+            style={{ minHeight: "100px", maxHeight: "240px", overflow: "auto" }}
+            onFocus={() => autoResize()}
           />
 
           {/* Tags */}
@@ -597,9 +607,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
               value={tags}
               onChange={e => setTags(e.target.value)}
               placeholder={s.tagsPlaceholder}
-              className="w-full rounded-xl pl-7 pr-3 py-2.5 outline-none text-xs placeholder:text-muted-foreground bg-secondary/70 transition-all border border-transparent"
-              onFocus={e => { e.currentTarget.style.borderColor = col.clip; }}
-              onBlur={e => { e.currentTarget.style.borderColor = "transparent"; }}
+              className="w-full rounded-xl pl-7 pr-3 py-2.5 outline-none text-xs placeholder:text-muted-foreground bg-secondary/60 border border-border focus:border-primary/50 transition-all"
             />
           </div>
 
@@ -611,9 +619,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
               onChange={e => setCollection(e.target.value)}
               list="collections-datalist"
               placeholder={s.collectionPlaceholder}
-              className="w-full rounded-xl pl-7 pr-3 py-2.5 outline-none text-xs placeholder:text-muted-foreground bg-secondary/70 transition-all border border-transparent"
-              onFocus={e => { e.currentTarget.style.borderColor = col.clip; }}
-              onBlur={e => { e.currentTarget.style.borderColor = "transparent"; }}
+              className="w-full rounded-xl pl-7 pr-3 py-2.5 outline-none text-xs placeholder:text-muted-foreground bg-secondary/60 border border-border focus:border-primary/50 transition-all"
             />
             {collections.length > 0 && (
               <datalist id="collections-datalist">
@@ -709,7 +715,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
             onClick={handleSave}
             disabled={!title.trim() || mutation.isPending}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 text-white"
-            style={{ background: col.clip }}
+            style={{ background: "linear-gradient(135deg, #F96D1C, #FB923C)" }}
           >
             {mutation.isPending ? s.saving : <><Check className="h-3.5 w-3.5" /> {s.save}</>}
           </button>
@@ -738,7 +744,23 @@ export function NotesPanel({ bookId }: { bookId: number }) {
   const [filterType, setFilterType] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
   const [collectionsOpen, setCollectionsOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(160);
+  const sidebarContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingSidebar = useRef(false);
   const quickCaptureRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!isDraggingSidebar.current || !sidebarContainerRef.current) return;
+      const parentLeft = sidebarContainerRef.current.getBoundingClientRect().left;
+      const w = Math.max(120, Math.min(300, e.clientX - parentLeft));
+      setSidebarWidth(w);
+    };
+    const onUp = () => { isDraggingSidebar.current = false; };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+  }, []);
 
   const { data: notes = [], isLoading } = useQuery<Note[]>({
     queryKey: ["/api/books", bookId, "notes"],
@@ -871,13 +893,12 @@ export function NotesPanel({ bookId }: { bookId: number }) {
         </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar */}
-        <div className="w-[160px] flex-shrink-0 border-r border-border/50 flex flex-col overflow-y-auto bg-background/50 py-2">
+      <div className="flex flex-1 overflow-hidden" ref={sidebarContainerRef}>
+        {/* Left sidebar — resizable */}
+        <div className="flex-shrink-0 border-r border-border/50 flex flex-col overflow-y-auto bg-background/50 py-2 relative" style={{ width: sidebarWidth }}>
           {/* Nav items */}
           {[
             { id: "all", label: s.allNotes, icon: Layers, count: notes.length },
-            { id: "inbox", label: s.inbox, icon: Inbox, count: inboxCount },
             { id: "pinned", label: s.pinned, icon: Pin, count: pinnedCount },
           ].map(item => (
             <button
@@ -900,14 +921,23 @@ export function NotesPanel({ bookId }: { bookId: number }) {
 
           {/* Collections */}
           <div className="mt-2 border-t border-border/40 pt-2">
-            <button
-              onClick={() => setCollectionsOpen(!collectionsOpen)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground transition-colors"
-            >
-              <FolderOpen className="h-2.5 w-2.5" />
-              <span className="flex-1 text-left">{s.collections}</span>
-              {collectionsOpen ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-            </button>
+            <div className="w-full flex items-center gap-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <button
+                onClick={() => setCollectionsOpen(!collectionsOpen)}
+                className="flex items-center gap-1.5 flex-1 hover:text-muted-foreground transition-colors"
+              >
+                <FolderOpen className="h-2.5 w-2.5" />
+                <span className="flex-1 text-left">{s.collections}</span>
+                {collectionsOpen ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+              </button>
+              <button
+                onClick={() => { setDialogPrefill(""); setEditNote(undefined); setDialogPrefillStatus("active"); setShowDialog(true); }}
+                className="w-4 h-4 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground/50 hover:text-foreground transition-colors flex-shrink-0"
+                title={s.newBtn}
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </button>
+            </div>
             {collectionsOpen && (
               <div>
                 {collections.map(col => (
@@ -933,6 +963,14 @@ export function NotesPanel({ bookId }: { bookId: number }) {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Drag handle */}
+          <div
+            onMouseDown={e => { isDraggingSidebar.current = true; e.preventDefault(); }}
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors group"
+          >
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full bg-border/60 group-hover:bg-primary/40 transition-colors" />
           </div>
         </div>
 

@@ -4,8 +4,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAiError } from "@/contexts/ai-error-context";
 import { useLang } from "@/contexts/language-context";
-import { useFreeMode } from "@/hooks/use-free-mode";
-import type { Book, Source, Draft, Chapter } from "@shared/schema";
+import type { Book, Draft, Chapter } from "@shared/schema";
 import type { AuthorRoleModel } from "@shared/schema";
 import {
   Search, Sparkles, BookOpen, FileEdit, Brain, Plus, ArrowRight,
@@ -13,7 +12,8 @@ import {
   Quote, Microscope, ExternalLink, ChevronDown, ChevronUp, X, Zap,
   Feather, Layers, Music2, Hash, Target, Heart, Wrench, AlignLeft, Eye,
   Save, ArrowLeft, Clock, AlignCenter, BarChart3, Lightbulb, RefreshCw,
-  Check, Trash2, Link2, BookCopy, SendToBack, GitBranch, Wand2
+  Check, Trash2, Link2, BookCopy, SendToBack, GitBranch, Wand2,
+  Minus, ChevronsLeftRight,
 } from "lucide-react";
 import { BlockEditor, Block, blocksToPlainText } from "@/components/block-editor";
 import { RoleModelsTab } from "@/components/role-models-tab";
@@ -22,24 +22,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface AISuggestedSource {
-  title: string; author: string; url?: string;
-  type: string; quote?: string; notes: string; relevance?: string;
-}
-interface AIResearchResult { advice?: string; sources: AISuggestedSource[]; }
-
-// ─── Source type config ──────────────────────────────────────────────────────
-
-const SOURCE_CFG: Record<string, { icon: any; color: string; label: string }> = {
-  book:             { icon: BookOpen,   color: "#6366F1", label: "Book" },
-  article:          { icon: FileText,   color: "#3B82F6", label: "Article" },
-  website:          { icon: Globe,      color: "#10B981", label: "Web" },
-  research:         { icon: Microscope, color: "#8B5CF6", label: "Research" },
-  quote:            { icon: Quote,      color: "#F59E0B", label: "Quote" },
-  book_excerpt:     { icon: BookMarked, color: "#0D9488", label: "Excerpt" },
-};
 
 const ROLE_MODEL_ANALYSIS_SECTIONS = [
   { key: "conceptualTendencies",  label: "Conceptual Tendencies",  icon: Brain,       color: "#8B5CF6" },
@@ -93,246 +75,251 @@ function SectionHeader({
   );
 }
 
-// ─── AI Source Finder ────────────────────────────────────────────────────────
+// ─── Role Model Creation Dialog ───────────────────────────────────────────────
 
-function AiSourceFinder({ bookId, book, sources }: { bookId: number; book: Book; sources: Source[] }) {
+const AVATAR_COLORS = ["#8B5CF6","#6366F1","#0EA5E9","#10B981","#F59E0B","#EC4899","#F96D1C","#64748B"];
+
+function CreateRoleModelDialog({ open, onClose, bookId, book }: {
+  open: boolean; onClose: () => void; bookId: number; book: Book;
+}) {
   const { toast } = useToast();
-  const { lang } = useLang();
   const { handleAiError } = useAiError();
-  const { isFreeMode } = useFreeMode();
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<AIResearchResult | null>(null);
-  const [addedTitles, setAddedTitles] = useState<Set<string>>(new Set());
-  const [addingId, setAddingId] = useState<string | null>(null);
-  const [showAdvice, setShowAdvice] = useState(false);
-  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
+  const { lang } = useLang();
 
-  const QUICK_CHIPS = book.mode === "fiction"
-    ? ["Психология персонажей", "Атмосфера и сеттинг", "Техники диалога", "Историческая достоверность"]
-    : ["Актуальные исследования", "Классические труды", "Статистика и данные", "Методология"];
+  const [step, setStep] = useState<"form"|"analyzing"|"done">("form");
+  const [authorName, setAuthorName] = useState("");
+  const [sourceName, setSourceName] = useState("");
+  const [customInstruction, setCustomInstruction] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [analysis, setAnalysis] = useState<any>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleSearch = async (q?: string) => {
-    const finalQuery = q || query;
-    if (!finalQuery.trim()) return;
-    setLoading(true);
-    setResult(null);
-    setShowAdvice(false);
-    setAddedTitles(new Set());
+  useEffect(() => {
+    if (!open) { setStep("form"); setAuthorName(""); setSourceName(""); setCustomInstruction(""); setFile(null); setFileError(""); setAnalysis(null); }
+  }, [open]);
+
+  const handleFile = (f: File) => {
+    const ext = f.name.split(".").pop()?.toLowerCase() || "";
+    if (!["epub","fb2","txt","md"].includes(ext)) { setFileError("Поддерживаются: EPUB, FB2, TXT"); return; }
+    setFile(f); setFileError("");
+  };
+
+  const extractText = async (f: File): Promise<string> => {
+    const ext = f.name.split(".").pop()?.toLowerCase() || "";
+    if (ext === "txt" || ext === "md") return f.text();
+    if (ext === "fb2") {
+      const raw = await f.text();
+      return raw.replace(/<binary[^>]*>[\s\S]*?<\/binary>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s{2,}/g," ").trim();
+    }
+    // For EPUB, use server extraction
+    const fd = new FormData(); fd.append("file", f);
+    const resp = await fetch("/api/extract-file-text", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error("Не удалось извлечь текст из файла");
+    const data = await resp.json();
+    return data.text || "";
+  };
+
+  const handleSubmit = async () => {
+    if (!authorName.trim()) return;
+    setStep("analyzing"); setFileError("");
     try {
-      const data = await apiRequest("POST", "/api/ai/research", {
-        query: finalQuery.trim(),
+      let rawSourceText = "";
+      if (file) {
+        setExtracting(true);
+        try { rawSourceText = await extractText(file); } catch (e: any) { setFileError(e.message); setStep("form"); setExtracting(false); return; }
+        setExtracting(false);
+      }
+
+      // Create role model record
+      const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+      const model: any = await apiRequest("POST", `/api/books/${bookId}/role-models`, {
+        name: authorName.trim(),
+        authorName: authorName.trim(),
+        sourceTitle: sourceName.trim() || undefined,
+        avatarColor,
+      });
+
+      // Deep analyze
+      const result: any = await apiRequest("POST", `/api/role-models/${model.id}/deep-analyze`, {
+        rawSourceText: rawSourceText || `Стиль автора: ${authorName}`,
+        lang,
         bookTitle: book.title,
         bookMode: book.mode,
-        existingSources: sources,
-        lang,
+        customInstruction: customInstruction.trim() || undefined,
       });
-      setResult(data);
-      setShowAdvice(true);
+
+      queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "role-models"] });
+      setAnalysis(result);
+      setStep("done");
     } catch (e: any) {
-      if (!handleAiError(e)) toast({ title: "Ошибка AI запроса", variant: "destructive" });
-    } finally {
-      setLoading(false);
+      setStep("form");
+      if (!handleAiError(e)) toast({ title: "Ошибка анализа", variant: "destructive" });
     }
   };
 
-  const addSourceMutation = useMutation({
-    mutationFn: (s: AISuggestedSource) =>
-      apiRequest("POST", `/api/books/${bookId}/sources`, {
-        title: s.title, author: s.author, url: s.url || "",
-        quote: s.quote || "", notes: s.notes, type: s.type,
-      }),
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "sources"] });
-      setAddedTitles(prev => new Set([...prev, vars.title]));
-      setAddingId(null);
-      toast({ title: "Источник сохранён в библиотеку" });
-    },
-    onError: () => { setAddingId(null); toast({ title: "Ошибка сохранения", variant: "destructive" }); },
-  });
-
-  const sourceCfg = (type: string) => SOURCE_CFG[type] || { icon: FileText, color: "#6B7280", label: type };
+  if (!open) return null;
+  const color = "#8B5CF6";
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm">
-      <SectionHeader
-        icon={Search} color="#3B82F6"
-        title="ИИ Поиск Ресурсов"
-        description="Контекстный поиск — ИИ знает о вашей книге и подбирает релевантные материалы"
-      />
-
-      {/* Context chip */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-200/40">
-          <BookOpen className="h-3 w-3" />
-          {book.title}
-        </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted/60 text-muted-foreground border border-border/40">
-          <Sparkles className="h-3 w-3" />
-          {book.mode === "fiction" ? "Художественная" : "Научная"} литература
-        </div>
-      </div>
-
-      {/* Quick chips */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        {QUICK_CHIPS.map(chip => (
-          <button key={chip} onClick={() => { setQuery(chip); handleSearch(chip); }}
-            className="px-3 py-1 rounded-full text-xs font-medium bg-secondary hover:bg-primary/10 hover:text-primary border border-border/50 hover:border-primary/30 transition-all">
-            {chip}
-          </button>
-        ))}
-      </div>
-
-      {/* Search input */}
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSearch()}
-            placeholder="Опишите тему, идею или вопрос для исследования…"
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm outline-none focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/10 transition-all"
-          />
-        </div>
-        <button onClick={() => handleSearch()}
-          disabled={!query.trim() || loading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-          style={{ background: "linear-gradient(135deg, #3B82F6, #6366F1)" }}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {loading ? "Ищу…" : "Найти"}
-        </button>
-      </div>
-
-      {/* Loading state */}
-      {loading && (
-        <div className="mt-6 flex flex-col items-center gap-3 py-8">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "rgba(59,130,246,0.1)" }}>
-            <Sparkles className="h-6 w-6 text-blue-500 animate-pulse" />
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] bg-background"
+        onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/50 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: `${color}18` }}>
+              <Brain className="h-4 w-4" style={{ color }} />
+            </div>
+            <span className="font-bold text-sm">
+              {step === "done" ? "Анализ завершён" : "Новая ролевая модель"}
+            </span>
           </div>
-          <p className="text-sm text-muted-foreground text-center">ИИ анализирует контекст вашей книги и ищет ресурсы…</p>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      )}
 
-      {/* Results */}
-      {result && !loading && (
-        <div className="mt-5 space-y-3">
-          {/* Strategy advice */}
-          {result.advice && showAdvice && (
-            <div className="p-4 rounded-xl border border-blue-200/30 bg-blue-50/50 dark:bg-blue-950/20">
-              <div className="flex items-start gap-2.5">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,0.12)" }}>
-                  <Lightbulb className="h-3.5 w-3.5 text-blue-500" />
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {step === "form" && (
+            <>
+              {/* Author name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Имя автора *</label>
+                <input
+                  value={authorName} onChange={e => setAuthorName(e.target.value)} autoFocus
+                  placeholder="Например: Умберто Эко, Стивен Пинкер…"
+                  className="w-full rounded-xl border border-border bg-background/50 px-3.5 py-2.5 text-sm outline-none focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10 transition-all"
+                />
+              </div>
+
+              {/* Source title */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Источник (книга / статья)</label>
+                <input
+                  value={sourceName} onChange={e => setSourceName(e.target.value)}
+                  placeholder="Название произведения для анализа…"
+                  className="w-full rounded-xl border border-border bg-background/50 px-3.5 py-2.5 text-sm outline-none focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10 transition-all"
+                />
+              </div>
+
+              {/* File upload */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Файл для анализа (EPUB / FB2 / TXT)</label>
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+                  onDragOver={e => e.preventDefault()}
+                  className="w-full rounded-xl border-2 border-dashed border-border/50 hover:border-violet-400/50 transition-colors p-5 flex flex-col items-center gap-2 cursor-pointer text-center"
+                >
+                  {file ? (
+                    <>
+                      <FileText className="h-8 w-8" style={{ color }} />
+                      <p className="text-sm font-semibold">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+                      <button onClick={e => { e.stopPropagation(); setFile(null); }} className="text-xs text-destructive hover:underline">Убрать</button>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-8 w-8 text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground">Перетащите файл или нажмите для выбора</p>
+                      <p className="text-[11px] text-muted-foreground/50">EPUB, FB2, TXT — до 30 MB</p>
+                    </>
+                  )}
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-blue-600 mb-1">Стратегия исследования</p>
-                  <p className="text-xs text-blue-700/80 dark:text-blue-300/70 leading-relaxed">{result.advice}</p>
-                </div>
-                <button onClick={() => setShowAdvice(false)} className="ml-auto text-muted-foreground/40 hover:text-muted-foreground">
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <input ref={fileRef} type="file" accept=".epub,.fb2,.txt,.md" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+                {fileError && <p className="text-xs text-destructive">{fileError}</p>}
+              </div>
+
+              {/* Custom instruction */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Особые указания для анализа</label>
+                <textarea
+                  value={customInstruction} onChange={e => setCustomInstruction(e.target.value)}
+                  rows={3}
+                  placeholder="Например: сосредоточься на структуре аргументации, игнорируй стилистику…"
+                  className="w-full rounded-xl border border-border bg-background/50 px-3.5 py-2.5 text-sm resize-none outline-none focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10 transition-all"
+                />
+              </div>
+            </>
+          )}
+
+          {step === "analyzing" && (
+            <div className="flex flex-col items-center gap-4 py-10">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: `${color}12` }}>
+                <Brain className="h-8 w-8 animate-pulse" style={{ color }} />
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-sm">{extracting ? "Извлекаю текст из файла…" : "Глубокий анализ стиля…"}</p>
+                <p className="text-xs text-muted-foreground mt-1">ИИ изучает {authorName} по 11 измерениям</p>
+              </div>
+              <div className="flex gap-1">
+                {[0,1,2].map(i => (
+                  <div key={i} className="w-2 h-2 rounded-full animate-bounce" style={{ background: color, animationDelay: `${i * 0.15}s` }} />
+                ))}
               </div>
             </div>
           )}
 
-          {/* Divider + count */}
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {result.sources.length} источников найдено
-            </p>
-            {result.sources.some(s => !addedTitles.has(s.title)) && (
+          {step === "done" && analysis && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50/60 dark:bg-green-950/20 border border-green-200/40">
+                <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-sm text-green-700 dark:text-green-400">Ролевая модель создана</p>
+                  <p className="text-xs text-green-600/70 dark:text-green-400/60 mt-0.5">Анализ {authorName} доступен в разделе Ролевые модели</p>
+                </div>
+              </div>
+              {analysis.stylePatterns && (
+                <div className="p-4 rounded-xl border border-border/50 bg-secondary/30 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Стиль</p>
+                  <p className="text-sm leading-relaxed">{analysis.stylePatterns}</p>
+                </div>
+              )}
+              {analysis.conceptualTendencies && (
+                <div className="p-4 rounded-xl border border-border/50 bg-secondary/30 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Концептуальные тенденции</p>
+                  <p className="text-sm leading-relaxed">{analysis.conceptualTendencies}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {step !== "analyzing" && (
+          <div className="flex gap-2 px-5 pb-5 pt-3 border-t border-border/50 flex-shrink-0">
+            <button onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-border/60 text-muted-foreground hover:bg-secondary transition-colors">
+              {step === "done" ? "Закрыть" : "Отмена"}
+            </button>
+            {step === "form" && (
               <button
-                onClick={() => result.sources.forEach(s => { if (!addedTitles.has(s.title)) addSourceMutation.mutate(s); })}
-                className="text-xs font-medium text-blue-500 hover:text-blue-600 flex items-center gap-1">
-                <ArrowDownToLine className="h-3 w-3" /> Добавить все
+                onClick={handleSubmit}
+                disabled={!authorName.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ background: `linear-gradient(135deg, ${color}, #6366F1)` }}>
+                <Wand2 className="h-4 w-4" /> Анализировать
               </button>
             )}
           </div>
-
-          {/* Source cards */}
-          <div className="space-y-2">
-            {result.sources.map((src, i) => {
-              const cfg = sourceCfg(src.type);
-              const Icon = cfg.icon;
-              const isAdded = addedTitles.has(src.title);
-              const isExpanded = expandedCards.has(i);
-              return (
-                <div key={i} className={cn(
-                  "rounded-xl border transition-all overflow-hidden",
-                  isAdded ? "border-green-400/30 bg-green-50/40 dark:bg-green-950/20" : "border-border/50 bg-background hover:border-blue-300/40 hover:shadow-sm"
-                )}>
-                  <div className="flex items-start gap-3 p-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${cfg.color}12` }}>
-                      <Icon className="h-4 w-4" style={{ color: cfg.color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold leading-tight">{src.title}</p>
-                          {src.author && <p className="text-xs text-muted-foreground mt-0.5">{src.author}</p>}
-                        </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0"
-                          style={{ background: `${cfg.color}15`, color: cfg.color }}>
-                          {cfg.label}
-                        </span>
-                      </div>
-                      {src.notes && (
-                        <p className={cn("text-xs text-muted-foreground mt-1.5 leading-relaxed", !isExpanded && "line-clamp-2")}>
-                          {src.notes}
-                        </p>
-                      )}
-                      {src.notes && src.notes.length > 120 && (
-                        <button onClick={() => setExpandedCards(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s; })}
-                          className="text-[10px] text-blue-500 mt-0.5 flex items-center gap-0.5">
-                          {isExpanded ? <><ChevronUp className="h-3 w-3" />Свернуть</> : <><ChevronDown className="h-3 w-3" />Подробнее</>}
-                        </button>
-                      )}
-                      <div className="flex items-center gap-2 mt-2">
-                        {src.url && (
-                          <a href={src.url} target="_blank" rel="noopener noreferrer"
-                            className="text-[11px] text-blue-500 flex items-center gap-0.5 hover:underline">
-                            <ExternalLink className="h-3 w-3" />Открыть
-                          </a>
-                        )}
-                        {src.relevance && (
-                          <span className="text-[11px] text-muted-foreground">· {src.relevance}</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => { setAddingId(src.title); addSourceMutation.mutate(src); }}
-                      disabled={isAdded || addingId === src.title}
-                      className={cn(
-                        "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all flex-shrink-0",
-                        isAdded
-                          ? "bg-green-100 dark:bg-green-950/40 text-green-600"
-                          : "bg-blue-50 dark:bg-blue-950/30 text-blue-600 hover:bg-blue-100"
-                      )}>
-                      {addingId === src.title ? <Loader2 className="h-3 w-3 animate-spin" /> :
-                       isAdded ? <Check className="h-3 w-3" /> : <ArrowDownToLine className="h-3 w-3" />}
-                      {isAdded ? "Сохранено" : "Сохранить"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── Role Models Section ─────────────────────────────────────────────────────
 
-function RoleModelsSection({
-  bookId, book, onOpenEditor,
-}: { bookId: number; book: Book; onOpenEditor: () => void }) {
+function RoleModelsSection({ bookId, book }: { bookId: number; book: Book }) {
   const { toast } = useToast();
   const { handleAiError } = useAiError();
   const [selectedModel, setSelectedModel] = useState<AuthorRoleModel | null>(null);
   const [analyzing, setAnalyzing] = useState<number | null>(null);
   const [openSection, setOpenSection] = useState<string | null>("stylePatterns");
+  const [showCreate, setShowCreate] = useState(false);
 
   const { data: models = [] } = useQuery<AuthorRoleModel[]>({
     queryKey: ["/api/books", bookId, "role-models"],
@@ -359,12 +346,13 @@ function RoleModelsSection({
 
   return (
     <>
+      <CreateRoleModelDialog open={showCreate} onClose={() => setShowCreate(false)} bookId={bookId} book={book} />
       <div className="rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm">
         <SectionHeader
           icon={Brain} color="#8B5CF6"
           title="Ролевые Модели"
           description="Изучите стиль авторов-ориентиров — нажмите на карточку для полного анализа"
-          action={onOpenEditor}
+          action={() => setShowCreate(true)}
           actionLabel="Добавить"
           actionIcon={Plus}
         />
@@ -375,7 +363,7 @@ function RoleModelsSection({
               <Brain className="h-6 w-6" style={{ color: "#8B5CF6" }} />
             </div>
             <p className="text-sm text-muted-foreground">Добавьте автора-ориентира для анализа стиля</p>
-            <button onClick={onOpenEditor}
+            <button onClick={() => setShowCreate(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
               style={{ background: "linear-gradient(135deg, #8B5CF6, #6366F1)" }}>
               <Plus className="h-4 w-4" /> Добавить ролевую модель
@@ -444,7 +432,7 @@ function RoleModelsSection({
             })}
             {/* Add more tile */}
             <button
-              onClick={onOpenEditor}
+              onClick={() => setShowCreate(true)}
               className="p-4 rounded-xl border-2 border-dashed border-border/40 hover:border-violet-300/50 hover:bg-violet-50/20 dark:hover:bg-violet-950/10 transition-all flex flex-col items-center justify-center gap-2 text-muted-foreground/40 hover:text-violet-400"
             >
               <Plus className="h-5 w-5" />
@@ -730,6 +718,14 @@ function DraftEditor({ draft, bookId, book, chapters, onBack }: {
   const [aiTip, setAiTip] = useState("");
   const [tipLoading, setTipLoading] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const [fontScale, setFontScaleRaw] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem("moodra_editorFontScale")); return v >= 70 && v <= 160 ? v : 100; } catch { return 100; }
+  });
+  const [maxWidth, setMaxWidthRaw] = useState<number>(() => {
+    try { const v = Number(localStorage.getItem("moodra_editorMaxWidth")); return v >= 480 && v <= 1010 ? v : 768; } catch { return 768; }
+  });
+  const setFontScale = (u: number | ((v: number) => number)) => setFontScaleRaw(prev => { const n = typeof u === "function" ? u(prev) : u; try { localStorage.setItem("moodra_editorFontScale", String(n)); } catch {} return n; });
+  const setMaxWidth = (u: number | ((v: number) => number)) => setMaxWidthRaw(prev => { const n = typeof u === "function" ? u(prev) : u; try { localStorage.setItem("moodra_editorMaxWidth", String(n)); } catch {} return n; });
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => apiRequest("PATCH", `/api/drafts/${draft.id}`, data),
@@ -890,6 +886,21 @@ function DraftEditor({ draft, bookId, book, chapters, onBack }: {
         </div>
       </div>
 
+      {/* Toolbar row — font scale + max width */}
+      <div className="flex-shrink-0 border-b border-border/30 px-4 py-2 flex items-center gap-3 bg-background/60">
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => setFontScale(v => Math.max(70, v - 5))} className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors text-xs font-bold">A<sup className="text-[7px]">–</sup></button>
+          <button onClick={() => setFontScale(100)} className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors w-8 text-center tabular-nums">{fontScale}%</button>
+          <button onClick={() => setFontScale(v => Math.min(160, v + 5))} className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors text-xs font-bold">A<sup className="text-[7px]">+</sup></button>
+        </div>
+        <div className="w-px h-4 bg-border/60" />
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => setMaxWidth(v => Math.max(480, v - 60))} className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors"><Minus className="h-3 w-3" /></button>
+          <button onClick={() => setMaxWidth(768)} className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"><ChevronsLeftRight className="h-3 w-3" /><span className="tabular-nums w-8 text-center">{maxWidth}</span></button>
+          <button onClick={() => setMaxWidth(v => Math.min(1010, v + 60))} className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors"><Plus className="h-3 w-3" /></button>
+        </div>
+      </div>
+
       {/* AI tip bar */}
       {aiTip && (
         <div className="flex-shrink-0 flex items-start gap-2.5 px-5 py-2.5 bg-amber-50/60 dark:bg-amber-950/20 border-b border-amber-200/30">
@@ -900,12 +911,14 @@ function DraftEditor({ draft, bookId, book, chapters, onBack }: {
       )}
 
       {/* Block editor */}
-      <div className="flex-1 overflow-hidden">
-        <BlockEditor
-          key={draft.id}
-          initialContent={draft.content || ""}
-          onChange={newBlocks => { setBlocks(newBlocks); setIsDirty(true); }}
-        />
+      <div className="flex-1 overflow-hidden" style={{ zoom: fontScale / 100 }}>
+        <div style={{ maxWidth, margin: "0 auto" }}>
+          <BlockEditor
+            key={draft.id}
+            initialContent={draft.content || ""}
+            onChange={newBlocks => { setBlocks(newBlocks); setIsDirty(true); }}
+          />
+        </div>
       </div>
 
       {/* Bottom bar */}
@@ -1015,13 +1028,8 @@ function DraftEditor({ draft, bookId, book, chapters, onBack }: {
 // ─── Main Workspace ───────────────────────────────────────────────────────────
 
 export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book }) {
-  const [view, setView] = useState<"workspace" | "draft-editor" | "models-editor">("workspace");
+  const [view, setView] = useState<"workspace" | "draft-editor">("workspace");
   const [activeDraft, setActiveDraft] = useState<Draft | null>(null);
-
-  const { data: sources = [] } = useQuery<Source[]>({
-    queryKey: ["/api/books", bookId, "sources"],
-    queryFn: () => apiRequest("GET", `/api/books/${bookId}/sources`),
-  });
 
   const { data: chapters = [] } = useQuery<Chapter[]>({
     queryKey: ["/api/books", bookId, "chapters"],
@@ -1046,61 +1054,36 @@ export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book
     );
   }
 
-  if (view === "models-editor") {
-    return (
-      <div className="h-full flex flex-col">
-        <div className="flex-shrink-0 border-b border-border/30 px-4 py-3">
-          <button onClick={() => setView("workspace")}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-            Research Studio
-          </button>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <RoleModelsTab bookId={bookId} book={book} />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Workspace header */}
-      <div className="px-6 pt-6 pb-4 border-b border-border/30 flex-shrink-0">
-        <div className="flex items-center gap-3 mb-1">
+      <div className="px-5 pt-4 pb-3 border-b border-border/30 flex-shrink-0">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, rgba(249,109,28,0.2), rgba(249,109,28,0.1))" }}>
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.18), rgba(99,102,241,0.1))" }}>
+              <Brain className="h-3.5 w-3.5" style={{ color: "#8B5CF6" }} />
             </div>
-            <span className="text-lg font-bold tracking-tight">Research Studio</span>
+            <span className="text-sm font-bold tracking-tight">Черновики и ролевые модели</span>
           </div>
-          <div className="h-5 w-px bg-border/40" />
+          <div className="h-4 w-px bg-border/40" />
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <BookOpen className="h-3 w-3" />
-            <span className="truncate max-w-[200px]">{book.title}</span>
+            <span className="truncate max-w-[160px]">{book.title}</span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground/70">Исследовательская платформа — поиск ресурсов, черновики, анализ стиля</p>
       </div>
 
-      {/* Content */}
-      <div className="p-6 space-y-6">
-        {/* AI Source Finder — full width */}
-        <AiSourceFinder bookId={bookId} book={book} sources={sources} />
+      {/* 50 / 50 split — each panel independently scrollable */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: Role Models */}
+        <div className="flex-1 overflow-y-auto border-r border-border/30 p-4">
+          <RoleModelsSection bookId={bookId} book={book} />
+        </div>
 
-        {/* Role Models + Drafts — side by side */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <RoleModelsSection
-            bookId={bookId}
-            book={book}
-            onOpenEditor={() => setView("models-editor")}
-          />
-          <DraftsSection
-            bookId={bookId}
-            book={book}
-            onOpenDraft={handleOpenDraft}
-          />
+        {/* Right: Drafts */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <DraftsSection bookId={bookId} book={book} onOpenDraft={handleOpenDraft} />
         </div>
       </div>
     </div>
