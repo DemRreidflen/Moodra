@@ -104,6 +104,7 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
   const [showLocalGraph, setShowLocalGraph] = useState(false);
   const [showEmbedded, setShowEmbedded] = useState(false);
   const [orphansOnly, setOrphansOnly] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   // ── Quick capture ─────────────────────────────────────────────────────────────
   const [quickText, setQuickText] = useState("");
@@ -390,39 +391,39 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
       .flatMap(s => s.split(",").filter(Boolean)).length;
     return (
       <div
-        className="group p-3.5 rounded-xl border cursor-pointer transition-all hover:shadow-sm"
+        className="group rounded-xl border cursor-pointer transition-all hover:shadow-sm overflow-hidden"
         style={{ borderColor: `${nt.color}22`, background: "hsl(var(--card))" }}
         onClick={() => openEditor(note)}
       >
-        <div className="flex items-start gap-2.5 mb-1.5">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-            style={{ background: nt.bg, border: `1px solid ${nt.color}25` }}>
-            <NtIcon className="h-3 w-3" style={{ color: nt.color }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-sm leading-snug truncate">{note.title}</h4>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className="text-[10px] font-medium" style={{ color: nt.color }}>{nt.label}</span>
-              {note.importance === "high" && <span className="text-[10px] flex items-center gap-0.5" style={{ color: imp.color }}><ImpIcon className="h-2 w-2" />High</span>}
-              {colCount > 0 && <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5"><Folder className="h-2 w-2" />{colCount}</span>}
-              {linkCount > 0 && <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5"><Link2 className="h-2 w-2" />{linkCount}</span>}
-              {note.tags && <span className="text-[10px] text-muted-foreground/50 truncate max-w-[100px]">#{note.tags.split(",")[0]?.trim()}</span>}
+        {/* Coloured top stripe */}
+        <div style={{ height: 3, background: nt.color, opacity: 0.75 }} />
+        <div className="p-3.5">
+          <div className="flex items-start gap-2.5 mb-1">
+            <div className="flex-1 min-w-0">
+              <h4 className="font-semibold text-sm leading-snug truncate">{note.title}</h4>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="text-[10px] text-muted-foreground/50">{nt.label}</span>
+                {note.importance === "high" && <span className="text-[10px] flex items-center gap-0.5" style={{ color: imp.color }}><ImpIcon className="h-2 w-2" />High</span>}
+                {colCount > 0 && <span className="text-[10px] text-muted-foreground/50 flex items-center gap-0.5"><Folder className="h-2 w-2" />{colCount}</span>}
+                {linkCount > 0 && <span className="text-[10px] text-muted-foreground/50 flex items-center gap-0.5"><Link2 className="h-2 w-2" />{linkCount}</span>}
+                {note.tags && <span className="text-[10px] text-muted-foreground/40 truncate max-w-[100px]">#{note.tags.split(",")[0]?.trim()}</span>}
+              </div>
             </div>
+            {showActions && (
+              <div className="flex-shrink-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                <button title="Send to Draft" onClick={() => sendToDraft(note)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted/80 text-muted-foreground transition-colors">
+                  <SendHorizontal className="h-2.5 w-2.5" />
+                </button>
+                <button title="Delete" onClick={() => deleteMutation.mutate(note.id)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-muted-foreground hover:text-red-500 transition-colors">
+                  <Trash2 className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            )}
           </div>
-          {showActions && (
-            <div className="flex-shrink-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-              <button title="Send to Draft" onClick={() => sendToDraft(note)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-violet-100 text-muted-foreground hover:text-violet-600 transition-colors">
-                <SendHorizontal className="h-2.5 w-2.5" />
-              </button>
-              <button title="Delete" onClick={() => deleteMutation.mutate(note.id)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-muted-foreground hover:text-red-500 transition-colors">
-                <Trash2 className="h-2.5 w-2.5" />
-              </button>
-            </div>
+          {note.content && (
+            <p className="text-xs text-muted-foreground/55 line-clamp-2 leading-relaxed">{note.content}</p>
           )}
         </div>
-        {note.content && (
-          <p className="text-xs text-muted-foreground/60 line-clamp-2 pl-8 leading-relaxed">{note.content}</p>
-        )}
       </div>
     );
   };
@@ -431,252 +432,276 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
   // ── EDITOR VIEW ──────────────────────────────────────────────────────────────
   if (view === "editor") {
     const currentNT = getNoteType(editType);
-    const NtIcon = currentNT.icon;
     const isArchived = editStatus === "archived";
 
     return (
-      <div className="h-full flex flex-col" style={{ background: isArchived ? "#FAFAFA" : undefined }}>
-        {/* Header */}
-        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border flex-shrink-0">
+      <div className="h-full flex flex-col" style={{ background: "hsl(var(--background))" }}>
+        {/* ── Apple Notes–style header ─────────────────────────────────────── */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 flex-shrink-0">
           <button onClick={goBack}
             className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary text-muted-foreground transition-colors flex-shrink-0">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <input
-            value={editTitle}
-            onChange={e => { setEditTitle(e.target.value); isDirty.current = true; }}
-            placeholder="Note title…"
-            className="flex-1 bg-transparent outline-none text-sm font-semibold placeholder:font-normal placeholder:text-muted-foreground/50 min-w-0"
-            autoFocus
-          />
+          <div className="flex-1 min-w-0 flex flex-col">
+            <input
+              value={editTitle}
+              onChange={e => { setEditTitle(e.target.value); isDirty.current = true; }}
+              placeholder="Title"
+              className="bg-transparent outline-none text-[15px] font-semibold leading-tight placeholder:text-muted-foreground/35 min-w-0 w-full"
+              autoFocus
+            />
+            {editNote?.createdAt && (
+              <span className="text-[10px] text-muted-foreground/40 leading-none mt-0.5">
+                {new Date(editNote.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+              </span>
+            )}
+          </div>
           <button
             onClick={handleSave}
             disabled={updateMutation.isPending || createMutation.isPending}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-50 flex-shrink-0"
-            style={{ background: "#F96D1C" }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all disabled:opacity-50 flex-shrink-0"
+            style={{ background: "rgba(249,109,28,0.12)", color: "#F96D1C", border: "1px solid rgba(249,109,28,0.25)" }}
           >
-            {(updateMutation.isPending || createMutation.isPending) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+            {(updateMutation.isPending || createMutation.isPending) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
             Save
           </button>
         </div>
 
-        {/* Type selector */}
-        <div className="px-3 py-2 border-b border-border/40 flex-shrink-0 overflow-x-auto">
-          <div className="flex gap-1.5 min-w-max">
-            {NOTE_TYPES.map(nt => {
-              const NtI = nt.icon;
-              return (
-                <button key={nt.value} onClick={() => { setEditType(nt.value); isDirty.current = true; }}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all flex-shrink-0"
-                  style={{
-                    background: editType === nt.value ? nt.bg : "hsl(var(--secondary))",
-                    color: editType === nt.value ? nt.color : "hsl(var(--muted-foreground))",
-                    border: editType === nt.value ? `1.5px solid ${nt.color}40` : "1.5px solid transparent",
-                  }}
-                >
-                  <NtI className="h-2.5 w-2.5" />{nt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Coloured stripe matching the selected type */}
+        <div style={{ height: 2, background: currentNT.color, opacity: 0.6, flexShrink: 0 }} />
 
-        {/* Content + metadata */}
+        {/* ── Writing area ─────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
-          {/* Main textarea */}
-          <div className="p-4">
+          <div className="px-4 pt-4 pb-2">
             <textarea
               value={editContent}
               onChange={e => { setEditContent(e.target.value); isDirty.current = true; }}
-              placeholder={`Write your ${currentNT.label.toLowerCase()} here…`}
-              className="w-full min-h-[180px] bg-transparent outline-none text-sm leading-[1.85] placeholder:text-muted-foreground/35 resize-none"
+              placeholder="Start writing…"
+              className="w-full min-h-[220px] bg-transparent outline-none text-sm leading-[1.85] placeholder:text-muted-foreground/30 resize-none"
+              style={{ fontFamily: "inherit" }}
             />
           </div>
 
-          {/* Metadata row */}
-          <div className="px-4 pb-3 flex flex-wrap gap-2 border-t border-border/30 pt-3">
-            {/* Status */}
-            <div className="flex flex-col gap-1">
-              <p className="text-[9px] uppercase tracking-wider font-semibold text-muted-foreground/60">Status</p>
-              <div className="flex gap-1">
-                {NOTE_STATUSES.filter(s => s.value !== "inbox").map(st => {
-                  const StI = st.icon;
-                  return (
-                    <button key={st.value} onClick={() => { setEditStatus(st.value); isDirty.current = true; }}
-                      title={st.label}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all"
-                      style={{
-                        background: editStatus === st.value ? `${st.color}18` : "hsl(var(--secondary))",
-                        color: editStatus === st.value ? st.color : "hsl(var(--muted-foreground))",
-                        border: editStatus === st.value ? `1.5px solid ${st.color}35` : "1.5px solid transparent",
-                      }}
-                    >
-                      <StI className="h-2.5 w-2.5" />{st.label}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* ── Compact metadata bar ─────────────────────────────────────── */}
+          <div className="border-t border-border/25 mx-4" />
+          <div className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
+            {/* Type / colour dots */}
+            <div className="flex items-center gap-1.5">
+              {NOTE_TYPES.map(nt => (
+                <button
+                  key={nt.value}
+                  onClick={() => { setEditType(nt.value); isDirty.current = true; }}
+                  title={nt.label}
+                  className="transition-all"
+                  style={{
+                    width: editType === nt.value ? 14 : 10,
+                    height: editType === nt.value ? 14 : 10,
+                    borderRadius: "50%",
+                    background: nt.color,
+                    opacity: editType === nt.value ? 1 : 0.35,
+                    outline: editType === nt.value ? `2px solid ${nt.color}55` : "none",
+                    outlineOffset: 2,
+                    flexShrink: 0,
+                  }}
+                />
+              ))}
             </div>
 
-            {/* Importance */}
-            <div className="flex flex-col gap-1">
-              <p className="text-[9px] uppercase tracking-wider font-semibold text-muted-foreground/60">Importance</p>
-              <div className="flex gap-1">
-                {IMPORTANCE_LEVELS.map(im => {
-                  const ImI = im.icon;
-                  return (
-                    <button key={im.value} onClick={() => { setEditImportance(im.value); isDirty.current = true; }}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all"
-                      style={{
-                        background: editImportance === im.value ? `${im.color}15` : "hsl(var(--secondary))",
-                        color: editImportance === im.value ? im.color : "hsl(var(--muted-foreground))",
-                        border: editImportance === im.value ? `1.5px solid ${im.color}30` : "1.5px solid transparent",
-                      }}
-                    >
-                      <ImI className="h-2.5 w-2.5" />{im.label}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="h-3.5 w-px bg-border/40 flex-shrink-0" />
+
+            {/* Status compact selector */}
+            <div className="flex items-center gap-1">
+              {NOTE_STATUSES.filter(s => s.value !== "inbox").map(st => {
+                const StI = st.icon;
+                const active = editStatus === st.value;
+                return (
+                  <button key={st.value}
+                    onClick={() => { setEditStatus(st.value); isDirty.current = true; }}
+                    title={st.label}
+                    className="w-6 h-6 flex items-center justify-center rounded-md transition-all"
+                    style={{
+                      background: active ? `${st.color}18` : "transparent",
+                      color: active ? st.color : "hsl(var(--muted-foreground))",
+                      opacity: active ? 1 : 0.45,
+                    }}
+                  >
+                    <StI className="h-3 w-3" />
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="h-3.5 w-px bg-border/40 flex-shrink-0" />
+
+            {/* Importance compact */}
+            <div className="flex items-center gap-1">
+              {IMPORTANCE_LEVELS.map(im => {
+                const ImI = im.icon;
+                const active = editImportance === im.value;
+                return (
+                  <button key={im.value}
+                    onClick={() => { setEditImportance(im.value); isDirty.current = true; }}
+                    title={im.label}
+                    className="w-6 h-6 flex items-center justify-center rounded-md transition-all"
+                    style={{
+                      background: active ? `${im.color}15` : "transparent",
+                      color: active ? im.color : "hsl(var(--muted-foreground))",
+                      opacity: active ? 1 : 0.45,
+                    }}
+                  >
+                    <ImI className="h-3 w-3" />
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="ml-auto">
+              <button
+                onClick={() => setShowDetails(v => !v)}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                <Tag className="h-3 w-3" />
+                Details
+                {showDetails ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+              </button>
             </div>
           </div>
 
-          {/* Tags */}
-          <div className="px-4 pb-3">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/60 bg-secondary/30">
-              <Tag className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
-              <input
-                value={editTags}
-                onChange={e => { setEditTags(e.target.value); isDirty.current = true; }}
-                placeholder="Tags separated by commas…"
-                className="flex-1 bg-transparent outline-none text-xs placeholder:text-muted-foreground/40"
-              />
+          {/* ── Expandable details ───────────────────────────────────────── */}
+          {showDetails && (
+            <div className="px-4 pb-3 space-y-2 border-t border-border/20 pt-3">
+              {/* Tags */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/40 bg-secondary/20">
+                <Tag className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />
+                <input
+                  value={editTags}
+                  onChange={e => { setEditTags(e.target.value); isDirty.current = true; }}
+                  placeholder="Tags, comma-separated…"
+                  className="flex-1 bg-transparent outline-none text-xs placeholder:text-muted-foreground/35"
+                />
+              </div>
+
+              {/* Collections */}
+              <div className="rounded-lg border border-border/50 overflow-hidden">
+                <button onClick={() => setShowCollectionPicker(v => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                  <Folder className="h-3 w-3" />
+                  Collections
+                  {editCollectionIds.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: "rgba(249,109,28,0.12)", color: "#F96D1C" }}>
+                      {editCollectionIds.length}
+                    </span>
+                  )}
+                  {showCollectionPicker ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                </button>
+                {showCollectionPicker && (
+                  <div className="border-t border-border/50 max-h-40 overflow-y-auto">
+                    {collections.length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No collections yet</p>
+                    ) : collections.map(col => (
+                      <label key={col.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
+                        <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
+                          style={{ background: editCollectionIds.includes(col.id) ? (col.color ?? undefined) : undefined, borderColor: editCollectionIds.includes(col.id) ? (col.color ?? "hsl(var(--border))") : "hsl(var(--border))" }}>
+                          {editCollectionIds.includes(col.id) && <Check className="h-2 w-2 text-white" />}
+                        </div>
+                        <input type="checkbox" className="sr-only" checked={editCollectionIds.includes(col.id)}
+                          onChange={e => { setEditCollectionIds(prev => e.target.checked ? [...prev, col.id] : prev.filter(id => id !== col.id)); isDirty.current = true; }} />
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: col.color ?? undefined }} />
+                        <span className="text-xs truncate">{col.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Linked Notes */}
+              <div className="rounded-lg border border-border/50 overflow-hidden">
+                <button onClick={() => setShowLinkNotes(v => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                  <Link2 className="h-3 w-3" />
+                  Linked Notes
+                  {editLinkedNoteIds.length > 0 && <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366F1" }}>{editLinkedNoteIds.length}</span>}
+                  {showLinkNotes ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                </button>
+                {showLinkNotes && (
+                  <div className="border-t border-border/50 max-h-40 overflow-y-auto">
+                    {notes.filter(n => n.id !== editNote?.id).length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No other notes yet</p>
+                    ) : notes.filter(n => n.id !== editNote?.id).map(n => (
+                      <label key={n.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
+                        <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
+                          style={{ background: editLinkedNoteIds.includes(n.id) ? "#6366F1" : undefined, borderColor: editLinkedNoteIds.includes(n.id) ? "#6366F1" : "hsl(var(--border))" }}>
+                          {editLinkedNoteIds.includes(n.id) && <Check className="h-2 w-2 text-white" />}
+                        </div>
+                        <input type="checkbox" className="sr-only" checked={editLinkedNoteIds.includes(n.id)}
+                          onChange={e => { setEditLinkedNoteIds(p => e.target.checked ? [...p, n.id] : p.filter(i => i !== n.id)); isDirty.current = true; }} />
+                        <span className="text-xs truncate">{n.title}</span>
+                        <span className="ml-auto text-[10px] text-muted-foreground/50 flex-shrink-0 capitalize">{getNoteType(n.type || "").label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Linked Sources */}
+              <div className="rounded-lg border border-border/50 overflow-hidden">
+                <button onClick={() => setShowLinkSources(v => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                  <Layers className="h-3 w-3" />
+                  Linked Sources
+                  {editLinkedSourceIds.length > 0 && <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(13,148,136,0.12)", color: "#0D9488" }}>{editLinkedSourceIds.length}</span>}
+                  {showLinkSources ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                </button>
+                {showLinkSources && (
+                  <div className="border-t border-border/50 max-h-40 overflow-y-auto">
+                    {sources.length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No sources yet</p>
+                    ) : sources.map((s: any) => (
+                      <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
+                        <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
+                          style={{ background: editLinkedSourceIds.includes(s.id) ? "#0D9488" : undefined, borderColor: editLinkedSourceIds.includes(s.id) ? "#0D9488" : "hsl(var(--border))" }}>
+                          {editLinkedSourceIds.includes(s.id) && <Check className="h-2 w-2 text-white" />}
+                        </div>
+                        <input type="checkbox" className="sr-only" checked={editLinkedSourceIds.includes(s.id)}
+                          onChange={e => { setEditLinkedSourceIds(p => e.target.checked ? [...p, s.id] : p.filter(i => i !== s.id)); isDirty.current = true; }} />
+                        <span className="text-xs truncate">{s.title}</span>
+                        {s.author && <span className="ml-auto text-[10px] text-muted-foreground/50 flex-shrink-0 truncate max-w-[80px]">{s.author}</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Linked Drafts */}
+              <div className="rounded-lg border border-border/50 overflow-hidden">
+                <button onClick={() => setShowLinkDrafts(v => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                  <Edit3 className="h-3 w-3" />
+                  Linked Drafts
+                  {editLinkedDraftIds.length > 0 && <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(249,109,28,0.12)", color: "#F96D1C" }}>{editLinkedDraftIds.length}</span>}
+                  {showLinkDrafts ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                </button>
+                {showLinkDrafts && (
+                  <div className="border-t border-border/50 max-h-40 overflow-y-auto">
+                    {drafts.length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No drafts yet</p>
+                    ) : drafts.map((d: any) => (
+                      <label key={d.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
+                        <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
+                          style={{ background: editLinkedDraftIds.includes(d.id) ? "#F96D1C" : undefined, borderColor: editLinkedDraftIds.includes(d.id) ? "#F96D1C" : "hsl(var(--border))" }}>
+                          {editLinkedDraftIds.includes(d.id) && <Check className="h-2 w-2 text-white" />}
+                        </div>
+                        <input type="checkbox" className="sr-only" checked={editLinkedDraftIds.includes(d.id)}
+                          onChange={e => { setEditLinkedDraftIds(p => e.target.checked ? [...p, d.id] : p.filter(i => i !== d.id)); isDirty.current = true; }} />
+                        <span className="text-xs truncate">{d.title}</span>
+                        {d.type && <span className="ml-auto text-[10px] text-muted-foreground/50 flex-shrink-0 capitalize">{d.type}</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-
-          {/* Collections */}
-          <div className="mx-4 mb-2 rounded-xl border border-border/60 overflow-hidden">
-            <button onClick={() => setShowCollectionPicker(v => !v)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
-              <Folder className="h-3 w-3" />
-              Collections
-              {editCollectionIds.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: "rgba(249,109,28,0.12)", color: "#F96D1C" }}>
-                  {editCollectionIds.length}
-                </span>
-              )}
-              {showCollectionPicker ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
-            </button>
-            {showCollectionPicker && (
-              <div className="border-t border-border/50 max-h-40 overflow-y-auto">
-                {collections.length === 0 ? (
-                  <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No collections yet — create one in Collections view</p>
-                ) : collections.map(col => (
-                  <label key={col.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
-                    <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors`}
-                      style={{ background: editCollectionIds.includes(col.id) ? (col.color ?? undefined) : undefined, borderColor: editCollectionIds.includes(col.id) ? (col.color ?? "hsl(var(--border))") : "hsl(var(--border))" }}>
-                      {editCollectionIds.includes(col.id) && <Check className="h-2 w-2 text-white" />}
-                    </div>
-                    <input type="checkbox" className="sr-only" checked={editCollectionIds.includes(col.id)}
-                      onChange={e => {
-                        setEditCollectionIds(prev => e.target.checked ? [...prev, col.id] : prev.filter(id => id !== col.id));
-                        isDirty.current = true;
-                      }}
-                    />
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: col.color ?? undefined }} />
-                    <span className="text-xs truncate">{col.name}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Linked Notes */}
-          <div className="mx-4 mb-2 rounded-xl border border-border/60 overflow-hidden">
-            <button onClick={() => setShowLinkNotes(v => !v)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
-              <Link2 className="h-3 w-3" />
-              Linked Notes
-              {editLinkedNoteIds.length > 0 && <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366F1" }}>{editLinkedNoteIds.length}</span>}
-              {showLinkNotes ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
-            </button>
-            {showLinkNotes && (
-              <div className="border-t border-border/50 max-h-40 overflow-y-auto">
-                {notes.filter(n => n.id !== editNote?.id).length === 0 ? (
-                  <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No other notes yet</p>
-                ) : notes.filter(n => n.id !== editNote?.id).map(n => (
-                  <label key={n.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
-                    <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
-                      style={{ background: editLinkedNoteIds.includes(n.id) ? "#6366F1" : undefined, borderColor: editLinkedNoteIds.includes(n.id) ? "#6366F1" : "hsl(var(--border))" }}>
-                      {editLinkedNoteIds.includes(n.id) && <Check className="h-2 w-2 text-white" />}
-                    </div>
-                    <input type="checkbox" className="sr-only" checked={editLinkedNoteIds.includes(n.id)}
-                      onChange={e => { setEditLinkedNoteIds(p => e.target.checked ? [...p, n.id] : p.filter(i => i !== n.id)); isDirty.current = true; }} />
-                    <span className="text-xs truncate">{n.title}</span>
-                    <span className="ml-auto text-[10px] text-muted-foreground/50 flex-shrink-0 capitalize">{getNoteType(n.type || "").label}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Linked Sources */}
-          <div className="mx-4 mb-2 rounded-xl border border-border/60 overflow-hidden">
-            <button onClick={() => setShowLinkSources(v => !v)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
-              <Layers className="h-3 w-3" />
-              Linked Sources
-              {editLinkedSourceIds.length > 0 && <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(13,148,136,0.12)", color: "#0D9488" }}>{editLinkedSourceIds.length}</span>}
-              {showLinkSources ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
-            </button>
-            {showLinkSources && (
-              <div className="border-t border-border/50 max-h-40 overflow-y-auto">
-                {sources.length === 0 ? (
-                  <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No sources yet</p>
-                ) : sources.map((s: any) => (
-                  <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
-                    <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
-                      style={{ background: editLinkedSourceIds.includes(s.id) ? "#0D9488" : undefined, borderColor: editLinkedSourceIds.includes(s.id) ? "#0D9488" : "hsl(var(--border))" }}>
-                      {editLinkedSourceIds.includes(s.id) && <Check className="h-2 w-2 text-white" />}
-                    </div>
-                    <input type="checkbox" className="sr-only" checked={editLinkedSourceIds.includes(s.id)}
-                      onChange={e => { setEditLinkedSourceIds(p => e.target.checked ? [...p, s.id] : p.filter(i => i !== s.id)); isDirty.current = true; }} />
-                    <span className="text-xs truncate">{s.title}</span>
-                    {s.author && <span className="ml-auto text-[10px] text-muted-foreground/50 flex-shrink-0 truncate max-w-[80px]">{s.author}</span>}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Linked Drafts */}
-          <div className="mx-4 mb-3 rounded-xl border border-border/60 overflow-hidden">
-            <button onClick={() => setShowLinkDrafts(v => !v)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
-              <Edit3 className="h-3 w-3" />
-              Linked Drafts
-              {editLinkedDraftIds.length > 0 && <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(249,109,28,0.12)", color: "#F96D1C" }}>{editLinkedDraftIds.length}</span>}
-              {showLinkDrafts ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
-            </button>
-            {showLinkDrafts && (
-              <div className="border-t border-border/50 max-h-40 overflow-y-auto">
-                {drafts.length === 0 ? (
-                  <p className="px-3 py-3 text-xs text-muted-foreground/60 italic">No drafts yet</p>
-                ) : drafts.map((d: any) => (
-                  <label key={d.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-secondary/40 cursor-pointer">
-                    <div className="w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
-                      style={{ background: editLinkedDraftIds.includes(d.id) ? "#F96D1C" : undefined, borderColor: editLinkedDraftIds.includes(d.id) ? "#F96D1C" : "hsl(var(--border))" }}>
-                      {editLinkedDraftIds.includes(d.id) && <Check className="h-2 w-2 text-white" />}
-                    </div>
-                    <input type="checkbox" className="sr-only" checked={editLinkedDraftIds.includes(d.id)}
-                      onChange={e => { setEditLinkedDraftIds(p => e.target.checked ? [...p, d.id] : p.filter(i => i !== d.id)); isDirty.current = true; }} />
-                    <span className="text-xs truncate">{d.title}</span>
-                    {d.type && <span className="ml-auto text-[10px] text-muted-foreground/50 flex-shrink-0 capitalize">{d.type}</span>}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* ─── Obsidian: Backlinks ──────────────────────────────────────────── */}
           {editNote && (

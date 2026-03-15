@@ -273,3 +273,27 @@
 }
 
 .streak-badge-anim { animation: streakBounce 0.5s ease; }
+
+/* ── Links in block editor (contenteditable) and layout panel preview ───── */
+[contenteditable] a,
+[contenteditable] a:visited {
+  color: #3B82F6;
+  text-decoration: underline;
+  text-decoration-color: rgba(59, 130, 246, 0.45);
+  cursor: pointer;
+}
+[contenteditable] a:hover {
+  color: #2563EB;
+  text-decoration-color: rgba(37, 99, 235, 0.70);
+}
+
+/* Layout panel inline links */
+.layout-block-content a,
+.layout-block-content a:visited {
+  color: #2563EB;
+  text-decoration: underline;
+  text-decoration-color: rgba(37, 99, 235, 0.40);
+}
+.layout-block-content a:hover {
+  text-decoration-color: rgba(37, 99, 235, 0.80);
+}

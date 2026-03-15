@@ -496,20 +496,6 @@ function FormatToolbar({
         </div>
 
         {fmtBtn(false, s.clearFormat, () => cmd("removeFormat"), <RemoveFormatting className="h-3.5 w-3.5" />)}
-
-        <Sep />
-
-        <select
-          value={lineSpacing}
-          onChange={e => onLineSpacingChange(e.target.value)}
-          onMouseDown={e => e.stopPropagation()}
-          className="h-7 text-xs text-muted-foreground bg-transparent border border-border/40 rounded-lg px-1 appearance-none cursor-pointer hover:border-primary/50 transition-colors w-14 text-center"
-          title={s.lineSpacing}
-        >
-          {LINE_SPACINGS.map(ls => (
-            <option key={ls.value} value={ls.value}>{ls.label}</option>
-          ))}
-        </select>
       </div>
     </div>
   );

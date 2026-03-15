@@ -361,6 +361,7 @@ function Page({
 
       {/* Content */}
       <div
+        className="layout-block-content"
         style={{
           position: "absolute",
           top: marginPx,
@@ -469,7 +470,23 @@ function Page({
                 color: accent,
                 borderBottom: nestBorderLeft ? undefined : `1px solid ${accent}22`,
                 paddingBottom: fontSizePx * 0.2,
-              }}>{b.text}</h3>
+              }} dangerouslySetInnerHTML={{ __html: b.text }} />
+            );
+          }
+          if (b.type === "h3") {
+            return (
+              <h4 key={i} style={{
+                fontFamily,
+                fontSize: fontSizePx * 1.05,
+                fontWeight: 600,
+                marginTop: fontSizePx * 0.7 + paraSpacingPx,
+                marginBottom: fontSizePx * 0.2,
+                marginLeft: indentPx,
+                paddingLeft: nestPaddingLeft,
+                borderLeft: nestBorderLeft,
+                lineHeight: 1.3,
+                color: "#333",
+              }} dangerouslySetInnerHTML={{ __html: b.text }} />
             );
           }
           if (b.type === "quote") {
@@ -489,7 +506,7 @@ function Page({
                 background: `${accent}06`,
                 padding: `${fontSizePx * 0.4}px ${fontSizePx * 0.9}px`,
                 borderRadius: "0 4px 4px 0",
-              }}>{b.text}</blockquote>
+              }} dangerouslySetInnerHTML={{ __html: b.text }} />
             );
           }
           if (b.type === "bullet_item") {
@@ -507,7 +524,8 @@ function Page({
                 marginBottom: fontSizePx * 0.1 + paraSpacingPx,
                 marginTop: 0,
               }}>
-                <span style={{ marginRight: fontSizePx * 0.4 }}>•</span>{b.text}
+                <span style={{ marginRight: fontSizePx * 0.4 }}>•</span>
+                <span dangerouslySetInnerHTML={{ __html: b.text }} />
               </p>
             );
           }
@@ -525,7 +543,7 @@ function Page({
                 textIndent: 0,
                 marginBottom: fontSizePx * 0.1 + paraSpacingPx,
                 marginTop: 0,
-              }}>{b.text}</p>
+              }} dangerouslySetInnerHTML={{ __html: b.text }} />
             );
           }
           if (b.type === "check_item") {
@@ -543,7 +561,8 @@ function Page({
                 marginBottom: fontSizePx * 0.1 + paraSpacingPx,
                 marginTop: 0,
               }}>
-                <span style={{ marginRight: fontSizePx * 0.3, opacity: 0.7 }}>{b.checked ? "☑" : "☐"}</span>{b.text}
+                <span style={{ marginRight: fontSizePx * 0.3, opacity: 0.7 }}>{b.checked ? "☑" : "☐"}</span>
+                <span dangerouslySetInnerHTML={{ __html: b.text }} />
               </p>
             );
           }
@@ -595,7 +614,7 @@ function Page({
               color: "#1a1a1a",
               marginBottom: fontSizePx * 0.15 + paraSpacingPx,
               marginTop: 0,
-            }}>{b.text}</p>
+            }} dangerouslySetInnerHTML={{ __html: b.text }} />
           );
         })}
       </div>
