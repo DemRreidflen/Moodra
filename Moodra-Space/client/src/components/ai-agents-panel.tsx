@@ -12,6 +12,7 @@ import {
   ClipboardCopy, Hash, Lightbulb, Target, Feather
 } from "lucide-react";
 import type { Book } from "@shared/schema";
+import { PredictiveInsights } from "./predictive-insights";
 
 // ─── Agent definitions ────────────────────────────────────────────────────────
 
@@ -249,6 +250,7 @@ export function AiAgentsPanel({ bookId, book }: { bookId: number; book: Book }) 
   const [isRunning, setIsRunning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [expandedFns, setExpandedFns] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
 
   const { data: notes = [] } = useQuery<any[]>({
     queryKey: ["/api/books", bookId, "notes"],
@@ -276,7 +278,13 @@ export function AiAgentsPanel({ bookId, book }: { bookId: number; book: Book }) 
   const { data: boardData } = useQuery<{ data: string }>({
     queryKey: ["/api/books", bookId, "board"],
     queryFn: () => apiRequest("GET", `/api/books/${bookId}/board`),
-    enabled: false,
+    staleTime: 60_000,
+  });
+
+  const { data: chapters = [] } = useQuery<any[]>({
+    queryKey: ["/api/books", bookId, "chapters"],
+    queryFn: () => apiRequest("GET", `/api/books/${bookId}/chapters`),
+    staleTime: 60_000,
   });
 
   const getActiveContent = () => {
@@ -381,12 +389,35 @@ export function AiAgentsPanel({ bookId, book }: { bookId: number; book: Book }) 
         </div>
 
         <div className="flex-1 overflow-y-auto py-2 px-2">
+          {/* Insights special entry */}
+          <button
+            onClick={() => { setShowInsights(true); setSelectedAgent(null); setSelectedFn(null); setResult(""); }}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all mb-2 border",
+              showInsights ? "shadow-sm" : "hover:bg-accent/40 border-transparent"
+            )}
+            style={showInsights ? { background: "#FFFBEB", border: "1px solid #FDE68A" } : {}}
+          >
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: showInsights ? "#FFFBEB" : "#F59E0B15", border: `1px solid ${showInsights ? "#FDE68A" : "#F59E0B30"}` }}>
+              <Lightbulb style={{ width: 12, height: 12, color: "#F59E0B" }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold truncate" style={{ color: showInsights ? "#F59E0B" : undefined }}>Smart Insights</p>
+              <p className="text-[9px] text-muted-foreground truncate">AI-powered suggestions</p>
+            </div>
+            {showInsights && <ChevronRight style={{ width: 10, height: 10, color: "#F59E0B", flexShrink: 0 }} />}
+          </button>
+
+          {/* Divider */}
+          <div className="mx-2 mb-2 border-t border-border/40" />
+
           {AGENTS.map(agent => {
             const Icon = agent.icon;
-            const isActive = selectedAgent?.id === agent.id;
+            const isActive = !showInsights && selectedAgent?.id === agent.id;
             return (
               <button key={agent.id}
-                onClick={() => { setSelectedAgent(agent); setSelectedFn(null); setResult(""); setExpandedFns(false); }}
+                onClick={() => { setSelectedAgent(agent); setSelectedFn(null); setResult(""); setExpandedFns(false); setShowInsights(false); }}
                 className={cn(
                   "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all mb-1",
                   isActive ? "shadow-sm" : "hover:bg-accent/40"
@@ -410,7 +441,52 @@ export function AiAgentsPanel({ bookId, book }: { bookId: number; book: Book }) 
 
       {/* ── Main workspace ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {!selectedAgent ? (
+        {/* Insights view */}
+        {showInsights && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 border-b border-border/60 px-5 py-3 flex items-center gap-3"
+              style={{ background: "#FFFBEB" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "#FEF9C3", border: "1.5px solid #FDE68A" }}>
+                <Lightbulb style={{ width: 16, height: 16, color: "#F59E0B" }} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold" style={{ color: "#F59E0B" }}>Smart Insights</p>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "#FDE68A40", color: "#D97706" }}>
+                    predictive analysis
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Proactive suggestions based on your book's knowledge structure.
+                </p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 max-w-3xl">
+              <PredictiveInsights
+                notes={notes}
+                sources={sources}
+                boardDataRaw={boardData?.data || ""}
+                chapters={chapters}
+                lang={lang}
+                onRunAgent={(agentId, fnId) => {
+                  const agent = AGENTS.find(a => a.id === agentId);
+                  const fn = agent?.functions.find(f => f.id === fnId);
+                  if (agent && fn) {
+                    setShowInsights(false);
+                    setSelectedAgent(agent);
+                    setSelectedFn(fn);
+                    setResult("");
+                    setContextTab("paste");
+                  }
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* No selection state */}
+        {!showInsights && !selectedAgent && (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
               <Brain className="h-7 w-7 text-primary/40" />
@@ -423,7 +499,7 @@ export function AiAgentsPanel({ bookId, book }: { bookId: number; book: Book }) 
               {AGENTS.map(a => {
                 const Icon = a.icon;
                 return (
-                  <button key={a.id} onClick={() => setSelectedAgent(a)}
+                  <button key={a.id} onClick={() => { setSelectedAgent(a); setShowInsights(false); }}
                     className="flex flex-col items-center gap-1.5 p-3 rounded-xl hover:bg-accent/40 transition-all" style={{ border: `1px solid ${a.color}20` }}>
                     <Icon style={{ width: 18, height: 18, color: a.color }} />
                     <span className="text-[9px] font-medium" style={{ color: a.color }}>{a.name}</span>
@@ -432,7 +508,10 @@ export function AiAgentsPanel({ bookId, book }: { bookId: number; book: Book }) 
               })}
             </div>
           </div>
-        ) : (
+        )}
+
+        {/* Agent workspace */}
+        {!showInsights && selectedAgent && (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Agent header */}
             <div className="flex-shrink-0 border-b border-border/60 px-5 py-3 flex items-start gap-3"

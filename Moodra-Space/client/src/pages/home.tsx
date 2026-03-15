@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { ImagePlus, X, Flame, Trophy, BookOpen, Cpu } from "lucide-react";
+import { ImagePlus, X, Flame, Trophy, BookOpen, Cpu, PenLine, ArrowRight } from "lucide-react";
 import { useLang } from "@/contexts/language-context";
 import { LanguagePicker } from "@/components/language-picker";
 import { useStreak } from "@/hooks/use-streak";
@@ -555,6 +555,48 @@ export default function Home() {
             )}
           </div>
         )}
+
+        {/* ── Continue Writing nudge ────────────────────────────────────────── */}
+        {books.length > 0 && !isLoading && (() => {
+        const recent = [...books].sort((a, b) =>
+          new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
+        )[0];
+        if (!recent) return null;
+        const updatedAt = recent.updatedAt ? new Date(recent.updatedAt) : null;
+        const dayDiff = updatedAt ? Math.floor((Date.now() - updatedAt.getTime()) / 86400000) : null;
+        const dayStr: Record<string, string> = {
+          en: dayDiff === 0 ? "today" : dayDiff === 1 ? "yesterday" : `${dayDiff} days ago`,
+          ru: dayDiff === 0 ? "сегодня" : dayDiff === 1 ? "вчера" : `${dayDiff} дн. назад`,
+          ua: dayDiff === 0 ? "сьогодні" : dayDiff === 1 ? "вчора" : `${dayDiff} дн. тому`,
+          de: dayDiff === 0 ? "heute" : dayDiff === 1 ? "gestern" : `vor ${dayDiff} Tagen`,
+        };
+        const continueLabel: Record<string, string> = { en: "Continue writing", ru: "Продолжить писать", ua: "Продовжити писати", de: "Weiterschreiben" };
+        const lastEditedLabel: Record<string, string> = { en: "Last edited", ru: "Последнее изменение", ua: "Останні зміни", de: "Zuletzt bearbeitet" };
+        const ll = lang as string;
+        return (
+          <div className="border-t mt-14 pt-7 flex items-center justify-between gap-4 flex-wrap" style={{ borderColor: "rgba(249,109,28,0.10)" }}>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(249,109,28,0.09)" }}>
+                <PenLine className="w-4 h-4" style={{ color: "#F96D1C" }} />
+              </div>
+              <div>
+                <p className="text-xs font-medium" style={{ color: "#c0b0a0" }}>
+                  {lastEditedLabel[ll] || lastEditedLabel.en}{dayDiff !== null ? ` · ${dayStr[ll] || dayStr.en}` : ""}
+                </p>
+                <p className="text-sm font-semibold leading-tight" style={{ color: "#2d1a0e" }}>{recent.title}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate(`/book/${recent.id}`)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:scale-[1.03] hover:shadow-md"
+              style={{ background: "linear-gradient(120deg, #F96D1C, #FF9640)", color: "#fff", boxShadow: "0 2px 12px rgba(249,109,28,0.22)" }}
+            >
+              {continueLabel[ll] || continueLabel.en}
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        );
+        })()}
       </main>
 
       <SiteFooter />

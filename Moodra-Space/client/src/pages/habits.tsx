@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Flame, Target, Trophy, CalendarDays, Plus, Check, BookOpen, Edit3, PenLine } from "lucide-react";
+import { ArrowLeft, Flame, Target, Trophy, CalendarDays, Plus, Check, BookOpen, Edit3, PenLine, X, ListTodo, Circle, CheckCircle2, Flag, Trash2 } from "lucide-react";
 import { useLang } from "@/contexts/language-context";
 import { LanguagePicker } from "@/components/language-picker";
 import { SiteFooter } from "@/components/site-footer";
@@ -9,6 +9,27 @@ import {
   addPlannedEntry, addDayNote, getTodayStr,
   type WritingLogEntry, type StreakGoal,
 } from "@/hooks/use-streak";
+
+// ─── To-Do helpers ────────────────────────────────────────────────────────────
+
+interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+  priority: "normal" | "high";
+  createdAt: string;
+}
+
+const TODO_KEY = "moodra_todos";
+
+function loadTodos(): TodoItem[] {
+  try { return JSON.parse(localStorage.getItem(TODO_KEY) || "[]"); } catch { return []; }
+}
+function saveTodos(items: TodoItem[]) {
+  localStorage.setItem(TODO_KEY, JSON.stringify(items));
+}
+
+// ─── Calendar helpers ──────────────────────────────────────────────────────────
 
 function getMonthDays(year: number, month: number): { date: string; dayOfWeek: number }[] {
   const days: { date: string; dayOfWeek: number }[] = [];
@@ -66,6 +87,52 @@ export default function HabitsPage() {
   const [goalAmount, setGoalAmount] = useState(500);
   const [showNoteFor, setShowNoteFor] = useState<string | null>(null);
   const [noteInput, setNoteInput] = useState("");
+
+  // ── To-Do state ─────────────────────────────────────────────────────────────
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [todoInput, setTodoInput] = useState("");
+  const [todoPriority, setTodoPriority] = useState<"normal" | "high">("normal");
+  const [showDone, setShowDone] = useState(false);
+  const todoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTodos(loadTodos());
+  }, []);
+
+  const addTodo = () => {
+    if (!todoInput.trim()) return;
+    const item: TodoItem = {
+      id: Math.random().toString(36).slice(2, 10),
+      text: todoInput.trim(),
+      done: false,
+      priority: todoPriority,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [item, ...todos];
+    setTodos(updated);
+    saveTodos(updated);
+    setTodoInput("");
+    setTodoPriority("normal");
+  };
+
+  const toggleTodo = (id: string) => {
+    const updated = todos.map(t => t.id === id ? { ...t, done: !t.done } : t);
+    setTodos(updated);
+    saveTodos(updated);
+  };
+
+  const deleteTodo = (id: string) => {
+    const updated = todos.filter(t => t.id !== id);
+    setTodos(updated);
+    saveTodos(updated);
+  };
+
+  const clearDone = () => {
+    const updated = todos.filter(t => !t.done);
+    setTodos(updated);
+    saveTodos(updated);
+  };
+  // ────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     setLog(loadWritingLog());
@@ -395,6 +462,144 @@ export default function HabitsPage() {
             </div>
           </div>
         )}
+
+        {/* ── To-Do Section ───────────────────────────────────────────────────── */}
+        {(() => {
+          const activeTodos = todos.filter(t => !t.done);
+          const doneTodos = todos.filter(t => t.done);
+          const todoLabels: Record<string, Record<string, string>> = {
+            en: { title: "To-Do", add: "Add task…", placeholder: "What do you want to accomplish?", markHigh: "High priority", done: "Done", noDone: "No completed tasks", noTasks: "Your to-do list is empty", clearDone: "Clear done", showDone: "Show done", hideDone: "Hide done" },
+            ru: { title: "Задачи", add: "Добавить задачу…", placeholder: "Что нужно сделать?", markHigh: "Приоритет", done: "Выполнено", noDone: "Нет выполненных задач", noTasks: "Список задач пуст", clearDone: "Очистить выполненные", showDone: "Показать выполненные", hideDone: "Скрыть выполненные" },
+            ua: { title: "Завдання", add: "Додати завдання…", placeholder: "Що потрібно зробити?", markHigh: "Пріоритет", done: "Виконано", noDone: "Немає виконаних завдань", noTasks: "Список завдань порожній", clearDone: "Очистити виконані", showDone: "Показати виконані", hideDone: "Сховати виконані" },
+            de: { title: "Aufgaben", add: "Aufgabe hinzufügen…", placeholder: "Was möchtest du erledigen?", markHigh: "Hohe Priorität", done: "Erledigt", noDone: "Keine erledigten Aufgaben", noTasks: "Aufgabenliste ist leer", clearDone: "Erledigte löschen", showDone: "Erledigte anzeigen", hideDone: "Erledigte ausblenden" },
+          };
+          const tl = todoLabels[lang] || todoLabels.en;
+
+          return (
+            <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.07)", boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(99,102,241,0.10)" }}>
+                    <ListTodo className="w-3.5 h-3.5" style={{ color: "#6366F1" }} />
+                  </div>
+                  <span className="text-sm font-bold" style={{ color: "#2d1a0e" }}>{tl.title}</span>
+                  {activeTodos.length > 0 && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366F1" }}>
+                      {activeTodos.length}
+                    </span>
+                  )}
+                </div>
+                {doneTodos.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowDone(v => !v)}
+                      className="text-[11px] font-medium transition-all hover:opacity-70"
+                      style={{ color: "#8a7a70" }}
+                    >
+                      {showDone ? tl.hideDone : `${tl.showDone} (${doneTodos.length})`}
+                    </button>
+                    {showDone && (
+                      <button
+                        onClick={clearDone}
+                        className="text-[11px] font-medium transition-all hover:opacity-70 flex items-center gap-1"
+                        style={{ color: "#ef4444" }}
+                      >
+                        <Trash2 className="w-3 h-3" /> {tl.clearDone}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Add input */}
+              <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(0,0,0,0.04)", background: "rgba(99,102,241,0.02)" }}>
+                <div className="flex gap-2 items-center">
+                  <button
+                    onClick={() => setTodoPriority(p => p === "high" ? "normal" : "high")}
+                    title={tl.markHigh}
+                    className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-all hover:opacity-80"
+                    style={{ background: todoPriority === "high" ? "rgba(239,68,68,0.12)" : "rgba(0,0,0,0.05)" }}
+                  >
+                    <Flag className="w-3 h-3" style={{ color: todoPriority === "high" ? "#ef4444" : "#c0b0a0" }} />
+                  </button>
+                  <input
+                    ref={todoInputRef}
+                    value={todoInput}
+                    onChange={e => setTodoInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
+                    placeholder={tl.placeholder}
+                    className="flex-1 h-9 px-3 text-sm rounded-xl border outline-none transition-colors"
+                    style={{ background: "#fff", borderColor: "rgba(99,102,241,0.2)", color: "#2d1a0e" }}
+                    onFocus={e => (e.target.style.borderColor = "#6366F1")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(99,102,241,0.2)")}
+                  />
+                  <button
+                    onClick={addTodo}
+                    disabled={!todoInput.trim()}
+                    className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-all disabled:opacity-30"
+                    style={{ background: "rgba(99,102,241,0.12)", color: "#6366F1" }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Active tasks */}
+              <div className="p-3 space-y-1">
+                {activeTodos.length === 0 && doneTodos.length === 0 && (
+                  <p className="text-xs text-center py-4" style={{ color: "#c0b0a0" }}>{tl.noTasks}</p>
+                )}
+                {activeTodos.map(item => (
+                  <div key={item.id}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all group hover:bg-black/[0.025]">
+                    <button onClick={() => toggleTodo(item.id)} className="flex-shrink-0 transition-all hover:scale-110">
+                      <Circle className="w-4 h-4" style={{ color: item.priority === "high" ? "#ef4444" : "#c0b0a0" }} />
+                    </button>
+                    {item.priority === "high" && (
+                      <Flag className="w-2.5 h-2.5 flex-shrink-0" style={{ color: "#ef4444" }} />
+                    )}
+                    <span className="flex-1 text-sm" style={{ color: "#2d1a0e" }}>{item.text}</span>
+                    <button
+                      onClick={() => deleteTodo(item.id)}
+                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 transition-all hover:text-red-500"
+                      style={{ color: "#c0b0a0" }}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Done tasks */}
+                {showDone && doneTodos.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                      <div className="h-px flex-1" style={{ background: "rgba(0,0,0,0.06)" }} />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#c0b0a0" }}>{tl.done}</span>
+                      <div className="h-px flex-1" style={{ background: "rgba(0,0,0,0.06)" }} />
+                    </div>
+                    {doneTodos.map(item => (
+                      <div key={item.id}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all group hover:bg-black/[0.02] opacity-50">
+                        <button onClick={() => toggleTodo(item.id)} className="flex-shrink-0 transition-all hover:scale-110">
+                          <CheckCircle2 className="w-4 h-4" style={{ color: "#10B981" }} />
+                        </button>
+                        <span className="flex-1 text-sm line-through" style={{ color: "#8a7a70" }}>{item.text}</span>
+                        <button
+                          onClick={() => deleteTodo(item.id)}
+                          className="opacity-0 group-hover:opacity-100 flex-shrink-0 transition-all hover:text-red-500"
+                          style={{ color: "#c0b0a0" }}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Recent activity list */}
         <div>
