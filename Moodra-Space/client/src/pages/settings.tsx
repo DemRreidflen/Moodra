@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useLang } from "@/contexts/language-context";
 import { LANGUAGES } from "@/lib/translations";
 import type { Lang } from "@/lib/translations";
+import { LanguagePicker } from "@/components/language-picker";
 import {
   MArrowLeft, MLogout, MUser, MBookOpen, MKey, MGear,
   MFlash, MGlobe, MTrash, MCheck,
@@ -110,16 +111,26 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "hsl(30, 58%, 97%)" }}>
+      <header className="sticky top-0 z-10 border-b" style={{
+        background: "rgba(250,242,234,0.85)",
+        backdropFilter: "blur(12px)",
+        borderColor: "rgba(249,109,28,0.12)",
+      }}>
+        <div className="max-w-2xl mx-auto px-6 h-14 flex items-center gap-3">
+          <button
+            data-testid="button-back"
+            onClick={() => navigate("/")}
+            className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-70"
+            style={{ color: "#8a7a70" }}
+          >
+            <MArrowLeft size={16} />
+            {t.common.back}
+          </button>
+          <div className="flex-1" />
+          <LanguagePicker size="sm" />
+        </div>
+      </header>
       <div className="flex-1 max-w-2xl mx-auto w-full px-6 py-10">
-        <button
-          data-testid="button-back"
-          onClick={() => navigate("/")}
-          className="flex items-center gap-2 text-sm mb-8 transition-opacity hover:opacity-70"
-          style={{ color: "#8a7a70" }}
-        >
-          <MArrowLeft size={16} />
-          {t.common.back}
-        </button>
 
         <h1 className="text-2xl font-bold mb-8" style={{ color: "#1a1a1a" }}>
           {s.title}

@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useLang } from "@/contexts/language-context";
 import { SiteFooter } from "@/components/site-footer";
 import { MArrowLeft, MBookOpen } from "@/components/icons";
+import { LanguagePicker } from "@/components/language-picker";
 
 export default function FaqPage() {
   const { t } = useLang();
@@ -31,6 +32,7 @@ export default function FaqPage() {
             </button>
           </Link>
           <div className="flex-1" />
+          <LanguagePicker size="sm" />
         </div>
       </header>
 
