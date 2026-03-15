@@ -1,0 +1,1918 @@
+import type { Express, Request, Response } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { insertBookSchema, insertChapterSchema, insertCharacterSchema, insertNoteSchema, insertSourceSchema, insertHypothesisSchema } from "@shared/schema";
+import OpenAI from "openai";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { isAuthenticated } from "./replit_integrations/auth/replitAuth";
+import { authStorage } from "./replit_integrations/auth/storage";
+import JSZip from "jszip";
+import { Document, Paragraph, HeadingLevel, TextRun, PageBreak, Header, Footer, AlignmentType, PageNumber, NumberFormat, convertInchesToTwip, LineRuleType, BorderStyle } from "docx";
+
+function getUserId(req: Request): string {
+  return (req.user as any)?.id as string;
+}
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadsDir,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `cover-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only images allowed"));
+  },
+});
+
+const uploadText = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowed = [".epub", ".txt", ".md", ".text"];
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error("Only EPUB or text files are supported"));
+  },
+});
+
+const ALLOWED_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini", "gpt-3.5-turbo", "gpt-4-turbo"];
+const DEFAULT_MODEL = "gpt-4o-mini";
+
+async function getOpenAI(req: Request): Promise<OpenAI> {
+  const userId = getUserId(req);
+  if (userId) {
+    const user = await authStorage.getUser(userId);
+    if (user?.openaiApiKey) {
+      return new OpenAI({ apiKey: user.openaiApiKey });
+    }
+  }
+  const noKeyError: any = new Error("API ключ не настроен");
+  noKeyError.code = "no_api_key";
+  noKeyError.status = 402;
+  throw noKeyError;
+}
+
+async function getUserModel(req: Request): Promise<string> {
+  const userId = getUserId(req);
+  if (userId) {
+    const user = await authStorage.getUser(userId);
+    if (user?.openaiModel && ALLOWED_MODELS.includes(user.openaiModel)) {
+      return user.openaiModel;
+    }
+  }
+  return DEFAULT_MODEL;
+}
+
+function trackTokens(userId: string | undefined, tokens: number): void {
+  if (!userId || tokens <= 0) return;
+  authStorage.addTokenUsage(userId, tokens).catch(() => {});
+}
+
+const LANG_INSTRUCTIONS: Record<string, string> = {
+  en: "Write in English.",
+  ru: "Пиши на русском языке.",
+  ua: "Пиши українською мовою.",
+  de: "Schreibe auf Deutsch.",
+};
+
+function getLangInstruction(req: Request): string {
+  const lang = (req.body?.lang as string) || "ru";
+  return LANG_INSTRUCTIONS[lang] || LANG_INSTRUCTIONS.ru;
+}
+
+function openAIErrorMessage(e: any): { status: number; message: string; code: string } {
+  const code = e?.code || e?.error?.code || "";
+  const type = e?.type || e?.error?.type || "";
+  if (code === "no_api_key") {
+    return { status: 402, message: "API ключ OpenAI не настроен", code: "no_api_key" };
+  }
+  if (code === "insufficient_quota" || type === "insufficient_quota" || e?.status === 429) {
+    return { status: 402, message: "Баланс OpenAI исчерпан. Пополните счёт на platform.openai.com", code: "quota_exceeded" };
+  }
+  if (code === "invalid_api_key" || e?.status === 401) {
+    return { status: 401, message: "Неверный OpenAI API ключ", code: "invalid_key" };
+  }
+  return { status: 500, message: e?.message || "Ошибка AI-сервиса", code: "unknown" };
+}
+
+export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+
+  // ---- Cover image upload ----
+  app.post("/api/books/:id/cover", upload.single("cover"), async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
+      const coverImage = `/uploads/${req.file.filename}`;
+      const book = await storage.updateBook(id, { coverImage });
+      if (!book) return res.status(404).json({ error: "Книга не найдена" });
+      res.json({ coverImage });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---- User profile ----
+  app.get("/api/me", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/me", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { firstName, lastName } = req.body;
+      const user = await authStorage.updateUserProfile(userId, { firstName, lastName });
+      res.json(user);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/me/api-key", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { apiKey } = req.body;
+      if (!apiKey || typeof apiKey !== "string") {
+        return res.status(400).json({ error: "API ключ не указан" });
+      }
+      const testClient = new OpenAI({ apiKey: apiKey.trim() });
+      await testClient.models.list();
+      await authStorage.updateUserApiKey(userId, apiKey.trim());
+      res.json({ ok: true });
+    } catch (e: any) {
+      if (e?.status === 401) {
+        return res.status(401).json({ error: "Неверный API ключ. Проверьте его на platform.openai.com" });
+      }
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/me/api-key", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      await authStorage.updateUserApiKey(userId, "");
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/user/model", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { model } = req.body;
+      if (!model || !ALLOWED_MODELS.includes(model)) {
+        return res.status(400).json({ error: "Недопустимая модель" });
+      }
+      await authStorage.updateUserModel(userId, model);
+      res.json({ ok: true, model });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---- Books ----
+  app.get("/api/books", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const books = await storage.getBooks(userId);
+      res.json(books);
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка загрузки книг" });
+    }
+  });
+
+  app.get("/api/books/:id", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const book = await storage.getBook(Number(req.params.id));
+      if (!book) return res.status(404).json({ error: "Книга не найдена" });
+      res.json(book);
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка загрузки книги" });
+    }
+  });
+
+  app.post("/api/books", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const data = insertBookSchema.parse(req.body);
+      const book = await storage.createBook({ ...data, userId });
+      res.status(201).json(book);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/books/:id", async (req: Request, res: Response) => {
+    try {
+      const book = await storage.updateBook(Number(req.params.id), req.body);
+      if (!book) return res.status(404).json({ error: "Книга не найдена" });
+      res.json(book);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/books/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteBook(Number(req.params.id));
+      res.status(204).send();
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка удаления книги" });
+    }
+  });
+
+  // ─── Narrative Context (per-book AI context) ─────────────────────────────
+  app.get("/api/books/:id/narrative", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    const bookId = Number(req.params.id);
+    const book = await storage.getBook(bookId);
+    if (!book || book.userId !== userId) return res.status(404).json({ error: "Not found" });
+    res.json(book.narrativeContext || {});
+  });
+
+  app.put("/api/books/:id/narrative", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    const bookId = Number(req.params.id);
+    const book = await storage.getBook(bookId);
+    if (!book || book.userId !== userId) return res.status(404).json({ error: "Not found" });
+    const updated = await storage.updateBook(bookId, { narrativeContext: req.body });
+    res.json(updated?.narrativeContext || {});
+  });
+
+  // ---- Chapters ----
+  app.get("/api/books/:bookId/chapters", async (req: Request, res: Response) => {
+    try {
+      const chapters = await storage.getChapters(Number(req.params.bookId));
+      res.json(chapters);
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка загрузки глав" });
+    }
+  });
+
+  app.get("/api/chapters/:id", async (req: Request, res: Response) => {
+    try {
+      const chapter = await storage.getChapter(Number(req.params.id));
+      if (!chapter) return res.status(404).json({ error: "Глава не найдена" });
+      res.json(chapter);
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка загрузки главы" });
+    }
+  });
+
+  app.post("/api/books/:bookId/chapters", async (req: Request, res: Response) => {
+    try {
+      const data = insertChapterSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const chapter = await storage.createChapter(data);
+      res.status(201).json(chapter);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/chapters/:id", async (req: Request, res: Response) => {
+    try {
+      const chapter = await storage.updateChapter(Number(req.params.id), req.body);
+      if (!chapter) return res.status(404).json({ error: "Глава не найдена" });
+      res.json(chapter);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/chapters/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteChapter(Number(req.params.id));
+      res.status(204).send();
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка удаления главы" });
+    }
+  });
+
+  // ---- Characters ----
+  app.get("/api/books/:bookId/characters", async (req: Request, res: Response) => {
+    try {
+      const chars = await storage.getCharacters(Number(req.params.bookId));
+      res.json(chars);
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка загрузки персонажей" });
+    }
+  });
+
+  app.post("/api/books/:bookId/characters", async (req: Request, res: Response) => {
+    try {
+      const data = insertCharacterSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const char = await storage.createCharacter(data);
+      res.status(201).json(char);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/characters/:id", async (req: Request, res: Response) => {
+    try {
+      const char = await storage.updateCharacter(Number(req.params.id), req.body);
+      if (!char) return res.status(404).json({ error: "Персонаж не найден" });
+      res.json(char);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/characters/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteCharacter(Number(req.params.id));
+      res.status(204).send();
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка удаления персонажа" });
+    }
+  });
+
+  // ---- Notes ----
+  app.get("/api/books/:bookId/notes", async (req: Request, res: Response) => {
+    try {
+      const notesList = await storage.getNotes(Number(req.params.bookId));
+      res.json(notesList);
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка загрузки заметок" });
+    }
+  });
+
+  app.post("/api/books/:bookId/notes", async (req: Request, res: Response) => {
+    try {
+      const data = insertNoteSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const note = await storage.createNote(data);
+      res.status(201).json(note);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/notes/:id", async (req: Request, res: Response) => {
+    try {
+      const note = await storage.updateNote(Number(req.params.id), req.body);
+      if (!note) return res.status(404).json({ error: "Заметка не найдена" });
+      res.json(note);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/notes/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteNote(Number(req.params.id));
+      res.status(204).send();
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка удаления заметки" });
+    }
+  });
+
+  // ---- Sources ----
+  app.get("/api/books/:bookId/sources", async (req: Request, res: Response) => {
+    try {
+      const sourcesList = await storage.getSources(Number(req.params.bookId));
+      res.json(sourcesList);
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка загрузки источников" });
+    }
+  });
+
+  app.post("/api/books/:bookId/sources", async (req: Request, res: Response) => {
+    try {
+      const data = insertSourceSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const src = await storage.createSource(data);
+      res.status(201).json(src);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/sources/:id", async (req: Request, res: Response) => {
+    try {
+      const src = await storage.updateSource(Number(req.params.id), req.body);
+      if (!src) return res.status(404).json({ error: "Источник не найден" });
+      res.json(src);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/sources/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteSource(Number(req.params.id));
+      res.status(204).send();
+    } catch (e) {
+      res.status(500).json({ error: "Ошибка удаления источника" });
+    }
+  });
+
+  // ---- Hypotheses ----
+  app.get("/api/books/:bookId/hypotheses", async (req: Request, res: Response) => {
+    try {
+      const hyps = await storage.getHypotheses(Number(req.params.bookId));
+      res.json(hyps);
+    } catch (e) { res.status(500).json({ error: "Ошибка загрузки гипотез" }); }
+  });
+
+  app.post("/api/books/:bookId/hypotheses", async (req: Request, res: Response) => {
+    try {
+      const data = insertHypothesisSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const hyp = await storage.createHypothesis(data);
+      res.status(201).json(hyp);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.patch("/api/hypotheses/:id", async (req: Request, res: Response) => {
+    try {
+      const hyp = await storage.updateHypothesis(Number(req.params.id), req.body);
+      if (!hyp) return res.status(404).json({ error: "Гипотеза не найдена" });
+      res.json(hyp);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.delete("/api/hypotheses/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteHypothesis(Number(req.params.id));
+      res.status(204).send();
+    } catch (e) { res.status(500).json({ error: "Ошибка удаления" }); }
+  });
+
+  // ---- Idea Board ----
+  app.get("/api/books/:bookId/board", async (req: Request, res: Response) => {
+    try {
+      const board = await storage.getBoard(Number(req.params.bookId));
+      res.json(board || { data: "{}" });
+    } catch (e) { res.status(500).json({ error: "Ошибка загрузки доски" }); }
+  });
+
+  app.patch("/api/books/:bookId/board", async (req: Request, res: Response) => {
+    try {
+      const { data } = req.body;
+      const board = await storage.upsertBoard(Number(req.params.bookId), data);
+      res.json(board);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  // ---- AI Hypothesis Generator ----
+  app.post("/api/ai/hypotheses", async (req: Request, res: Response) => {
+    try {
+      const { bookTitle, bookMode, sources: srcs, existingHypotheses } = req.body;
+      const sourcesText = (srcs || []).map((s: any) => `- "${s.title}" (${s.author || ""}): ${s.notes || s.quote || ""}`).join("\n");
+      const existingText = (existingHypotheses || []).map((h: any) => h.title).join(", ");
+
+      const langInstruction = getLangInstruction(req);
+      const systemPrompt = `Ты — философ и исследователь. Генерируй глубокие, нетривиальные гипотезы на основе предоставленных источников. ${langInstruction}
+Отвечай ТОЛЬКО валидным JSON без markdown-блоков.
+Структура:
+{
+  "hypotheses": [
+    {
+      "title": "Краткая формулировка гипотезы",
+      "description": "Развёрнутое описание (3-4 предложения)",
+      "arguments": "Поддерживающие аргументы (через точку с запятой)",
+      "counterarguments": "Возможные возражения (через точку с запятой)"
+    }
+  ]
+}`;
+
+      const userPrompt = `Книга: "${bookTitle}" (${bookMode === "fiction" ? "художественная" : "научная"})
+${sourcesText ? `Источники:\n${sourcesText}` : ""}
+${existingText ? `Уже есть гипотезы: ${existingText}` : ""}
+Сгенерируй 4 оригинальные гипотезы. Не дублируй существующие.`;
+
+      const ai = await getOpenAI(req);
+      const aiModel = await getUserModel(req);
+      const completion = await ai.chat.completions.create({
+        model: aiModel,
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        temperature: 0.8,
+        max_tokens: 2000,
+        response_format: { type: "json_object" },
+      });
+      trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
+      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(parsed);
+    } catch (e: any) { const { status, message } = openAIErrorMessage(e); res.status(status).json({ error: message }); }
+  });
+
+  // ---- AI Research Discovery ----
+  app.post("/api/ai/research", async (req: Request, res: Response) => {
+    try {
+      const { query, bookTitle, bookMode, existingSources } = req.body;
+      if (!query?.trim()) return res.status(400).json({ error: "Запрос не указан" });
+
+      const existing = (existingSources || []).map((s: any) => s.title).join(", ");
+
+      const langInstruction2 = getLangInstruction(req);
+      const systemPrompt = `Ты — эксперт-исследователь и библиограф. Твоя задача — помочь автору книги найти источники для исследования. ${langInstruction2}
+Отвечай ТОЛЬКО валидным JSON без markdown-блоков и лишнего текста.
+Структура ответа:
+{
+  "advice": "Стратегический совет по исследованию темы (2-3 абзаца)",
+  "sources": [
+    {
+      "title": "Название источника",
+      "author": "Автор (Фамилия И.О. или организация)",
+      "type": "book|article|website|research",
+      "url": "URL если применимо (или пустая строка)",
+      "notes": "Краткое пояснение почему этот источник важен для данной темы",
+      "quote": "Ключевая идея или типичная цитата из этого источника (если применимо)"
+    }
+  ]
+}`;
+
+      const userPrompt = `Книга: "${bookTitle}" (режим: ${bookMode === "fiction" ? "художественная" : "научная"})
+Тема запроса: "${query}"
+${existing ? `Уже есть в базе: ${existing}` : ""}
+
+Предоставь:
+1. Стратегический совет по исследованию этой темы
+2. Ровно 6 релевантных источников (разные типы: книги, статьи, сайты, исследования)
+${existing ? "Не дублируй уже имеющиеся источники." : ""}
+Источники должны быть реалистичными и содержательными.`;
+
+      const ai = await getOpenAI(req);
+      const aiModel = await getUserModel(req);
+      const completion = await ai.chat.completions.create({
+        model: aiModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+        response_format: { type: "json_object" },
+      });
+      trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
+      const raw = completion.choices[0].message.content || "{}";
+      const parsed = JSON.parse(raw);
+      res.json(parsed);
+    } catch (e: any) {
+      const { status, message } = openAIErrorMessage(e);
+      res.status(status).json({ error: message });
+    }
+  });
+
+  // ---- AI Improve ----
+  app.post("/api/ai/improve", async (req: Request, res: Response) => {
+    try {
+      const { text, mode, style, bookTitle, bookMode, customInstruction, targetLang } = req.body;
+      
+      const langInstruction3 = getLangInstruction(req);
+      const modeInstructions: Record<string, string> = {
+        improve:      "Improve and enhance this text: make it clearer, more expressive, and more compelling. Preserve the author's voice and core meaning.",
+        expand:       "Expand this text with more detail, vivid examples, and deeper analysis. Make it richer and more comprehensive.",
+        shorten:      "Make this text more concise — cut unnecessary words, tighten sentences, keep only what matters. Preserve the core meaning.",
+        rephrase:     "Rephrase this text in a different way while preserving the exact meaning. Change the expression, not the substance.",
+        rewrite:      "Completely rewrite this text from scratch while preserving its meaning and intent. Use fresh phrasing, new sentence structures, and a slightly different angle.",
+        simplify:     "Simplify this text: use plainer language, shorter sentences, and clearer ideas. Make it easy to understand without dumbing it down.",
+        example:      "Add a concrete, vivid example or illustration that supports the ideas in this text. Integrate it naturally.",
+        strengthen:   "Strengthen the argument and emotional impact of this text. Make it more powerful, convincing, and memorable.",
+        fix:          "Fix all grammar, spelling, punctuation, and style errors in this text. Preserve the author's voice and meaning.",
+        "fix-grammar":"Fix all grammar, spelling, punctuation, and style errors in this text. Preserve the author's voice and meaning.",
+        "adapt-tone": "Adapt the tone of this text as instructed. Keep the meaning intact while shifting the register, voice, or emotional quality.",
+        translate:    targetLang ? `Translate this text into ${targetLang}. Keep the meaning, tone, and style as close to the original as possible.` : "Translate this text into English. Keep the meaning, tone, and style as close to the original as possible.",
+        format:       "Format and restructure this text according to the user's formatting instructions. Preserve all content and meaning.",
+      };
+      const modeInstruction = modeInstructions[mode] || modeInstructions.improve;
+      const styleNote = style && style !== "original" ? ` Apply a ${style} style.` : "";
+      const customNote = customInstruction ? ` Additional instruction: ${customInstruction}` : "";
+      const systemPrompt = `You are an expert editor and writer. ${modeInstruction}${styleNote}${customNote} Return ONLY the result, no preamble or explanation. ${langInstruction3}
+Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "fiction" : "non-fiction"})`;
+
+      const ai = await getOpenAI(req);
+      const aiModel = await getUserModel(req);
+      const completion = await ai.chat.completions.create({
+        model: aiModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text },
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+      trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
+      const improved = completion.choices[0].message.content?.trim() || "";
+      res.json({ original: text, improved });
+    } catch (e: any) {
+      const { status, message } = openAIErrorMessage(e);
+      res.status(status).json({ error: message });
+    }
+  });
+
+  app.post("/api/ai/adapt-language", async (req: Request, res: Response) => {
+    try {
+      const { text, targetLanguage, bookTitle, bookMode } = req.body;
+      if (!text || !targetLanguage) return res.status(400).json({ error: "text and targetLanguage are required" });
+
+      const systemPrompt = `You are the Native Translation Agent — a specialist in literary language adaptation.
+Your task: Adapt the text natively into ${targetLanguage}.
+Preserve meaning, narrative tone, and stylistic identity of the original text.
+Ensure the adaptation reads naturally for a native ${targetLanguage} speaker while remaining faithful to the original structure and intent.
+This is NOT a literal word-for-word translation but a stylistic language adaptation.
+Return ONLY the adapted text, no preamble or explanation. Do NOT skip or summarize any part — translate the ENTIRE input.
+Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction" : "non-fiction"})`;
+
+      const ai = await getOpenAI(req);
+      const ADAPT_MODEL = "o4-mini";
+      const ADAPT_MAX_TOKENS = 32000;
+
+      const CHUNK_WORD_LIMIT = 6000;
+      const paragraphs = text.split(/\n\n+/);
+
+      const splitOversizedParagraph = (para: string): string[] => {
+        const words = para.split(/\s+/).filter(Boolean);
+        if (words.length <= CHUNK_WORD_LIMIT) return [para];
+        const parts: string[] = [];
+        const sentences = para.split(/(?<=[.!?])\s+/);
+        let buf: string[] = [];
+        let bufWords = 0;
+        for (const sentence of sentences) {
+          const sWords = sentence.split(/\s+/).filter(Boolean).length;
+          if (bufWords + sWords > CHUNK_WORD_LIMIT && buf.length > 0) {
+            parts.push(buf.join(" "));
+            buf = [sentence];
+            bufWords = sWords;
+          } else {
+            buf.push(sentence);
+            bufWords += sWords;
+          }
+        }
+        if (buf.length > 0) parts.push(buf.join(" "));
+        return parts;
+      };
+
+      const chunks: string[] = [];
+      let currentChunk: string[] = [];
+      let currentWordCount = 0;
+
+      for (const para of paragraphs) {
+        const subParas = splitOversizedParagraph(para);
+        for (const sub of subParas) {
+          const subWords = sub.split(/\s+/).filter(Boolean).length;
+          if (currentWordCount + subWords > CHUNK_WORD_LIMIT && currentChunk.length > 0) {
+            chunks.push(currentChunk.join("\n\n"));
+            currentChunk = [sub];
+            currentWordCount = subWords;
+          } else {
+            currentChunk.push(sub);
+            currentWordCount += subWords;
+          }
+        }
+      }
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk.join("\n\n"));
+      }
+
+      const adaptedChunks: string[] = [];
+      let totalTokens = 0;
+
+      for (const chunk of chunks) {
+        const completion = await ai.chat.completions.create({
+          model: ADAPT_MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: chunk },
+          ],
+          max_completion_tokens: ADAPT_MAX_TOKENS,
+        });
+        totalTokens += completion.usage?.total_tokens || 0;
+        const finishReason = completion.choices[0].finish_reason;
+        if (finishReason === "length") {
+          throw Object.assign(new Error("Adaptation output was truncated (max tokens reached). Try splitting the chapter into smaller parts."), { status: 422 });
+        }
+        const result = completion.choices[0].message.content?.trim() || "";
+        adaptedChunks.push(result);
+      }
+
+      trackTokens(getUserId(req), totalTokens);
+      const adapted = adaptedChunks.join("\n\n");
+      res.json({ adapted, chunkCount: chunks.length });
+    } catch (e: any) {
+      const { status, message, code } = openAIErrorMessage(e);
+      res.status(status).json({ error: message, code });
+    }
+  });
+
+  // ---- AI Book Annotation Generation ----
+  app.post("/api/ai/book-annotation", async (req: Request, res: Response) => {
+    try {
+      const { prompt, bookTitle, chapterSummaries, lang } = req.body;
+      const langInstruction = getLangInstruction(req);
+      const systemPrompt = `You are a professional book editor and copywriter. Write a compelling back-cover annotation (book blurb) for the book described below. The annotation must: be between 350 and 600 characters, be written in the same language as the user's description, capture the essence and intrigue of the book without spoilers, be engaging and enticing. Return ONLY the annotation text with no headers, no quotes, no explanations. ${langInstruction}`;
+      const context = [
+        bookTitle ? `Book title: "${bookTitle}"` : "",
+        chapterSummaries ? `Chapter overview:\n${chapterSummaries}` : "",
+        prompt ? `Author's description / notes:\n${prompt}` : "",
+      ].filter(Boolean).join("\n");
+
+      let annotation = "";
+      try {
+        const ai = await getOpenAI(req);
+        const aiModel = await getUserModel(req);
+        const completion = await ai.chat.completions.create({
+          model: aiModel,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: context },
+          ],
+          temperature: 0.75,
+          max_tokens: 400,
+        });
+        trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
+        annotation = completion.choices[0].message.content?.trim() || "";
+      } catch (openaiErr: any) {
+        const seed = Math.floor(Math.random() * 99999);
+        const pollinationsRes = await fetch("https://text.pollinations.ai/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: context },
+            ],
+            model: "openai",
+            seed,
+            private: true,
+          }),
+          signal: AbortSignal.timeout(35000),
+        });
+        if (!pollinationsRes.ok) {
+          return res.status(502).json({ error: "free_unavailable", message: "AI unavailable. Try again in a moment." });
+        }
+        annotation = (await pollinationsRes.text()).trim();
+        if (annotation.startsWith("{") || annotation.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(annotation);
+            annotation = parsed?.choices?.[0]?.message?.content || parsed?.content || annotation;
+          } catch {}
+        }
+      }
+      annotation = annotation.slice(0, 600);
+      res.json({ annotation });
+    } catch (e: any) {
+      res.status(500).json({ error: "annotation_error", message: e?.message || "Failed to generate annotation" });
+    }
+  });
+
+  // ---- File Text Extraction (EPUB / TXT / MD) ----
+  app.post("/api/ai/parse-file", uploadText.single("file"), async (req: Request, res: Response) => {
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+      const ext = path.extname(file.originalname).toLowerCase();
+      let text = "";
+
+      if (ext === ".epub") {
+        const zip = await JSZip.loadAsync(file.buffer);
+        const htmlFiles: string[] = [];
+        zip.forEach((relativePath) => {
+          if (/\.(xhtml|html|htm|xml)$/.test(relativePath) && !relativePath.includes("toc")) {
+            htmlFiles.push(relativePath);
+          }
+        });
+        htmlFiles.sort();
+        const parts: string[] = [];
+        for (const f of htmlFiles) {
+          const content = await zip.file(f)!.async("string");
+          const stripped = content
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&[a-z]+;/gi, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (stripped.length > 30) parts.push(stripped);
+        }
+        text = parts.join("\n\n");
+      } else {
+        text = file.buffer.toString("utf-8");
+      }
+
+      if (text.length < 50) {
+        return res.status(422).json({ error: "File contains too little text" });
+      }
+
+      res.json({ text: text.slice(0, 120000), length: text.length, filename: file.originalname });
+    } catch (e: any) {
+      res.status(500).json({ error: "parse_error", message: e?.message || "Failed to parse file" });
+    }
+  });
+
+  // ---- AI Style Analysis ----
+  app.post("/api/ai/analyze-style", async (req: Request, res: Response) => {
+    try {
+      const { content, bookTitle, bookMode } = req.body;
+      if (!content || content.trim().length < 50) {
+        return res.status(400).json({ error: "Недостаточно текста для анализа" });
+      }
+      const ai = await getOpenAI(req);
+      const aiModel = await getUserModel(req);
+      const completion = await ai.chat.completions.create({
+        model: aiModel,
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert literary analyst. Deeply analyze the author's unique writing style in the provided text and return a JSON object with exactly these fields:
+- vocabularyLevel: "simple" | "medium" | "complex" — richness and variety of word choice
+- avgSentenceLength: "short" | "medium" | "long" — typical sentence construction
+- tone: "neutral" | "academic" | "journalistic" | "philosophical" | "lyrical" | "satirical" | "ironic" | "dramatic" — dominant emotional register
+- rhythm: "dynamic" | "measured" | "meditative" | "staccato" | "flowing" — prose rhythm and pacing
+- pov: "first-person" | "third-person-close" | "third-person-distant" | "second-person" | "mixed" — narrative perspective
+- dialogueStyle: "sparse" | "moderate" | "frequent" | "none" — how dialogue is used
+- devices: string[] — list of 4–6 literary/rhetorical techniques this author uses (e.g. "rich metaphors", "short declarative sentences", "stream of consciousness", "detailed sensory descriptions")
+- patterns: string — 2–3 sentences describing this author's most distinctive stylistic fingerprints and patterns
+- summary: string — 3–4 sentences capturing the overall writing style, voice, and what makes this author unique
+- styleInstruction: string — a precise, actionable instruction (3–5 sentences) for an AI co-author to perfectly mimic this writing style when generating new text
+Return only valid JSON, no extra wrappers or markdown.`,
+          },
+          {
+            role: "user",
+            content: `Book: "${bookTitle || ""}" (${bookMode === "fiction" ? "fiction" : "non-fiction"})\n\nText sample:\n${content.slice(0, 5000)}`,
+          },
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+      });
+      trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
+      const raw = completion.choices[0].message.content || "{}";
+      res.json(JSON.parse(raw));
+    } catch (e: any) {
+      const { status, message } = openAIErrorMessage(e);
+      res.status(status).json({ error: message });
+    }
+  });
+
+  // ---- AI Generation ----
+  app.post("/api/ai/generate", async (req: Request, res: Response) => {
+    try {
+      const { mode, prompt, context, bookMode, chapterTitle, bookTitle, styleAnalysis } = req.body;
+
+      const lang4 = getLangInstruction(req);
+      const styleHint = styleAnalysis
+        ? `\n\n=== AUTHOR STYLE PROFILE ===\nTone: ${styleAnalysis.tone || ""}. Vocabulary: ${styleAnalysis.vocabularyLevel || ""}. Sentences: ${styleAnalysis.avgSentenceLength || ""}. Rhythm: ${styleAnalysis.rhythm || ""}. POV: ${styleAnalysis.pov || ""}. Dialogue: ${styleAnalysis.dialogueStyle || ""}. Literary devices: ${(styleAnalysis.devices || []).join(", ")}.\nDistinctive patterns: ${styleAnalysis.patterns || ""}\n${styleAnalysis.styleInstruction ? `Style instruction: ${styleAnalysis.styleInstruction}` : ""}\nIMPORTANT: Generate text that precisely matches this author's unique style, voice, and rhythm. Do NOT default to generic writing.`
+        : "";
+
+      const systemPrompts: Record<string, string> = {
+        continue: `You are a professional co-author. Continue the text naturally and organically, preserving the author's style and tone. Do not repeat what was already written, simply continue. ${lang4}${styleHint}`,
+        develop: `You are a professional co-author. Develop the idea, add new ideas, arguments and examples. Expand the concept. ${lang4}${styleHint}`,
+        newChapter: `You are a professional co-author. Create a complete new chapter for the book. Include an introduction, main body with several paragraphs and a conclusion. ${lang4}${styleHint}`,
+        alternatives: `You are a professional co-author. Create 3 alternative versions of the given text. Each version should be marked "Version 1:", "Version 2:", "Version 3:". ${lang4}`,
+        improve: `You are a professional editor and writer. Improve the given text: make it clearer, more expressive and compelling. Preserve the main idea. ${lang4}`,
+        ideas: `You are a creative writing assistant. Generate 5–7 new ideas for developing the topic or book. Each idea should be specific and interesting. ${lang4}`,
+        chapters: `You are a literary editor. Suggest 5 new chapters for the book with a brief description (2–3 sentences) of each. Take into account the already written context. ${lang4} Format: "Chapter N: [Title]\n[Description]"`,
+        topics: `You are an expert in book structure. Suggest 5–7 new topics for research or development within this book. Justify each topic in 1–2 sentences. ${lang4}`,
+        research: `You are a scientific consultant. Suggest 5 new research directions on the book's topic. For each: title, brief justification and possible sources. ${lang4}`,
+        scientific: `You are an expert in scientific writing. Help create a logically structured scientific text with theses, arguments and evidence. ${lang4}`,
+        fiction: `You are a master of literary prose. Help create vivid, imaginative literary text with bright characters, dialogues and atmosphere. ${lang4}`,
+      };
+
+      const systemPrompt = systemPrompts[mode] || systemPrompts.continue;
+      const contextInfo = context ? `\n\nКонтекст книги:\nНазвание: ${bookTitle || ""}\nТекущая глава: ${chapterTitle || ""}\n\nСуществующий текст:\n${context}` : "";
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const ai = await getOpenAI(req);
+      const aiModel = await getUserModel(req);
+      const userId = getUserId(req);
+      let totalTokens = 0;
+
+      const stream = await ai.chat.completions.create({
+        model: aiModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt + contextInfo },
+        ],
+        stream: true,
+        stream_options: { include_usage: true },
+        max_completion_tokens: 2000,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+        if (chunk.usage?.total_tokens) {
+          totalTokens = chunk.usage.total_tokens;
+        }
+      }
+
+      trackTokens(userId, totalTokens);
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (e: any) {
+      const { status, message } = openAIErrorMessage(e);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+        res.end();
+      } else {
+        res.status(status).json({ error: message });
+      }
+    }
+  });
+
+  // ───── FREE AI ROUTE (no API key required) ─────
+
+  app.post("/api/ai/free", async (req: Request, res: Response) => {
+    try {
+      const { prompt, context, bookTitle, chapterTitle, lang, mode } = req.body;
+
+      const langPrefix = lang === "ru" ? "Отвечай ТОЛЬКО на русском языке."
+        : lang === "ua" ? "Відповідай ТІЛЬКИ українською мовою."
+        : lang === "de" ? "Antworte NUR auf Deutsch."
+        : "Reply ONLY in English.";
+
+      const modeInstructions: Record<string, string> = {
+        continue:    "You are a creative co-author. Continue the text naturally, preserving the author's voice and style. Do not repeat what was written. Be concise (max 250 words).",
+        develop:     "You are a creative co-author. Develop the idea further — add new angles, arguments, examples, and depth. Expand the concept thoughtfully. Be concise (max 250 words).",
+        improve:     "You are an expert editor. Improve the given text: make it clearer, more expressive, and more compelling. Preserve the author's core voice. Return ONLY the improved text, no explanations.",
+        expand:      "You are an expert writer. Expand this text with more detail, vivid examples, and deeper analysis. Make it richer and more comprehensive. Return ONLY the expanded text.",
+        shorten:     "You are an expert editor. Make this text more concise — cut unnecessary words, tighten sentences, keep only what matters. Return ONLY the condensed version.",
+        rephrase:    "You are an expert editor. Rephrase this text in a different way while preserving the exact meaning. Change the expression, not the substance. Return ONLY the rephrased version.",
+        example:     "You are a skilled writer. Add a concrete, vivid example or illustration that supports the ideas in this text. Integrate it naturally. Return the original text with the example added.",
+        strengthen:  "You are a rhetorical expert. Strengthen the argument and emotional impact of this text. Make it more powerful, convincing, and memorable. Return ONLY the strengthened version.",
+        fix:         "You are an expert proofreader. Fix all grammar, spelling, punctuation, and style errors in the text. Preserve the author's voice and meaning. Return ONLY the corrected text.",
+        format:      "You are a professional editor. Format and restructure the provided text according to the user's formatting instructions. Preserve all content. Return ONLY the reformatted text.",
+        newChapter:  "You are a literary editor. Draft a complete new chapter introduction for this book, with a strong opening, key ideas, and a compelling narrative thread. Be concise (max 300 words).",
+        chapters:    "You are a literary editor. Suggest 5 new chapters for this book. For each: write the title and a 2–3 sentence description. Format: 'Chapter N: [Title]\\n[Description]'",
+        topics:      "You are an expert book architect. Suggest 5–7 new topics or angles for this book. For each: title and 1–2 sentence justification. Be specific and insightful.",
+        research:    "You are a research consultant. Suggest 5 research directions for this book's subject. For each: title, brief rationale, and type of sources to explore.",
+        ideas:       "You are a creative writing consultant. Generate 5–7 specific, interesting ideas for developing this book's topic or narrative. Each idea should open new possibilities.",
+        alternatives:"You are a creative editor. Write 3 alternative versions of the given text, each with a distinct voice or angle. Label them 'Version 1:', 'Version 2:', 'Version 3:'.",
+        style_analyze: "You are an expert literary analyst. Deeply analyze the author's unique writing style. Return a JSON object with these fields: vocabularyLevel ('simple'|'medium'|'complex'), avgSentenceLength ('short'|'medium'|'long'), tone ('neutral'|'academic'|'journalistic'|'philosophical'|'lyrical'|'satirical'|'ironic'|'dramatic'), rhythm ('dynamic'|'measured'|'meditative'|'staccato'|'flowing'), pov ('first-person'|'third-person-close'|'third-person-distant'|'second-person'|'mixed'), dialogueStyle ('sparse'|'moderate'|'frequent'|'none'), devices (array of 4-6 specific literary/rhetorical techniques used), patterns (2-3 sentences on distinctive fingerprints), summary (3-4 sentences on overall voice and what makes this author unique), styleInstruction (3-5 sentence precise instruction for an AI to mimic this exact style). Return ONLY valid raw JSON, no markdown wrappers.",
+      };
+
+      const modeInstruction = modeInstructions[mode] || modeInstructions.continue;
+      const systemHint = `${langPrefix} ${modeInstruction}`;
+
+      const contextBlock = context
+        ? `\nBook: "${bookTitle || ""}"\nChapter: "${chapterTitle || ""}"\nExisting text:\n${context.slice(0, 1200)}\n`
+        : "";
+
+      const userPrompt = `${contextBlock}\n${prompt}`.trim();
+
+      const seed = Math.floor(Math.random() * 99999);
+
+      // Use POST to avoid URL length limits (Cyrillic text encodes to 6x size via GET)
+      const pollinationsRes = await fetch("https://text.pollinations.ai/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: systemHint },
+            { role: "user", content: userPrompt },
+          ],
+          model: "openai",
+          seed,
+          private: true,
+        }),
+        signal: AbortSignal.timeout(35000),
+      });
+
+      if (!pollinationsRes.ok) {
+        // Fallback to GET for short prompts if POST fails
+        if (userPrompt.length < 800) {
+          const encodedPrompt = encodeURIComponent(userPrompt);
+          const encodedSystem = encodeURIComponent(systemHint);
+          const fallbackUrl = `https://text.pollinations.ai/${encodedPrompt}?model=openai&seed=${seed}&system=${encodedSystem}&private=true`;
+          const fallbackRes = await fetch(fallbackUrl, { method: "GET", signal: AbortSignal.timeout(30000) });
+          if (fallbackRes.ok) {
+            const fallbackText = await fallbackRes.text();
+            return res.json({ content: fallbackText.trim() });
+          }
+        }
+        if (pollinationsRes.status === 429) {
+          return res.status(429).json({ error: "free_rate_limit", message: "Free AI rate limit reached. Try again in a moment, or add your OpenAI key for unlimited access." });
+        }
+        return res.status(502).json({ error: "free_unavailable", message: `Free AI unavailable (${pollinationsRes.status})` });
+      }
+
+      const resultText = await pollinationsRes.text();
+      // Handle case where Pollinations returns JSON instead of plain text
+      let content = resultText.trim();
+      if (content.startsWith("{") || content.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(content);
+          content = parsed?.choices?.[0]?.message?.content || parsed?.content || content;
+        } catch { /* keep as-is */ }
+      }
+      res.json({ content });
+    } catch (e: any) {
+      if (e?.name === "TimeoutError") {
+        return res.status(504).json({ error: "free_timeout", message: "Free AI timed out. Try again or add your OpenAI key for faster responses." });
+      }
+      res.status(500).json({ error: "free_error", message: e?.message || "Free AI error" });
+    }
+  });
+
+  // ─── Multi-Agent AI endpoint ─────────────────────────────────────────────
+  app.post("/api/ai/agent", isAuthenticated, async (req: Request, res: Response) => {
+    const { agentType, readerProfile, chapterText, bookTitle, bookMode, narrativeContext, lang, characters } = req.body;
+    if (!agentType) return res.status(400).json({ error: "agentType required" });
+
+    let ai: OpenAI;
+    let model: string;
+    try {
+      ai = await getOpenAI(req);
+      model = await getUserModel(req);
+    } catch (e: any) {
+      const { status, message, code } = openAIErrorMessage(e);
+      return res.status(status).json({ error: message, code });
+    }
+
+    const nc = (narrativeContext as Record<string, string>) || {};
+    const bookCtx = [
+      `Book: "${bookTitle || ""}" (${bookMode || "general"})`,
+      nc.coreIdea ? `Core Idea: ${nc.coreIdea}` : "",
+      nc.themes ? `Themes: ${nc.themes}` : "",
+      nc.structure ? `Structure: ${nc.structure}` : "",
+      nc.tone ? `Tone: ${nc.tone}` : "",
+      nc.targetReader ? `Target Reader: ${nc.targetReader}` : "",
+    ].filter(Boolean).join("\n");
+
+    const chapterCtx = chapterText
+      ? `\n\nChapter Text:\n${String(chapterText).slice(0, 3000)}`
+      : "";
+    const charCtx = Array.isArray(characters) && characters.length
+      ? `\n\nCharacters: ${characters.map((c: any) => `${c.name} (${c.role})`).join(", ")}`
+      : "";
+
+    const langInstruction =
+      lang === "ru" ? "Respond entirely in Russian." :
+      lang === "ua" ? "Respond entirely in Ukrainian." :
+      lang === "de" ? "Respond entirely in German." :
+      "Respond in English.";
+
+    const REPORT_SECTIONS = `
+**1. STRUCTURAL OVERVIEW**
+Analysis of the text's architecture — how it is organised, what sections exist, how information flows.
+
+**2. CORE IDEA EXTRACTION**
+The central thesis, narrative driver, or main claim. State it precisely, then evaluate how well the text communicates it.
+
+**3. DEEP ANALYSIS**
+Detailed breakdown specific to this agent's domain (see task below).
+
+**4. STRENGTH ASSESSMENT**
+What works particularly well — be specific, reference actual passages or choices.
+
+**5. WEAKNESS DIAGNOSIS**
+Specific structural, conceptual, or craft problems. Name them precisely, not generally.
+
+**6. READER EXPERIENCE SIMULATION**
+How the text may be perceived, where readers will engage or disengage, what questions it triggers.
+
+**7. STRATEGIC RECOMMENDATIONS**
+Concrete, actionable suggestions ranked by impact. Reference specific passages where possible.
+
+**8. VISION VECTORS**
+New directions the author could explore — what could make this text exceptional or transformative.`;
+
+    type AgentDef = { role: string; task: string };
+    const agentDefs: Record<string, AgentDef> = {
+      editor: {
+        role: "You are a professional Editorial Agent — a seasoned book editor who has worked with major publishers. You read manuscripts with surgical precision, caring about clarity, structure, and the reader's experience on every page. You write your analysis as a formal editorial memo addressed to the author.",
+        task: `Produce a full editorial review memo. Your domain is: clarity of writing, logical paragraph structure, sentence construction, readability, flow between ideas, and the quality of transitions.\n\nFormat your response using this structure:\n${REPORT_SECTIONS}\n\nIn section 3 (DEEP ANALYSIS), perform a line-by-line editorial assessment: identify unclear sentences, weak transitions, overly long or short paragraphs, and readability problems.\n\nWrite as a thoughtful, constructive editor — direct but respectful. This should feel like a professional editorial letter.`,
+      },
+      critic: {
+        role: "You are a Critic Agent — a rigorous intellectual critic who analyses texts for logical integrity, argumentative strength, and intellectual honesty. You have the standards of an academic peer reviewer combined with the directness of a sharp cultural critic. You write as a professional critical review.",
+        task: `Produce a full critical review. Your domain is: logical coherence, argument structure, evidence quality, intellectual claims, and reasoning validity.\n\nFormat your response using this structure:\n${REPORT_SECTIONS}\n\nIn section 3 (DEEP ANALYSIS), map every major argument: identify the premises, the reasoning chain, the conclusion, and evaluate each link. Identify logical fallacies, unsupported assertions, and circular reasoning explicitly.\n\nBe rigorous but fair. Write as an intelligent, honest critic who wants the work to succeed.`,
+      },
+      philosopher: {
+        role: "You are a Philosophical Agent — a philosopher and intellectual analyst who explores the deeper conceptual architecture of texts. You think in frameworks, trace assumptions, and illuminate the ideas beneath the surface of the writing. You write as a philosophical commentary.",
+        task: `Produce a full philosophical analysis. Your domain is: conceptual frameworks, underlying assumptions, philosophical implications, and the deeper ideas the text engages with.\n\nFormat your response using this structure:\n${REPORT_SECTIONS}\n\nIn section 3 (DEEP ANALYSIS), reconstruct the text's implicit philosophical framework: What worldview does it assume? What ontological and epistemological positions does it take? What alternative frameworks would produce different conclusions?\n\nWrite with intellectual depth. This should feel like a philosophical dialogue with the text.`,
+      },
+      reader: {
+        role: `You are a Reader Simulation Agent embodying the perspective of a ${readerProfile || "general"} reader. You inhabit this reader type completely and report your authentic experience of reading this text — confusion, engagement, questions, emotions, and judgments as this specific type of reader would have them.`,
+        task: `Produce a full reader experience report from the perspective of a ${readerProfile || "general"} reader.\n\nFormat your response using this structure:\n${REPORT_SECTIONS}\n\nIn section 3 (DEEP ANALYSIS), trace your reading experience sentence by sentence through the major passages — where you leaned in, where you lost the thread, what confused you, what excited you, what questions arose. Be authentic to the ${readerProfile || "general"} reader archetype.\n\nWrite in first person as this reader. Make it feel like a genuine reading diary combined with a structured review.`,
+      },
+      story_analyst: {
+        role: "You are a Narrative Architect Agent — a structural analyst who studies how stories and arguments are built, paced, and resolved. You understand narrative theory, story structure frameworks, and the craft of creating tension, release, and forward momentum in a text.",
+        task: `Produce a full narrative structure analysis. Your domain is: story architecture, pacing rhythm, tension curves, narrative voice, scene construction, and structural coherence.\n\nFormat your response using this structure:\n${REPORT_SECTIONS}\n\nIn section 3 (DEEP ANALYSIS), map the narrative or argumentative structure visually in text — identify the opening move, the development phases, the climax or core revelation, and the resolution. Analyse the pacing: where does the text speed up, slow down, lose momentum?\n\nWrite as a structural expert who loves the craft of storytelling.`,
+      },
+      argument_analyst: {
+        role: "You are an Argument Analyst Agent — a specialist in logical structures, rhetorical strategies, and the architecture of persuasion. You evaluate reasoning the way an engineer evaluates a bridge: looking for load-bearing elements, structural weaknesses, and design choices that affect the whole.",
+        task: `Produce a full argument analysis report. Your domain is: thesis identification, premise mapping, evidence evaluation, logical chain analysis, and persuasive effectiveness.\n\nFormat your response using this structure:\n${REPORT_SECTIONS}\n\nIn section 3 (DEEP ANALYSIS), create a structured argument map: list each major argument with its premise(s), reasoning chain, and conclusion. Rate each: Strong / Moderate / Weak. Identify which arguments carry the text's persuasive weight and which undermine it.\n\nWrite with the precision of a logician and the accessibility of a debate coach.`,
+      },
+      consistency: {
+        role: "You are a Consistency Agent — a specialist in internal logic, continuity, and coherence across a text. You function like a continuity editor on a film set: nothing escapes your attention when details contradict each other or when the text fails to honour its own rules and premises.",
+        task: `Produce a full consistency and continuity review. Your domain is: internal contradictions, character or concept inconsistencies, factual errors, tonal inconsistencies, and continuity failures.\n\nFormat your response using this structure:\n${REPORT_SECTIONS}\n\nIn section 3 (DEEP ANALYSIS), go through the text systematically: list every potential inconsistency you find, however small. For each: describe what is inconsistent, why it matters, and how it could be resolved. If no inconsistencies are found, confirm the text's internal consistency explicitly with evidence.\n\nWrite with the thoroughness of a copy editor and the strategic mind of a developmental editor.`,
+      },
+    };
+
+    const agent = agentDefs[agentType];
+    if (!agent) return res.status(400).json({ error: "Unknown agent type" });
+
+    const systemPrompt = `${agent.role}\n\n${langInstruction}\n\nYou produce long-form, professional analytical reports — not short feedback. Your reports must be substantial enough to provide meaningful, actionable guidance. Write with depth and specificity.`;
+    const userPrompt = `BOOK CONTEXT:\n${bookCtx}${chapterCtx}${charCtx}\n\n---\n${agent.task}`;
+
+    try {
+      const completion = await ai.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 2500,
+      });
+      const text = completion.choices[0]?.message?.content || "";
+      res.json({ result: text });
+    } catch (e: any) {
+      const { status, message, code } = openAIErrorMessage(e);
+      res.status(status).json({ error: message, code });
+    }
+  });
+
+  // ─── Author Mind Analysis ─────────────────────────────────────────────────
+  app.post("/api/ai/author-analysis", isAuthenticated, async (req: Request, res: Response) => {
+    const { text, authorName, lang } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error: "text required" });
+
+    let ai: OpenAI;
+    let model: string;
+    try {
+      ai = await getOpenAI(req);
+      model = await getUserModel(req);
+    } catch (e: any) {
+      const { status, message, code } = openAIErrorMessage(e);
+      return res.status(status).json({ error: message, code });
+    }
+
+    const langInstruction =
+      lang === "ru" ? "Respond entirely in Russian." :
+      lang === "ua" ? "Respond entirely in Ukrainian." :
+      lang === "de" ? "Respond entirely in German." :
+      "Respond in English.";
+
+    const authorCtx = authorName ? `Author: ${authorName}\n` : "";
+    const systemPrompt = `You are an expert in literary analysis, intellectual history, and cognitive science of writing. You reconstruct the author's thinking model from textual evidence — not what they said, but HOW they think, construct arguments, and create meaning.\n\n${langInstruction}\n\nProduce a long-form, multi-layer Author Mind Analysis. This is not a summary — it is a reconstruction of the author's creative and intellectual methodology.`;
+
+    const userPrompt = `${authorCtx}TEXT FOR ANALYSIS:\n${String(text).slice(0, 5000)}\n\n---\nProduce a complete Author Mind Analysis structured as follows:\n\n**1. CONCEPTUAL FRAMEWORK**\nThe philosophical or thematic foundation of this author's thinking. What is their worldview? What assumptions underpin everything they write?\n\n**2. ARGUMENT STRUCTURE**\nHow does this author build reasoning? Inductive or deductive? What is their preferred reasoning pattern?\n\n**3. NARRATIVE STRUCTURE**\nHow does the author organize information, story, or ideas? What structural patterns repeat?\n\n**4. STYLISTIC SIGNATURE**\nSentence rhythm, vocabulary preferences, tonal range, use of metaphor, rhetorical devices. What makes this author's prose immediately recognizable?\n\n**5. THINKING METHODOLOGY**\nThe cognitive approach: how does this author move between abstract and concrete? Between theory and example? What is their method of developing an idea?\n\n**6. EMOTIONAL DYNAMICS**\nHow does the author create tension, urgency, intimacy, or intellectual excitement? What emotional patterns run through the text?\n\n**7. AUTHOR MIND MODEL SUMMARY**\nA synthesized profile of this author's intellectual and creative DNA — what a writer would need to understand to genuinely learn from this author's approach.\n\n**8. KEY TECHNIQUES TO ADOPT**\nSpecific, actionable techniques from this author's toolkit that another writer could study and practice.`;
+
+    try {
+      const completion = await ai.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 2800,
+      });
+      const result = completion.choices[0]?.message?.content || "";
+      res.json({ result });
+    } catch (e: any) {
+      const { status, message, code } = openAIErrorMessage(e);
+      res.status(status).json({ error: message, code });
+    }
+  });
+
+  // ─── Agent Collaboration (Full Editorial Board Review) ───────────────────
+  app.post("/api/ai/agent-collab", isAuthenticated, async (req: Request, res: Response) => {
+    const { chapterText, bookTitle, bookMode, narrativeContext, lang, characters } = req.body;
+
+    let ai: OpenAI;
+    let model: string;
+    try {
+      ai = await getOpenAI(req);
+      model = await getUserModel(req);
+    } catch (e: any) {
+      const { status, message, code } = openAIErrorMessage(e);
+      return res.status(status).json({ error: message, code });
+    }
+
+    const langInstruction =
+      lang === "ru" ? "Respond entirely in Russian." :
+      lang === "ua" ? "Respond entirely in Ukrainian." :
+      lang === "de" ? "Respond entirely in German." :
+      "Respond in English.";
+
+    const nc = (narrativeContext as Record<string, string>) || {};
+    const bookCtx = [
+      `Book: "${bookTitle || ""}" (${bookMode || "general"})`,
+      nc.coreIdea ? `Core Idea: ${nc.coreIdea}` : "",
+      nc.themes ? `Themes: ${nc.themes}` : "",
+      nc.structure ? `Structure: ${nc.structure}` : "",
+      nc.tone ? `Tone: ${nc.tone}` : "",
+      nc.targetReader ? `Target Reader: ${nc.targetReader}` : "",
+    ].filter(Boolean).join("\n");
+
+    const chapterCtx = chapterText ? `\n\nCHAPTER TEXT:\n${String(chapterText).slice(0, 3500)}` : "";
+    const charCtx = Array.isArray(characters) && characters.length
+      ? `\nCharacters: ${characters.map((c: any) => `${c.name} (${c.role})`).join(", ")}`
+      : "";
+
+    const systemPrompt = `You are the Editorial Board of a major literary publisher — five distinct expert voices who have collaboratively reviewed this manuscript. You write a joint editorial board report that synthesises multiple professional perspectives into one authoritative document.\n\n${langInstruction}\n\nYou represent: a Senior Editor (clarity & structure), a Critic (logic & argument), a Philosopher (conceptual depth), a Narrative Architect (story structure & pacing), and a Consistency Editor (internal logic & continuity). Each contributes their perspective to a unified report.`;
+
+    const userPrompt = `BOOK CONTEXT:\n${bookCtx}${chapterCtx}${charCtx}\n\n---\nProduce a Full Editorial Board Review — a comprehensive, multi-perspective manuscript analysis. Structure it as follows:\n\n**EDITORIAL BOARD REVIEW**\n*Collaborative analysis from five expert perspectives*\n\n**1. EDITORIAL ASSESSMENT** *(Senior Editor)*\nClarity, structure, paragraph quality, readability, and prose effectiveness.\n\n**2. CRITICAL ANALYSIS** *(Critic)*\nLogical integrity, argument strength, evidence quality, reasoning validity.\n\n**3. PHILOSOPHICAL DIMENSIONS** *(Philosopher)*\nConceptual framework, underlying assumptions, intellectual depth.\n\n**4. NARRATIVE ARCHITECTURE** *(Narrative Architect)*\nStory or argument structure, pacing, tension, forward momentum.\n\n**5. CONSISTENCY REVIEW** *(Consistency Editor)*\nInternal logic, continuity, contradictions, tonal coherence.\n\n**6. CONSENSUS STRENGTHS**\nWhat all board members agree works exceptionally well.\n\n**7. PRIORITY REVISIONS**\nThe top 5 most important changes the board recommends, in order of impact.\n\n**8. STRATEGIC VISION**\nHow this text could become something exceptional — the board's shared vision for its potential.\n\nWrite each section distinctly, as if a different expert is speaking. The report should feel like a professional editorial board letter to the author.`;
+
+    try {
+      const completion = await ai.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 3500,
+      });
+      const result = completion.choices[0]?.message?.content || "";
+      res.json({ result });
+    } catch (e: any) {
+      const { status, message, code } = openAIErrorMessage(e);
+      res.status(status).json({ error: message, code });
+    }
+  });
+
+  // ───── EXPORT ROUTES ─────
+
+  function blocksToText(blocks: any[]): string {
+    if (!Array.isArray(blocks)) return "";
+    return blocks.map((b: any) => {
+      const text = b.content || b.text || "";
+      if (b.type === "heading") return `\n## ${text}\n`;
+      if (b.type === "quote") return `> ${text}`;
+      return text;
+    }).join("\n");
+  }
+
+  function escapeXml(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
+
+  // Strip HTML tags from rich-text content before embedding in EPUB XHTML.
+  // The block editor stores content as HTML; we convert it to safe plain text
+  // (decode entities, strip tags, then re-escape for XML).
+  function htmlToXhtmlText(html: string): string {
+    if (!html) return "";
+    return escapeXml(
+      html
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p>/gi, "\n")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\u00AD/g, "")
+        .trim()
+    );
+  }
+
+  function blocksToXhtml(blocks: any[], chapterTitle: string): string {
+    const bodyLines: string[] = [];
+    bodyLines.push(`<h1>${escapeXml(chapterTitle)}</h1>`);
+    if (!Array.isArray(blocks)) return bodyLines.join("\n");
+    for (const b of blocks) {
+      const text = htmlToXhtmlText(b.content || b.text || "");
+      if (b.type === "divider") { bodyLines.push("<hr/>"); continue; }
+      if (!text) continue;
+      switch (b.type) {
+        case "h1":
+        case "heading":
+          bodyLines.push(`<h2>${text}</h2>`);
+          break;
+        case "h2":
+          bodyLines.push(`<h3>${text}</h3>`);
+          break;
+        case "h3":
+          bodyLines.push(`<h4>${text}</h4>`);
+          break;
+        case "quote":
+          bodyLines.push(`<blockquote><p>${text}</p></blockquote>`);
+          break;
+        case "hypothesis":
+          bodyLines.push(`<div class="callout"><p><strong>&#9670;</strong> ${text}</p></div>`);
+          break;
+        case "argument":
+          bodyLines.push(`<div class="callout"><p><strong>&#10003;</strong> ${text}</p></div>`);
+          break;
+        case "counterargument":
+          bodyLines.push(`<div class="callout"><p><strong>&#10007;</strong> ${text}</p></div>`);
+          break;
+        case "idea":
+          bodyLines.push(`<div class="callout"><p><strong>&#9673;</strong> ${text}</p></div>`);
+          break;
+        case "question":
+          bodyLines.push(`<div class="callout"><p><strong>?</strong> ${text}</p></div>`);
+          break;
+        case "example":
+        case "observation":
+        case "research":
+        case "source_ref":
+          bodyLines.push(`<p><em>${text}</em></p>`);
+          break;
+        default:
+          bodyLines.push(`<p>${text}</p>`);
+      }
+    }
+    return bodyLines.join("\n");
+  }
+
+  app.get("/api/books/:id/export/epub", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    const bookId = Number(req.params.id);
+    if (isNaN(bookId)) return res.status(400).json({ error: "Invalid id" });
+    const book = await storage.getBook(bookId);
+    if (!book || book.userId !== userId) return res.status(404).json({ error: "Not found" });
+    const chapters = await storage.getChapters(bookId);
+
+    // Use query params if provided, fall back to book data
+    const epubTitle = String(req.query.title || book.title || "Untitled");
+    const epubAuthor = String(req.query.author || "");
+    const epubLanguage = String(req.query.language || book.language || "ru");
+
+    const zip = new JSZip();
+
+    zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
+
+    zip.folder("META-INF")!.file("container.xml",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`);
+
+    const oebps = zip.folder("OEBPS")!;
+    const safeTitle = escapeXml(epubTitle);
+    const now = new Date().toISOString().split("T")[0];
+
+    const manifestItems = chapters.map(ch =>
+      `<item id="ch${ch.id}" href="ch${ch.id}.xhtml" media-type="application/xhtml+xml"/>`
+    ).join("\n    ");
+    const spineItems = chapters.map(ch =>
+      `<itemref idref="ch${ch.id}"/>`
+    ).join("\n    ");
+
+    oebps.file("content.opf",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>${safeTitle}</dc:title>
+    ${epubAuthor ? `<dc:creator>${escapeXml(epubAuthor)}</dc:creator>` : ""}
+    <dc:language>${escapeXml(epubLanguage)}</dc:language>
+    <dc:date>${now}</dc:date>
+    <dc:identifier id="uid">moodra-${bookId}-${now}</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    ${manifestItems}
+  </manifest>
+  <spine toc="ncx">
+    ${spineItems}
+  </spine>
+</package>`);
+
+    const navPoints = chapters.map((ch, i) =>
+      `<navPoint id="np${ch.id}" playOrder="${i + 1}">
+        <navLabel><text>${escapeXml(ch.title)}</text></navLabel>
+        <content src="ch${ch.id}.xhtml"/>
+      </navPoint>`
+    ).join("\n    ");
+
+    oebps.file("toc.ncx",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head><meta name="dtb:uid" content="moodra-${bookId}"/></head>
+  <docTitle><text>${safeTitle}</text></docTitle>
+  <navMap>
+    ${navPoints}
+  </navMap>
+</ncx>`);
+
+    const navList = chapters.map(ch =>
+      `<li><a href="ch${ch.id}.xhtml">${escapeXml(ch.title)}</a></li>`
+    ).join("\n      ");
+    oebps.file("nav.xhtml",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<head><meta charset="UTF-8"/><title>${safeTitle}</title></head>
+<body>
+  <nav epub:type="toc"><h1>Contents</h1><ol>${navList}</ol></nav>
+</body>
+</html>`);
+
+    for (const ch of chapters) {
+      let blocks: any[] = [];
+      try { blocks = typeof ch.content === "string" ? JSON.parse(ch.content) : (ch.content || []); } catch {}
+      const body = blocksToXhtml(blocks, ch.title);
+      oebps.file(`ch${ch.id}.xhtml`,
+        `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta charset="UTF-8"/><title>${escapeXml(ch.title)}</title></head>
+<body>
+${body}
+</body>
+</html>`);
+    }
+
+    const epubBuffer = await zip.generateAsync({
+      type: "nodebuffer",
+      mimeType: "application/epub+zip",
+      compression: "DEFLATE",
+    });
+
+    const safeFilename = book.title.replace(/[^a-z0-9а-яёА-ЯЁ\s]/gi, "").trim().replace(/\s+/g, "_") || "book";
+    res.setHeader("Content-Type", "application/epub+zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}.epub"`);
+    res.send(epubBuffer);
+  });
+
+  app.get("/api/books/:id/export/docx", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    const bookId = Number(req.params.id);
+    if (isNaN(bookId)) return res.status(400).json({ error: "Invalid id" });
+    const book = await storage.getBook(bookId);
+    if (!book || book.userId !== userId) return res.status(404).json({ error: "Not found" });
+    const chapters = await storage.getChapters(bookId);
+
+    const FONT = "Georgia";
+    const BODY_SIZE = 24;
+    const H1_SIZE = 32;
+    const H2_SIZE = 26;
+    const LINE_SPACING = { rule: LineRuleType.EXACT, value: 360 };
+    const MARGINS = {
+      top: convertInchesToTwip(1),
+      bottom: convertInchesToTwip(1),
+      left: convertInchesToTwip(1.25),
+      right: convertInchesToTwip(1),
+    };
+
+    const tocEntries = chapters.map((ch, i) =>
+      new Paragraph({
+        children: [
+          new TextRun({ text: `${i + 1}.  ${ch.title}`, font: FONT, size: BODY_SIZE, color: "444444" }),
+        ],
+        spacing: { before: 60, after: 60 },
+      })
+    );
+
+    const allChildren: Paragraph[] = [
+      new Paragraph({
+        children: [new TextRun({ text: book.title, font: FONT, size: 56, bold: true })],
+        heading: HeadingLevel.TITLE,
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 1440, after: 480 },
+      }),
+      ...(book.description ? [new Paragraph({
+        children: [new TextRun({ text: book.description, font: FONT, size: BODY_SIZE, italics: true, color: "666666" })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 2880 },
+      })] : []),
+      new Paragraph({ children: [new PageBreak()] }),
+      new Paragraph({
+        children: [new TextRun({ text: "Contents", font: FONT, size: H1_SIZE, bold: true })],
+        spacing: { before: 0, after: 480 },
+      }),
+      ...tocEntries,
+      new Paragraph({ children: [new PageBreak()] }),
+    ];
+
+    for (let i = 0; i < chapters.length; i++) {
+      const ch = chapters[i];
+      let blocks: any[] = [];
+      try { blocks = typeof ch.content === "string" ? JSON.parse(ch.content) : (ch.content || []); } catch {}
+
+      allChildren.push(
+        new Paragraph({
+          children: [new TextRun({ text: ch.title, font: FONT, size: H1_SIZE, bold: true })],
+          heading: HeadingLevel.HEADING_1,
+          spacing: { before: 0, after: 480 },
+          pageBreakBefore: i > 0,
+        })
+      );
+
+      for (const block of blocks) {
+        const text = String(block.content || block.text || "").trim();
+        if (!text) continue;
+        if (block.type === "heading") {
+          allChildren.push(new Paragraph({
+            children: [new TextRun({ text, font: FONT, size: H2_SIZE, bold: true })],
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 240, after: 120 },
+          }));
+        } else if (block.type === "quote") {
+          allChildren.push(new Paragraph({
+            children: [new TextRun({ text, font: FONT, size: BODY_SIZE, italics: true, color: "555555" })],
+            indent: { left: convertInchesToTwip(0.5) },
+            spacing: { before: 120, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
+          }));
+        } else {
+          allChildren.push(new Paragraph({
+            children: [new TextRun({ text, font: FONT, size: BODY_SIZE })],
+            spacing: { before: 0, after: 160, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
+          }));
+        }
+      }
+    }
+
+    const doc = new Document({
+      creator: "Moodra Space",
+      title: book.title,
+      description: book.description || "",
+      sections: [{
+        properties: {
+          page: {
+            margin: MARGINS,
+            pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL },
+          },
+        },
+        headers: {
+          default: new Header({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: book.title, font: FONT, size: 18, color: "888888" }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 18, color: "888888" }),
+                ],
+                alignment: AlignmentType.CENTER,
+              }),
+            ],
+          }),
+        },
+        children: allChildren,
+      }],
+    });
+
+    const { Packer } = await import("docx");
+    const buffer = await Packer.toBuffer(doc);
+    const safeFilename = book.title.replace(/[^a-z0-9а-яёА-ЯЁ\s]/gi, "").trim().replace(/\s+/g, "_") || "book";
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}.docx"`);
+    res.send(buffer);
+  });
+
+  app.get("/api/books/:id/export/pdf-html", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    const bookId = Number(req.params.id);
+    if (isNaN(bookId)) return res.status(400).json({ error: "Invalid id" });
+    const book = await storage.getBook(bookId);
+    if (!book || book.userId !== userId) return res.status(404).json({ error: "Not found" });
+    const chapters = await storage.getChapters(bookId);
+
+    // ─── Layout settings from query params (with safe defaults) ────
+    const q = req.query as Record<string, string>;
+    const psKey = (q.pageSize || "A5").toUpperCase();
+    const pageSizeCSS = psKey === "A4" ? "A4" : psKey === "B5" ? "176mm 250mm" : psKey === "LETTER" ? "letter" : "A5";
+    const marginTop    = Math.max(5,  Math.min(50, Number(q.marginTop    ?? 20)));
+    const marginBottom = Math.max(5,  Math.min(50, Number(q.marginBottom ?? 22)));
+    const marginLeft   = Math.max(5,  Math.min(50, Number(q.marginLeft   ?? 20)));
+    const marginRight  = Math.max(5,  Math.min(50, Number(q.marginRight  ?? 16)));
+    const fontFamily   = q.fontFamily ?? "Georgia, \"Times New Roman\", serif";
+    const fontSize     = Math.max(7,  Math.min(18, Number(q.fontSize     ?? 10.5)));
+    const lineHeight   = Math.max(1,  Math.min(3,  Number(q.lineHeight   ?? 1.72)));
+    const paraSpacing       = Math.max(0,   Math.min(3,  Number(q.paragraphSpacing ?? 0)));
+    const firstLineIndent   = Math.max(0,   Math.min(5,  Number(q.firstLineIndent  ?? 1.2)));
+    const textAlign         = q.textAlign === "left" ? "left" : "justify";
+    const h1Size       = Math.max(10, Math.min(36, Number(q.h1Size ?? 16)));
+    const h2Size       = Math.max(8,  Math.min(30, Number(q.h2Size ?? 12)));
+    const h3Size       = Math.max(7,  Math.min(24, Number(q.h3Size ?? 11)));
+    const chapterBreak = q.chapterBreak !== "false";
+    const headerEnabled   = q.headerEnabled === "true";
+    const headerLeft      = q.headerLeft  ?? "";
+    const headerRight     = q.headerRight ?? "";
+    const footerPageNum   = q.footerPageNumber !== "false";
+    const footerBookTitle = q.footerBookTitle === "true";
+    const chapterLabel    = q.chapterLabel  ?? "Chapter";
+    const tocHeading      = q.tocHeading    ?? "Table of Contents";
+    // ───────────────────────────────────────────────────────────────
+
+    const sanitizeContent = (html: string) => {
+      return (html || "")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+        .replace(/on\w+="[^"]*"/gi, "");
+    };
+
+    const blockToHtml = (b: any, chapterTitle: string): string => {
+      const raw = b.content || b.text || "";
+      if (!raw && b.type !== "divider") return "";
+      const content = sanitizeContent(raw);
+      const indentAttr = (b.metadata?.indent === false ? ' style="text-indent:0"' : b.metadata?.indent === true ? ' style="text-indent:1.6em"' : '');
+      switch (b.type) {
+        case "h1": return `<h2 class="section-h1"${indentAttr}>${content}</h2>`;
+        case "h2": return `<h3 class="section-h2"${indentAttr}>${content}</h3>`;
+        case "h3": return `<h4 class="section-h3"${indentAttr}>${content}</h4>`;
+        case "heading": return `<h2 class="section-h1"${indentAttr}>${content}</h2>`;
+        case "quote": return `<blockquote${indentAttr}>${content}</blockquote>`;
+        case "hypothesis": return `<div class="callout callout-hypothesis"><span class="callout-icon">◆</span><div>${content}</div></div>`;
+        case "argument": return `<div class="callout callout-argument"><span class="callout-icon">✓</span><div>${content}</div></div>`;
+        case "counterargument": return `<div class="callout callout-counter"><span class="callout-icon">✗</span><div>${content}</div></div>`;
+        case "idea": return `<div class="callout callout-idea"><span class="callout-icon">◉</span><div>${content}</div></div>`;
+        case "question": return `<div class="callout callout-question"><span class="callout-icon">?</span><div>${content}</div></div>`;
+        case "divider": return `<hr class="divider"/>`;
+        default:
+          return `<p${indentAttr}>${content}</p>`;
+      }
+    };
+
+    const tocEntries = chapters.map((ch, i) => `
+      <tr>
+        <td class="toc-num">${i + 1}</td>
+        <td class="toc-title">${escapeXml(ch.title)}</td>
+        <td class="toc-dots"></td>
+      </tr>`).join("");
+
+    let body = "";
+    for (let ci = 0; ci < chapters.length; ci++) {
+      const ch = chapters[ci];
+      let blocks: any[] = [];
+      try { blocks = typeof ch.content === "string" ? JSON.parse(ch.content) : (ch.content || []); } catch {}
+
+      const contentHtml = blocks.map(b => blockToHtml(b, ch.title)).filter(Boolean).join("\n");
+
+      body += `
+<div class="chapter" data-chapter="${escapeXml(ch.title)}">
+  <div class="chapter-header-line">
+    <span class="chapter-num">${chapterLabel} ${ci + 1}</span>
+  </div>
+  <h1 class="chapter-title">${escapeXml(ch.title)}</h1>
+  <div class="chapter-content">
+${contentHtml || '<p class="empty-chapter">—</p>'}
+  </div>
+</div>`;
+    }
+
+    const date = new Date().toLocaleDateString("ru-RU", { year: "numeric", month: "long", day: "numeric" });
+
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>${escapeXml(book.title)}</title>
+<style>
+  @page {
+    size: ${pageSizeCSS};
+    margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
+    @top-center { content: string(chapter-name); font-family: ${fontFamily}; font-size: 8pt; color: #888; }
+    @bottom-center { content: counter(page); font-family: ${fontFamily}; font-size: 8pt; color: #888; }
+  }
+  @page :first { @top-center { content: ""; } @bottom-center { content: ""; } }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: ${fontFamily};
+    font-size: ${fontSize}pt;
+    line-height: ${lineHeight};
+    color: #1a1209;
+    background: #fff;
+    counter-reset: page 1;
+  }
+
+  /* ── Cover page ── */
+  .cover {
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+    background: #fff;
+    position: relative;
+  }
+  .cover-ornament {
+    font-size: 28pt;
+    color: #d4a96a;
+    margin-bottom: 32px;
+    letter-spacing: 12px;
+  }
+  .cover-title {
+    font-size: 22pt;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    color: #1a0d06;
+    margin-bottom: 16px;
+  }
+  .cover-subtitle {
+    font-size: 10pt;
+    color: #6a5544;
+    font-style: italic;
+    margin-bottom: 48px;
+    max-width: 300px;
+    line-height: 1.6;
+  }
+  .cover-rule {
+    width: 48px;
+    height: 2px;
+    background: #d4a96a;
+    margin: 0 auto 40px;
+  }
+  .cover-meta {
+    font-size: 8pt;
+    color: #aaa;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+
+  /* ── TOC ── */
+  .toc-page {
+    page-break-after: always;
+    padding: 20px 0;
+  }
+  .toc-heading {
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #1a0d06;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #d4a96a;
+    padding-bottom: 8px;
+  }
+  .toc-table { width: 100%; border-collapse: collapse; }
+  .toc-num { width: 28px; font-size: 8.5pt; color: #aaa; vertical-align: top; padding: 4px 8px 4px 0; }
+  .toc-title { font-size: 10pt; color: #1a0d06; vertical-align: top; padding: 4px 8px 4px 0; }
+  .toc-dots {
+    width: 40px;
+    font-size: 8pt;
+    color: #ccc;
+    vertical-align: bottom;
+    padding: 4px 0;
+    border-bottom: 1px dotted #ddd;
+  }
+
+  /* ── Chapter ── */
+  .chapter {
+    page-break-before: ${chapterBreak ? "always" : "auto"};
+    string-set: chapter-name content(attr(data-chapter));
+    padding-top: 8mm;
+  }
+  .chapter-header-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .chapter-num {
+    font-size: 7.5pt;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #c8975a;
+    font-family: ${fontFamily};
+  }
+  .chapter-title {
+    font-size: ${h1Size}pt;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #1a0d06;
+    margin-bottom: 28px;
+    letter-spacing: -0.3px;
+  }
+  .chapter-content {}
+
+  /* ── Typography ── */
+  p {
+    margin-bottom: ${paraSpacing > 0 ? paraSpacing + "em" : "0"};
+    text-align: ${textAlign};
+    text-indent: ${firstLineIndent > 0 ? firstLineIndent + "em" : "0"};
+    orphans: 3;
+    widows: 3;
+  }
+  p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
+  .chapter-content > p:first-child { text-indent: 0; }
+
+  h2.section-h1 {
+    font-size: ${h2Size}pt;
+    font-weight: 700;
+    margin: 20px 0 8px;
+    color: #1a0d06;
+    text-indent: 0;
+    page-break-after: avoid;
+  }
+  h3.section-h2 {
+    font-size: ${h3Size}pt;
+    font-weight: 700;
+    font-style: italic;
+    margin: 16px 0 6px;
+    color: #3d2e26;
+    text-indent: 0;
+    page-break-after: avoid;
+  }
+  h4.section-h3 {
+    font-size: ${Math.max(7, h3Size - 1)}pt;
+    font-weight: 600;
+    margin: 14px 0 4px;
+    color: #3d2e26;
+    text-indent: 0;
+    page-break-after: avoid;
+  }
+
+  blockquote {
+    border-left: 2.5px solid #d4a96a;
+    padding: 6px 0 6px 14px;
+    margin: 14px 8px;
+    font-style: italic;
+    color: #5a4a3a;
+    text-indent: 0;
+  }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid #e0d4c4;
+    margin: 18px 40px;
+  }
+
+  .callout {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 12px;
+    margin: 12px 0;
+    border-radius: 4px;
+    font-size: 9.5pt;
+    text-indent: 0;
+  }
+  .callout-icon { font-size: 8pt; padding-top: 2px; flex-shrink: 0; }
+  .callout-hypothesis { background: #f5f0ea; border-left: 2px solid #d4a96a; }
+  .callout-argument { background: #f0f5ee; border-left: 2px solid #7aad6a; }
+  .callout-counter { background: #f5f0ee; border-left: 2px solid #c4756a; }
+  .callout-idea { background: #f0f2f8; border-left: 2px solid #7a8ac4; }
+  .callout-question { background: #faf5e8; border-left: 2px solid #c8af6a; }
+
+  .empty-chapter { color: #bbb; font-style: italic; text-indent: 0; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<div class="cover">
+  <div class="cover-ornament">· · ·</div>
+  <div class="cover-title">${escapeXml(book.title)}</div>
+  ${book.description ? `<div class="cover-subtitle">${escapeXml(book.description)}</div>` : ""}
+  <div class="cover-rule"></div>
+  <div class="cover-meta">Moodra · ${date}</div>
+</div>
+
+<!-- Table of Contents -->
+${chapters.length > 1 ? `
+<div class="toc-page">
+  <div class="toc-heading">${tocHeading}</div>
+  <table class="toc-table">
+    ${tocEntries}
+  </table>
+</div>` : ""}
+
+<!-- Chapters -->
+${body}
+
+<script>
+window.addEventListener('load', function() {
+  setTimeout(function() { window.print(); }, 400);
+});
+</script>
+</body>
+</html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  });
+
+  return httpServer;
+}
