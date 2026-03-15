@@ -279,18 +279,17 @@ function getType(value?: string | null) {
   return NOTE_TYPES.find(t => t.value === value) || NOTE_TYPES[0];
 }
 
-// ─── Note Card (new sleek design) ─────────────────────────────────────
+// ─── Note Card (Apple Notes style) ────────────────────────────────────
 function NoteCard({ note, onEdit, onDelete, onPin }: {
   note: Note; onEdit: (n: Note) => void; onDelete: (id: number) => void; onPin: (n: Note) => void;
 }) {
   const { lang } = useLang();
   const s = NOTES_I18N[lang];
   const col = getColor((note as any).color);
-  const status = getStatus((note as any).status);
   const type = getType(note.type);
   const Icon = type.icon;
-  const typeLabel = s.types[type.value as keyof typeof s.types] ?? type.value;
   const isPinned = (note as any).isPinned === "true";
+  const importance = (note as any).importance;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: note.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
@@ -298,108 +297,86 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, background: col.bg, borderColor: col.border }}
-      className="relative rounded-xl border-2 p-3.5 group flex flex-col gap-2 transition-shadow hover:shadow-md cursor-default"
+      style={{ ...style, background: col.bg, border: `1px solid ${col.border}` }}
+      onClick={() => onEdit(note)}
+      className="relative rounded-2xl p-3.5 group flex flex-col gap-2 cursor-pointer transition-all hover:shadow-sm active:scale-[0.985]"
     >
-      {/* Drag handle */}
+      {/* Drag handle — subtle */}
       <div
         {...attributes} {...listeners}
-        className="absolute top-2 left-2 opacity-0 group-hover:opacity-30 cursor-grab active:cursor-grabbing transition-opacity"
-        style={{ color: col.clip }}
+        onClick={e => e.stopPropagation()}
+        className="absolute top-2.5 left-2.5 opacity-0 group-hover:opacity-25 cursor-grab active:cursor-grabbing transition-opacity"
       >
-        <GripVertical className="h-3 w-3" />
+        <GripVertical className="h-3 w-3" style={{ color: col.clip }} />
       </div>
 
-      {/* Pin indicator */}
-      {isPinned && (
-        <div className="absolute top-2 right-2" style={{ color: col.clip }}>
-          <Pin className="h-3 w-3" />
+      {/* Top row: type + date + pin */}
+      <div className="flex items-center justify-between gap-1 pl-3">
+        <div className="flex items-center gap-1">
+          <Icon className="h-2.5 w-2.5 flex-shrink-0" style={{ color: type.accent }} />
+          {importance === "core" && <span className="text-[8px] font-bold text-red-500">●</span>}
+          {importance === "high" && <span className="text-[8px] font-bold text-amber-500">●</span>}
         </div>
-      )}
-
-      {/* Type badge */}
-      <div className="flex items-center gap-1.5 mt-0.5">
-        <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: `${type.accent}18` }}>
-          <Icon className="h-3 w-3" style={{ color: type.accent }} />
-        </div>
-        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: type.accent }}>{typeLabel}</span>
-        <div className="ml-auto flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: status.color }} />
+        <div className="flex items-center gap-1.5">
+          {isPinned && <Pin className="h-2.5 w-2.5" style={{ color: col.clip }} />}
+          <span className="text-[9px] font-medium" style={{ color: `${col.text}70` }}>
+            {format(new Date(note.updatedAt), "d MMM", { locale: DATE_LOCALES[lang] })}
+          </span>
         </div>
       </div>
 
       {/* Title */}
-      <h4 className="font-semibold text-sm leading-tight" style={{ color: col.text }}>{note.title}</h4>
+      <h4 className="font-semibold text-[13px] leading-snug pl-0 pr-1" style={{ color: col.text }}>{note.title}</h4>
 
       {/* Content preview */}
       {note.content && (
-        <p className="text-[11px] leading-relaxed line-clamp-3 flex-1" style={{ color: `${col.text}BB` }}>{note.content}</p>
-      )}
-
-      {/* Collection tag */}
-      {(note as any).collection && (
-        <div className="flex items-center gap-1">
-          <FolderOpen className="h-2.5 w-2.5" style={{ color: col.clip }} />
-          <span className="text-[9px] font-medium" style={{ color: col.clip }}>{(note as any).collection}</span>
-        </div>
+        <p className="text-[11px] leading-relaxed line-clamp-3 flex-1" style={{ color: `${col.text}90` }}>{note.content}</p>
       )}
 
       {/* Tags */}
       {note.tags && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 mt-0.5">
           {note.tags.split(",").map(t => t.trim()).filter(Boolean).slice(0, 3).map(tag => (
-            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-md font-medium" style={{ background: `${col.clip}15`, color: col.clip }}>
+            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${col.clip}14`, color: `${col.clip}CC` }}>
               #{tag}
             </span>
           ))}
         </div>
       )}
 
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-1.5" style={{ borderTop: `1px solid ${col.border}` }}>
-        <span className="text-[9px]" style={{ color: `${col.text}60` }}>
-          {format(new Date(note.updatedAt), "d MMM", { locale: DATE_LOCALES[lang] })}
-        </span>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => onPin(note)}
-            className="w-5 h-5 flex items-center justify-center rounded transition-colors hover:bg-black/5"
-            style={{ color: col.clip }}
-            title={isPinned ? s.toastUnpinned : s.toastPinned}
-          >
-            {isPinned ? <PinOff className="h-2.5 w-2.5" /> : <Pin className="h-2.5 w-2.5" />}
-          </button>
-          <button
-            onClick={() => onEdit(note)}
-            className="w-5 h-5 flex items-center justify-center rounded transition-colors hover:bg-black/5"
-            style={{ color: col.clip }}
-          >
-            <Edit className="h-2.5 w-2.5" />
-          </button>
-          <button
-            onClick={() => onDelete(note.id)}
-            className="w-5 h-5 flex items-center justify-center rounded transition-colors hover:bg-red-100"
-            style={{ color: "#ef4444" }}
-          >
-            <Trash2 className="h-2.5 w-2.5" />
-          </button>
-        </div>
+      {/* Action row — appears on hover */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2.5 right-2.5" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={e => { e.stopPropagation(); onPin(note); }}
+          className="w-5 h-5 flex items-center justify-center rounded-md transition-colors hover:bg-black/8"
+          style={{ color: isPinned ? col.clip : `${col.text}50` }}
+          title={isPinned ? s.toastUnpinned : s.toastPinned}
+        >
+          {isPinned ? <PinOff className="h-2.5 w-2.5" /> : <Pin className="h-2.5 w-2.5" />}
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(note.id); }}
+          className="w-5 h-5 flex items-center justify-center rounded-md transition-colors hover:bg-red-100"
+          style={{ color: `${col.text}50` }}
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </button>
       </div>
     </div>
   );
 }
 
-// ─── List Row ─────────────────────────────────────────────────────────
+// ─── List Row (Apple Notes style) ─────────────────────────────────────
 function NoteRow({ note, onEdit, onDelete, onPin }: {
   note: Note; onEdit: (n: Note) => void; onDelete: (id: number) => void; onPin: (n: Note) => void;
 }) {
   const { lang } = useLang();
   const s = NOTES_I18N[lang];
   const col = getColor((note as any).color);
-  const status = getStatus((note as any).status);
   const type = getType(note.type);
   const Icon = type.icon;
   const isPinned = (note as any).isPinned === "true";
+  const importance = (note as any).importance;
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: note.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -408,49 +385,72 @@ function NoteRow({ note, onEdit, onDelete, onPin }: {
     <div
       ref={setNodeRef}
       style={style}
-      className="group flex items-start gap-3 px-3.5 py-3 rounded-xl border border-border/50 hover:border-primary/20 bg-card transition-all"
+      onClick={() => onEdit(note)}
+      className="group flex items-stretch gap-0 cursor-pointer transition-colors hover:bg-secondary/40 rounded-xl border border-transparent hover:border-border/30"
     >
-      <div {...attributes} {...listeners} className="opacity-0 group-hover:opacity-30 cursor-grab active:cursor-grabbing transition-opacity pt-1 flex-shrink-0">
+      {/* Color strip */}
+      <div className="w-[3px] flex-shrink-0 rounded-l-xl my-2" style={{ background: col.clip }} />
+
+      {/* Drag handle */}
+      <div
+        {...attributes} {...listeners}
+        onClick={e => e.stopPropagation()}
+        className="opacity-0 group-hover:opacity-25 cursor-grab active:cursor-grabbing transition-opacity flex items-center px-1.5"
+      >
         <GripVertical className="h-3 w-3 text-muted-foreground" />
       </div>
-      <div className="w-1 flex-shrink-0 self-stretch rounded-full" style={{ background: col.clip }} />
-      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: `${type.accent}15` }}>
-        <Icon className="h-3 w-3" style={{ color: type.accent }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <h4 className="font-semibold text-sm truncate flex-1">{note.title}</h4>
-          {isPinned && <Pin className="h-2.5 w-2.5 flex-shrink-0 text-muted-foreground/60" />}
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 py-3 pr-2">
+        {/* Title row */}
+        <div className="flex items-baseline gap-2 mb-0.5">
+          <h4 className="font-semibold text-[13px] leading-snug truncate flex-1 text-foreground">{note.title}</h4>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: status.color }} />
+            {isPinned && <Pin className="h-2.5 w-2.5 text-muted-foreground/50" />}
+            {importance === "core" && <span className="text-[8px] font-bold text-red-400">●</span>}
+            {importance === "high" && <span className="text-[8px] font-bold text-amber-400">●</span>}
+            <span className="text-[10px] text-muted-foreground/50 whitespace-nowrap">
+              {format(new Date(note.updatedAt), "d MMM", { locale: DATE_LOCALES[lang] })}
+            </span>
           </div>
         </div>
-        {note.content && (
-          <p className="text-xs text-muted-foreground line-clamp-1">{note.content}</p>
-        )}
-        <div className="flex items-center gap-2 mt-1">
-          {(note as any).collection && (
-            <span className="text-[9px] text-muted-foreground/70 flex items-center gap-0.5">
-              <FolderOpen className="h-2 w-2" />{(note as any).collection}
-            </span>
-          )}
-          {note.tags && (
-            <div className="flex gap-1">
-              {note.tags.split(",").slice(0, 2).map(t => t.trim()).filter(Boolean).map(tag => (
-                <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">#{tag}</span>
-              ))}
-            </div>
-          )}
+
+        {/* Preview row: type + content */}
+        <div className="flex items-center gap-1.5">
+          <Icon className="h-2.5 w-2.5 flex-shrink-0" style={{ color: type.accent }} />
+          <p className="text-[11px] text-muted-foreground line-clamp-1 flex-1">
+            {note.content ? note.content : <span className="italic opacity-50">—</span>}
+          </p>
         </div>
+
+        {/* Tags + collection */}
+        {(note.tags || (note as any).collection) && (
+          <div className="flex items-center gap-2 mt-1">
+            {(note as any).collection && (
+              <span className="text-[9px] text-muted-foreground/60 flex items-center gap-0.5">
+                <FolderOpen className="h-2 w-2" />{(note as any).collection}
+              </span>
+            )}
+            {note.tags && (
+              <div className="flex gap-1">
+                {note.tags.split(",").slice(0, 2).map(t => t.trim()).filter(Boolean).map(tag => (
+                  <span key={tag} className="text-[9px] px-1.5 py-0 rounded-full font-medium" style={{ background: `${col.clip}14`, color: `${col.clip}BB` }}>#{tag}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        <button onClick={() => onPin(note)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-secondary text-muted-foreground transition-colors">
+
+      {/* Actions — hover only */}
+      <div
+        className="flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0"
+        onClick={e => e.stopPropagation()}
+      >
+        <button onClick={() => onPin(note)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground/60 hover:text-foreground transition-colors">
           {isPinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
         </button>
-        <button onClick={() => onEdit(note)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-secondary text-muted-foreground transition-colors">
-          <Edit className="h-3 w-3" />
-        </button>
-        <button onClick={() => onDelete(note.id)} className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+        <button onClick={() => onDelete(note.id)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground/60 hover:text-destructive transition-colors">
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
