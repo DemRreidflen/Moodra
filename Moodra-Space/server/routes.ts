@@ -546,6 +546,129 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (e) { res.status(500).json({ error: "Error deleting role model" }); }
   });
 
+  // ─── Deep Structural Analysis ─────────────────────────────────────────────
+  // POST /api/role-models/:id/deep-analyze
+  // Reconstructs the creative model of an author from source material.
+  app.post("/api/role-models/:id/deep-analyze", isAuthenticated, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const { rawSourceText, lang } = req.body;
+    if (!rawSourceText?.trim()) return res.status(400).json({ error: "rawSourceText is required" });
+
+    const langInstruction =
+      lang === "ru" ? "IMPORTANT: Respond ONLY in Russian." :
+      lang === "ua" ? "IMPORTANT: Respond ONLY in Ukrainian." :
+      lang === "de" ? "IMPORTANT: Respond ONLY in German." :
+      "Respond in English.";
+
+    const systemPrompt = `You are a literary analyst, cognitive style researcher, and creative writing coach. Your task is to perform a deep structural analysis of the provided text and reconstruct the "creative model" of the author. You must analyze not just WHAT is written, but HOW the author thinks, argues, structures, sounds, and moves.
+
+Do NOT summarize the content. Analyze the mechanics and behavior of the mind producing it.
+
+${langInstruction}
+
+Return ONLY a valid JSON object with exactly these 9 string fields (each 3–6 sentences, specific and analytical):
+{
+  "conceptualTendencies": "How the author constructs and connects ideas. Their intellectual instincts. Pattern of thought formation.",
+  "stylePatterns": "Sentence structure, rhythm, voice, use of abstraction vs. concreteness, density of ideas per paragraph.",
+  "structurePatterns": "How the author organizes sections, chapters, arguments. Macro and micro structure logic.",
+  "rhythmObservations": "Pace of writing, how energy builds and releases, transitions, use of pauses and acceleration.",
+  "vocabularyTendencies": "Characteristic vocabulary: domains drawn from, abstraction level, metaphor types, linguistic register.",
+  "argumentBehavior": "How the author makes a case. Deductive or inductive? Evidence type. How objections are handled.",
+  "emotionalDynamics": "Emotional temperature, what emotions are invoked, how affect is embedded structurally.",
+  "reusableParameters": "3–5 concrete reusable parameters a writer could adopt from this author: e.g., technique, structural device, tonal quality.",
+  "styleInstruction": "A single, dense, actionable system instruction (2–4 sentences) for an AI writing assistant to imitate this author's style and thinking."
+}`;
+
+    const userPrompt = `Analyze the following text and return the JSON object:\n\n---\n${rawSourceText.slice(0, 6000)}\n---`;
+
+    const parseAnalysis = (raw: string) => {
+      let text = raw.trim();
+      const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fence) text = fence[1].trim();
+      const firstBrace = text.indexOf("{");
+      const lastBrace = text.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1) text = text.slice(firstBrace, lastBrace + 1);
+      return JSON.parse(text);
+    };
+
+    const applyAnalysis = async (analysisRaw: string) => {
+      const parsed = parseAnalysis(analysisRaw);
+      const updated = await storage.updateAuthorRoleModel(id, {
+        rawSourceText,
+        analysisStatus: "analyzed",
+        conceptualTendencies: parsed.conceptualTendencies || "",
+        stylePatterns: parsed.stylePatterns || "",
+        structurePatterns: parsed.structurePatterns || "",
+        rhythmObservations: parsed.rhythmObservations || "",
+        vocabularyTendencies: parsed.vocabularyTendencies || "",
+        argumentBehavior: parsed.argumentBehavior || "",
+        emotionalDynamics: parsed.emotionalDynamics || "",
+        reusableParameters: parsed.reusableParameters || "",
+        styleInstruction: parsed.styleInstruction || "",
+        analysisText: [
+          parsed.conceptualTendencies,
+          parsed.stylePatterns,
+          parsed.structurePatterns,
+        ].filter(Boolean).join(" | "),
+      });
+      return updated;
+    };
+
+    try {
+      const ai = await getOpenAI(req);
+      const model = await getUserModel(req);
+      const completion = await ai.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 2400,
+        response_format: { type: "json_object" },
+      });
+      const raw = completion.choices[0]?.message?.content || "{}";
+      const userId = getUserId(req);
+      if (completion.usage?.total_tokens) trackTokens(userId, completion.usage.total_tokens);
+      const updated = await applyAnalysis(raw);
+      return res.json({ model: updated });
+    } catch (e: any) {
+      const { code } = openAIErrorMessage(e);
+      if (code !== "no_api_key") {
+        const { status, message } = openAIErrorMessage(e);
+        return res.status(status).json({ error: message, code });
+      }
+    }
+
+    // Fallback: free Pollinations
+    try {
+      const seed = Math.floor(Math.random() * 99999);
+      const pollinationsRes = await fetch("https://text.pollinations.ai/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          model: "openai",
+          seed,
+          private: true,
+          jsonMode: true,
+        }),
+        signal: AbortSignal.timeout(50000),
+      });
+      if (!pollinationsRes.ok) return res.status(502).json({ error: "free_unavailable" });
+      let text = (await pollinationsRes.text()).trim();
+      if (text.startsWith("{") || text.startsWith("[")) {
+        try { const p = JSON.parse(text); if (p?.choices) text = p.choices[0]?.message?.content || text; } catch {}
+      }
+      const updated = await applyAnalysis(text);
+      return res.json({ model: updated });
+    } catch (e: any) {
+      return res.status(500).json({ error: "analysis_error", message: e?.message });
+    }
+  });
+
   // ─── Co-Author Synthesis ──────────────────────────────────────────────────
   // POST /api/books/:bookId/ai/co-author — parallel multi-model synthesis
   app.post("/api/books/:bookId/ai/co-author", isAuthenticated, async (req: Request, res: Response) => {

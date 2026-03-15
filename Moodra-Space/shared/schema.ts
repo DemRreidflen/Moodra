@@ -177,6 +177,18 @@ export const authorRoleModels = pgTable("author_role_models", {
   styleInstruction: text("style_instruction").default(""),
   influencePercent: integer("influence_percent").default(0),
   avatarColor: text("avatar_color").default("#8B5CF6"),
+  // Deep structural analysis fields (16.1)
+  rawSourceText: text("raw_source_text").default(""),
+  sourceMaterialRef: text("source_material_ref").default(""),
+  analysisStatus: text("analysis_status").default("empty"),
+  conceptualTendencies: text("conceptual_tendencies").default(""),
+  stylePatterns: text("style_patterns").default(""),
+  structurePatterns: text("structure_patterns").default(""),
+  rhythmObservations: text("rhythm_observations").default(""),
+  vocabularyTendencies: text("vocabulary_tendencies").default(""),
+  argumentBehavior: text("argument_behavior").default(""),
+  emotionalDynamics: text("emotional_dynamics").default(""),
+  reusableParameters: text("reusable_parameters").default(""),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

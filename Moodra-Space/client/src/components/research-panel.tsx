@@ -28,6 +28,7 @@ import {
 import type { Draft } from "@shared/schema";
 import { NotesTab } from "@/components/notes-tab";
 import { SourcesTab } from "@/components/sources-tab";
+import { RoleModelsTab } from "@/components/role-models-tab";
 import { format } from "date-fns";
 import { ru, uk, de as deDe, enUS } from "date-fns/locale";
 
@@ -2229,7 +2230,7 @@ export function ResearchPanel({ bookId, book }: { bookId: number; book: Book }) 
   const { toast } = useToast();
   const { lang } = useLang();
   const rp = RESEARCH_I18N[lang];
-  const [activeTab, setActiveTab] = useState<"notes" | "library" | "ai" | "hypotheses" | "drafts">("notes");
+  const [activeTab, setActiveTab] = useState<"notes" | "library" | "ai" | "hypotheses" | "drafts" | "models">("notes");
   const [showDialog, setShowDialog] = useState(false);
   const [editSource, setEditSource] = useState<Source | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2316,6 +2317,13 @@ export function ResearchPanel({ bookId, book }: { bookId: number; book: Book }) 
             <BookOpen className="h-3 w-3" />
             {rp.tabLibrary}
           </button>
+          <button
+            onClick={() => setActiveTab("models")}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${activeTab === "models" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <Brain className="h-3 w-3" />
+            Models
+          </button>
         </div>
       </div>
 
@@ -2338,6 +2346,10 @@ export function ResearchPanel({ bookId, book }: { bookId: number; book: Book }) 
 
         {activeTab === "library" && (
           <SourcesTab bookId={bookId} book={book} />
+        )}
+
+        {activeTab === "models" && (
+          <RoleModelsTab bookId={bookId} book={book} />
         )}
       </div>
 

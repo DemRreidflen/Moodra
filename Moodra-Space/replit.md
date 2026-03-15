@@ -3,6 +3,21 @@
 ## Overview
 Moodra is a next-gen AI writing environment for serious authors. The platform covers the full lifecycle of a book — from research and hypothesis-testing to character development and final writing. Clean cream/editorial design, block-based editor, interactive idea boards, and deep AI integration.
 
+## Role Model Library (Research Panel → Models tab)
+A specialist system for deep structural analysis of author minds.
+
+### Schema: `authorRoleModels` extended columns
+`rawSourceText`, `sourceMaterialRef`, `analysisStatus` ("empty" | "analyzed"), `conceptualTendencies`, `stylePatterns`, `structurePatterns`, `rhythmObservations`, `vocabularyTendencies`, `argumentBehavior`, `emotionalDynamics`, `reusableParameters` (+ existing `styleInstruction` reused as AI instruction).
+
+### Deep Analysis Route
+`POST /api/role-models/:id/deep-analyze` — accepts `{ rawSourceText, lang }`. Uses a specialist system prompt that instructs the AI NOT to summarize content but to analyze the mechanics of the author's mind. Returns structured JSON with all 9 analysis fields. Tries OpenAI with `response_format: json_object`, falls back to Pollinations. Updates the role model record.
+
+### UI: `role-models-tab.tsx`
+- **List view**: cards with color stripe, avatar initial, analysis status badge (Analyzed / Draft), conceptual tendencies preview, section pills
+- **Editor view**: create form with color picker, name/author/source ref inputs, raw text textarea + .txt file upload
+- **Detail view**: author profile header + Re-analyze button; collapsible Source Material section; 8 color-coded analysis sections (Conceptual Tendencies, Style Patterns, Structure Patterns, Rhythm Observations, Vocabulary Tendencies, Argument Behavior, Emotional Dynamics, Reusable Parameters); violet AI Style Instruction card; inline edit on every section via hover → pencil → textarea
+- Wired into Research Panel as 6th tab "Models" (Brain icon)
+
 ## Meta-Prompt Architecture (Prompt Ecosystem)
 The AI system uses a layered meta-prompt architecture (`server/promptEngine.ts`) — not flat prompts.
 
