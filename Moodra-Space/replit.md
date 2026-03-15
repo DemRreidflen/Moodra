@@ -5,7 +5,9 @@ Moodra is a next-gen AI writing environment for serious authors. The platform co
 
 ## Key Features
 - **Two book modes**: Scientific (non-fiction, philosophy) and Fiction (novels, sci-fi)
-- **Notion-like block editor**: 15+ block types with drag-and-drop reordering (@dnd-kit); solid FormatToolbar (no blur); selection-only AI improve; cursor-at-merge junction
+- **Notion-like block editor**: 18+ block types with drag-and-drop reordering (@dnd-kit); solid FormatToolbar (no blur); selection-only AI improve; cursor-at-merge junction
+- **List block types**: `bullet_item`, `numbered_item`, `check_item` — first-class blocks; Enter continues list, Backspace on empty exits to paragraph; numbered items auto-count consecutive runs; check_item toggles checked state via metadata.checked; all render properly in PDF (wrapped in `<ul>/<ol>`)
+- **Floating format toolbar**: pill-shaped, backdrop-blur, no longer sticky top bar; list/indent buttons removed (lists are now block types); inline link popover (no dialog)
 - **Deep Writing Mode**: True fullscreen overlay (`fixed inset-0 z-[200]`) — text always visible and scrollable
 - **Focus Timer**: Compact inline toolbar widget — arc progress, pulse dot, pause/stop micro-buttons, never expands
 - **Writing Sprint**: Toolbar timer button — set word goal + duration (5–60 min), countdown with +words written display, progress bar in deep writing mode bottom bar

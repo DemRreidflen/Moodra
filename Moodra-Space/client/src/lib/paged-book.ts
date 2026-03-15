@@ -122,12 +122,12 @@ function esc(s: string): string {
 }
 
 // ── Block types ───────────────────────────────────────────────────────
-interface Block { type: string; content: string; }
+interface Block { type: string; content: string; metadata?: any; }
 
 function parseBlocks(raw: unknown): Block[] {
   let arr: unknown[] = [];
   try { arr = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []); } catch {}
-  return (arr as Block[]).map((b) => ({ type: b.type || "paragraph", content: String(b.content || "") }));
+  return (arr as Block[]).map((b) => ({ type: b.type || "paragraph", content: String(b.content || ""), metadata: (b as any).metadata }));
 }
 
 function blockToHtml(b: Block, lang: string, s: BookTypographySettings): string {
@@ -149,6 +149,9 @@ function blockToHtml(b: Block, lang: string, s: BookTypographySettings): string 
     case "counterargument":return `<div class="callout cc"><span class="ci">✗</span><div>${hyph(rawContent)}</div></div>`;
     case "idea":           return `<div class="callout ci_"><span class="ci">◉</span><div>${hyph(rawContent)}</div></div>`;
     case "question":       return `<div class="callout cq"><span class="ci">?</span><div>${hyph(rawContent)}</div></div>`;
+    case "bullet_item":    return `<li class="blist-item">${hyph(rawContent)}</li>`;
+    case "numbered_item":  return `<li class="blist-item">${hyph(rawContent)}</li>`;
+    case "check_item":     return `<li class="blist-item bcheck">${hyph(rawContent)}</li>`;
     case "divider":        return `<hr class="bdiv"/>`;
     case "pagebreak":      return `<div class="explicit-pagebreak"></div>`;
     default:               return rawContent ? `<p>${hyph(rawContent)}</p>` : "";
@@ -485,6 +488,36 @@ hr.bdiv {
   content: target-counter(attr(href), page);
 }
 
+/* ── Lists ──────────────────────────────────────────────────── */
+.blist-ul,
+.blist-ol,
+.blist-checklist {
+  margin: ${s.lineHeight * 0.5}em 0;
+  padding-left: ${s.firstLineIndent * 2}em;
+  break-inside: avoid-column;
+}
+.blist-ul   { list-style-type: disc; }
+.blist-ol   { list-style-type: decimal; }
+.blist-checklist { list-style-type: none; padding-left: ${s.firstLineIndent}em; }
+.blist-item {
+  margin: ${s.lineHeight * 0.15}em 0;
+  font-size: ${s.fontSize}pt;
+  line-height: ${s.lineHeight};
+}
+.blist-checklist .blist-item::before {
+  content: "☐ ";
+  font-size: 0.9em;
+}
+.blist-checklist .bchecked::before {
+  content: "☑ ";
+  color: #5a9e5a;
+  text-decoration: none;
+}
+.blist-checklist .bchecked {
+  color: #999;
+  text-decoration: line-through;
+}
+
 /* ── Print overrides ────────────────────────────────────────── */
 @media print {
   html, body { color: #000; background: #fff !important; }
@@ -498,10 +531,18 @@ hr.bdiv {
   }
 }
 
-/* ── Pagedjs preview styles ─────────────────────────────────── */
+/* ── Pagedjs canvas + page cards ────────────────────────────── */
+/* Force canvas background everywhere Paged.js might reset it */
+html, body,
+.pagedjs_pages,
+.pagedjs_pages_wrapper {
+  background: #cdc7bf !important;
+}
+
 .pagedjs_page {
-  background: #fff;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.10);
+  background: #ffffff !important;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12), 0 8px 32px rgba(0,0,0,0.16), 0 1px 3px rgba(0,0,0,0.08);
 }
 
 /* ── View mode layouts ──────────────────────────────────────── */
@@ -510,22 +551,24 @@ body[data-view="single"] .pagedjs_pages {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
-  padding: 24px;
+  gap: 32px;
+  padding: 32px 24px;
+  min-height: 100vh;
 }
 /* Spread: two pages side by side */
 body[data-view="spread"] .pagedjs_pages {
   display: grid;
   grid-template-columns: auto auto;
-  gap: 4mm 8mm;
+  gap: 4mm 6mm;
   justify-content: center;
-  padding: 24px;
+  padding: 32px 24px;
+  min-height: 100vh;
 }
 body[data-view="spread"] .pagedjs_page:nth-child(2n+1) {
-  box-shadow: -4px 0 0 rgba(0,0,0,0.04), 0 4px 24px rgba(0,0,0,0.16), 0 1px 4px rgba(0,0,0,0.10);
+  box-shadow: -2px 0 0 rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08);
 }
 body[data-view="spread"] .pagedjs_page:nth-child(2n) {
-  box-shadow: 4px 0 0 rgba(0,0,0,0.04), 0 4px 24px rgba(0,0,0,0.16), 0 1px 4px rgba(0,0,0,0.10);
+  box-shadow: 2px 0 0 rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08);
 }
 
 /* ── Hyphenation inside Paged.js page content ───────────────── */
@@ -669,6 +712,42 @@ function buildFrontMatter(
   return parts.join("\n");
 }
 
+function wrapListItems(rawHtmlParts: string[], blocks: Block[]): string {
+  const result: string[] = [];
+  let i = 0;
+  while (i < rawHtmlParts.length) {
+    const b = blocks[i];
+    if (b.type === "bullet_item") {
+      const items: string[] = [];
+      while (i < blocks.length && blocks[i].type === "bullet_item") {
+        if (rawHtmlParts[i]) items.push(rawHtmlParts[i]);
+        i++;
+      }
+      if (items.length) result.push(`<ul class="blist-ul">${items.join("")}</ul>`);
+    } else if (b.type === "numbered_item") {
+      const items: string[] = [];
+      while (i < blocks.length && blocks[i].type === "numbered_item") {
+        if (rawHtmlParts[i]) items.push(rawHtmlParts[i]);
+        i++;
+      }
+      if (items.length) result.push(`<ol class="blist-ol">${items.join("")}</ol>`);
+    } else if (b.type === "check_item") {
+      const items: string[] = [];
+      while (i < blocks.length && blocks[i].type === "check_item") {
+        const checked = blocks[i].metadata?.checked === true;
+        const raw = rawHtmlParts[i];
+        if (raw) items.push(raw.replace('<li class="blist-item bcheck">', `<li class="blist-item bcheck${checked ? " bchecked" : ""}">`));
+        i++;
+      }
+      if (items.length) result.push(`<ul class="blist-checklist">${items.join("")}</ul>`);
+    } else {
+      if (rawHtmlParts[i]) result.push(rawHtmlParts[i]);
+      i++;
+    }
+  }
+  return result.join("\n");
+}
+
 function buildChapters(
   chapters: { title: string; content: unknown }[],
   s: BookTypographySettings,
@@ -679,7 +758,8 @@ function buildChapters(
     const blocks = parseBlocks(ch.content).filter(
       (b) => b.content.trim() || b.type === "divider" || b.type === "pagebreak",
     );
-    const blocksHtml = blocks.map((b) => blockToHtml(b, lang, s)).filter(Boolean).join("\n");
+    const rawHtmlParts = blocks.map((b) => blockToHtml(b, lang, s));
+    const blocksHtml = wrapListItems(rawHtmlParts, blocks);
 
     return `
 <section class="chapter" id="chapter-${ci}">

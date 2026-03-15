@@ -25,7 +25,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Superscript, Subscript,
   Palette, Highlighter, Link2, Eraser, Indent, Outdent,
-  Undo2, Redo2, RemoveFormatting,
+  Undo2, Redo2, RemoveFormatting, CheckSquare, Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +49,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     text: "Text", heading1: "Heading 1", heading2: "Heading 2", heading3: "Heading 3", quote: "Quote",
     hypothesis: "Hypothesis", argument: "Argument", counterargument: "Counterargument", idea: "Idea", question: "Question",
     exampleBlock: "Example", observation: "Observation", research: "Research", sourceRef: "Source", divider: "Divider",
+    bulletItem: "Bullet point", numberedItem: "Numbered item", checkItem: "Checklist item",
+    bulletItemDesc: "Unordered list item", numberedItemDesc: "Numbered list item", checkItemDesc: "Checkbox item",
     textDesc: "Regular text", heading1Desc: "Large heading", heading2Desc: "Medium heading", heading3Desc: "Small heading",
     quoteDesc: "Highlighted quote", hypothesisDesc: "Assumption to verify", argumentDesc: "Argument in favor", counterargumentDesc: "Argument against",
     ideaDesc: "Sudden insight", questionDesc: "Something to find out", exampleDesc: "Illustration of thought",
@@ -72,6 +74,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     text: "Текст", heading1: "Заголовок 1", heading2: "Заголовок 2", heading3: "Заголовок 3", quote: "Цитата",
     hypothesis: "Гипотеза", argument: "Аргумент", counterargument: "Контраргумент", idea: "Идея", question: "Вопрос",
     exampleBlock: "Пример", observation: "Наблюдение", research: "Исследование", sourceRef: "Источник", divider: "Разделитель",
+    bulletItem: "Маркированный пункт", numberedItem: "Нумерованный пункт", checkItem: "Пункт чеклиста",
+    bulletItemDesc: "Элемент маркированного списка", numberedItemDesc: "Элемент нумерованного списка", checkItemDesc: "Пункт с флажком",
     textDesc: "Обычный текст", heading1Desc: "Большой заголовок", heading2Desc: "Средний заголовок", heading3Desc: "Малый заголовок",
     quoteDesc: "Выделенная цитата", hypothesisDesc: "Предположение для проверки", argumentDesc: "Довод в пользу", counterargumentDesc: "Довод против",
     ideaDesc: "Внезапное озарение", questionDesc: "То, что нужно выяснить", exampleDesc: "Иллюстрация мысли",
@@ -95,6 +99,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     text: "Текст", heading1: "Заголовок 1", heading2: "Заголовок 2", heading3: "Заголовок 3", quote: "Цитата",
     hypothesis: "Гіпотеза", argument: "Аргумент", counterargument: "Контраргумент", idea: "Ідея", question: "Питання",
     exampleBlock: "Приклад", observation: "Спостереження", research: "Дослідження", sourceRef: "Джерело", divider: "Роздільник",
+    bulletItem: "Маркований пункт", numberedItem: "Нумерований пункт", checkItem: "Пункт чеклисту",
+    bulletItemDesc: "Елемент маркованого списку", numberedItemDesc: "Елемент нумерованого списку", checkItemDesc: "Пункт з прапорцем",
     textDesc: "Звичайний текст", heading1Desc: "Великий заголовок", heading2Desc: "Середній заголовок", heading3Desc: "Малий заголовок",
     quoteDesc: "Виділена цитата", hypothesisDesc: "Припущення для перевірки", argumentDesc: "Довід на користь", counterargumentDesc: "Довід проти",
     ideaDesc: "Раптове осяяння", questionDesc: "Те, що потрібно з'ясувати", exampleDesc: "Ілюстрація думки",
@@ -118,6 +124,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     text: "Text", heading1: "Überschrift 1", heading2: "Überschrift 2", heading3: "Überschrift 3", quote: "Zitat",
     hypothesis: "Hypothese", argument: "Argument", counterargument: "Gegenargument", idea: "Idee", question: "Frage",
     exampleBlock: "Beispiel", observation: "Beobachtung", research: "Forschung", sourceRef: "Quelle", divider: "Trennlinie",
+    bulletItem: "Aufzählungspunkt", numberedItem: "Nummerierter Punkt", checkItem: "Checklisten-Element",
+    bulletItemDesc: "Element einer Aufzählungsliste", numberedItemDesc: "Element einer nummerierten Liste", checkItemDesc: "Element mit Kontrollkästchen",
     textDesc: "Normaler Text", heading1Desc: "Große Überschrift", heading2Desc: "Mittlere Überschrift", heading3Desc: "Kleine Überschrift",
     quoteDesc: "Hervorgehobenes Zitat", hypothesisDesc: "Annahme zur Prüfung", argumentDesc: "Argument dafür", counterargumentDesc: "Argument dagegen",
     ideaDesc: "Plötzliche Erkenntnis", questionDesc: "Zu klärender Punkt", exampleDesc: "Gedankenillustration",
@@ -142,6 +150,9 @@ const BLOCK_TYPE_I18N_MAP: Record<string, { labelKey: string; descKey: string }>
   h2: { labelKey: "heading2", descKey: "heading2Desc" },
   h3: { labelKey: "heading3", descKey: "heading3Desc" },
   quote: { labelKey: "quote", descKey: "quoteDesc" },
+  bullet_item: { labelKey: "bulletItem", descKey: "bulletItemDesc" },
+  numbered_item: { labelKey: "numberedItem", descKey: "numberedItemDesc" },
+  check_item: { labelKey: "checkItem", descKey: "checkItemDesc" },
   hypothesis: { labelKey: "hypothesis", descKey: "hypothesisDesc" },
   argument: { labelKey: "argument", descKey: "argumentDesc" },
   counterargument: { labelKey: "counterargument", descKey: "counterargumentDesc" },
@@ -428,13 +439,6 @@ function FormatToolbar({
 
         <Sep />
 
-        {fmtBtn(formats.insertUnorderedList, s.bulletList, () => cmd("insertUnorderedList"), <List className="h-3.5 w-3.5" />)}
-        {fmtBtn(formats.insertOrderedList, s.numberedList, () => cmd("insertOrderedList"), <ListOrdered className="h-3.5 w-3.5" />)}
-        {fmtBtn(false, s.increaseIndent, () => cmd("indent"), <Indent className="h-3.5 w-3.5" />)}
-        {fmtBtn(false, s.decreaseIndent, () => cmd("outdent"), <Outdent className="h-3.5 w-3.5" />)}
-
-        <Sep />
-
         {fmtBtn(formats.superscript, s.superscript, () => cmd("superscript"), <Superscript className="h-3.5 w-3.5" />)}
         {fmtBtn(formats.subscript, s.subscript, () => cmd("subscript"), <Subscript className="h-3.5 w-3.5" />)}
 
@@ -517,6 +521,9 @@ export type BlockType =
   | "h2"
   | "h3"
   | "quote"
+  | "bullet_item"
+  | "numbered_item"
+  | "check_item"
   | "hypothesis"
   | "argument"
   | "counterargument"
@@ -558,6 +565,9 @@ const BLOCK_TYPES: { type: BlockType; icon: any }[] = [
   { type: "h2", icon: Heading2 },
   { type: "h3", icon: Heading3 },
   { type: "quote", icon: Quote },
+  { type: "bullet_item", icon: List },
+  { type: "numbered_item", icon: ListOrdered },
+  { type: "check_item", icon: CheckSquare },
   { type: "hypothesis", icon: AlertCircle },
   { type: "argument", icon: CheckCircle2 },
   { type: "counterargument", icon: XCircle },
@@ -1032,24 +1042,34 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
       >
         <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-1" style={{ '--block-line-spacing': lineSpacing } as React.CSSProperties}>
-            {blocks.map((block, index) => (
-              <SortableBlock
-                key={block.id}
-                block={block}
-                isFocused={focusedBlockId === block.id}
-                onFocus={() => !hideControls && setFocusedBlockId(block.id)}
-                onUpdateContent={(content) => updateBlockContent(block.id, content)}
-                onUpdateType={(type) => updateBlockType(block.id, type)}
-                onUpdateMetadata={(metadata) => updateBlockMetadata(block.id, metadata)}
-                onAddBlock={(type, content) => addBlock(index, type ?? "paragraph", content)}
-                onDelete={() => deleteBlock(block.id)}
-                onPasteBlocks={(paragraphs) => handlePasteBlocks(block.id, paragraphs)}
-                onMergeWithPrevious={index > 0 ? (content) => mergeWithPrevious(block.id, content) : undefined}
-                hideControls={hideControls}
-                firstLineIndent={firstLineIndent}
-                cursorTarget={cursorTargetRef}
-              />
-            ))}
+            {blocks.map((block, index) => {
+              let listIndex = 1;
+              if (block.type === "numbered_item") {
+                for (let i = index - 1; i >= 0; i--) {
+                  if (blocks[i].type === "numbered_item") listIndex++;
+                  else break;
+                }
+              }
+              return (
+                <SortableBlock
+                  key={block.id}
+                  block={block}
+                  isFocused={focusedBlockId === block.id}
+                  onFocus={() => !hideControls && setFocusedBlockId(block.id)}
+                  onUpdateContent={(content) => updateBlockContent(block.id, content)}
+                  onUpdateType={(type) => updateBlockType(block.id, type)}
+                  onUpdateMetadata={(metadata) => updateBlockMetadata(block.id, metadata)}
+                  onAddBlock={(type, content) => addBlock(index, type ?? "paragraph", content)}
+                  onDelete={() => deleteBlock(block.id)}
+                  onPasteBlocks={(paragraphs) => handlePasteBlocks(block.id, paragraphs)}
+                  onMergeWithPrevious={index > 0 ? (content) => mergeWithPrevious(block.id, content) : undefined}
+                  hideControls={hideControls}
+                  firstLineIndent={firstLineIndent}
+                  cursorTarget={cursorTargetRef}
+                  listIndex={listIndex}
+                />
+              );
+            })}
           </div>
         </SortableContext>
       </DndContext>
@@ -1072,6 +1092,7 @@ interface SortableBlockProps {
   hideControls?: boolean;
   firstLineIndent?: number;
   cursorTarget?: React.MutableRefObject<{ blockId: string; offset: number } | null>;
+  listIndex?: number;
 }
 
 function placeCaretAtTextOffset(el: HTMLElement, targetOffset: number) {
@@ -1120,6 +1141,7 @@ function SortableBlock({
   hideControls,
   firstLineIndent,
   cursorTarget,
+  listIndex,
 }: SortableBlockProps) {
   const {
     attributes,
@@ -1179,7 +1201,18 @@ function SortableBlock({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (hideControls) return;
     const isEmpty = contentRef.current?.innerText?.trim() === "";
+    const isListBlock = block.type === "bullet_item" || block.type === "numbered_item" || block.type === "check_item";
+
     if (e.key === "Enter" && !e.shiftKey) {
+      if (isListBlock) {
+        e.preventDefault();
+        if (isEmpty) {
+          onUpdateType("paragraph");
+        } else {
+          onAddBlock(block.type);
+        }
+        return;
+      }
       // If cursor is inside a list item, let browser handle Enter natively
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0) {
@@ -1376,7 +1409,7 @@ function SortableBlock({
             </div>
           ) : (
             <>
-              {renderBlockContent(block, contentRef, onFocus, handleKeyDown, handleInput, handleBlur, handlePaste, hideControls, s, firstLineIndent)}
+              {renderBlockContent(block, contentRef, onFocus, handleKeyDown, handleInput, handleBlur, handlePaste, hideControls, s, firstLineIndent, listIndex, onUpdateMetadata)}
               {!block.content && !isFocused && !hideControls && (
                 <div className="absolute top-0 left-0 text-muted-foreground/30 pointer-events-none italic">
                   {s.placeholder}
@@ -1464,7 +1497,9 @@ function renderBlockContent(
   onPaste: (e: React.ClipboardEvent<HTMLDivElement>) => void,
   hideControls?: boolean,
   s?: Record<string, string>,
-  firstLineIndent?: number
+  firstLineIndent?: number,
+  listIndex?: number,
+  onUpdateMetadata?: (metadata: any) => void,
 ) {
   const i = s || BLOCK_EDITOR_I18N.en;
   const commonProps = {
@@ -1509,6 +1544,45 @@ function renderBlockContent(
       return <BlockContainer icon={Search} label={i.observation} bgColor="bg-[#FFF7ED]" hideControls={hideControls} {...commonProps} />;
     case "research":
       return <BlockContainer icon={MessageSquare} label={i.research} bgColor="bg-[#F9FAFB]" hideControls={hideControls} {...commonProps} />;
+    case "bullet_item":
+      return (
+        <div className="flex items-start gap-2.5" style={{ lineHeight: "var(--block-line-spacing, 1.625)" }}>
+          <span className="mt-[0.28em] text-muted-foreground flex-shrink-0 text-base leading-none select-none">•</span>
+          <div {...commonProps} className={cn(commonProps.className, "text-lg font-serif flex-1")} />
+        </div>
+      );
+    case "numbered_item":
+      return (
+        <div className="flex items-start gap-2.5" style={{ lineHeight: "var(--block-line-spacing, 1.625)" }}>
+          <span className="mt-[0.28em] text-muted-foreground flex-shrink-0 text-base leading-none select-none font-mono min-w-[1.4em] text-right">{listIndex ?? 1}.</span>
+          <div {...commonProps} className={cn(commonProps.className, "text-lg font-serif flex-1")} />
+        </div>
+      );
+    case "check_item": {
+      const checked = block.metadata?.checked === true;
+      return (
+        <div className="flex items-start gap-2.5" style={{ lineHeight: "var(--block-line-spacing, 1.625)" }}>
+          <button
+            onMouseDown={(e) => {
+              if (hideControls) return;
+              e.preventDefault();
+              onUpdateMetadata?.({ ...block.metadata, checked: !checked });
+            }}
+            className="mt-[0.3em] flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
+            tabIndex={-1}
+          >
+            {checked
+              ? <CheckSquare className="w-4 h-4 text-primary" />
+              : <Square className="w-4 h-4" />
+            }
+          </button>
+          <div
+            {...commonProps}
+            className={cn(commonProps.className, "text-lg font-serif flex-1", checked && "line-through text-muted-foreground")}
+          />
+        </div>
+      );
+    }
     case "source_ref":
       return (
         <div className="flex items-center gap-2 text-sm text-primary underline decoration-primary/30 underline-offset-4">
