@@ -1665,6 +1665,92 @@ New directions the author could explore — what could make this text exceptiona
     }
   });
 
+  // ───── META-PROMPT SMART-ACTION ROUTE ─────────────────────────────────────
+  // Assembles full note context from DB, builds a structured layered prompt,
+  // and dispatches to the appropriate specialist agent.
+
+  app.post("/api/ai/notes/:noteId/smart-action", isAuthenticated, async (req: Request, res: Response) => {
+    const noteId = parseInt(req.params.noteId, 10);
+    const { bookId, intent, lang } = req.body;
+
+    if (isNaN(noteId) || !bookId || !intent) {
+      return res.status(400).json({ error: "noteId, bookId, and intent are required" });
+    }
+
+    const VALID_INTENTS = ["connect", "expand", "distill", "suggest_tags", "to_draft", "suggest_collection"];
+    if (!VALID_INTENTS.includes(intent)) {
+      return res.status(400).json({ error: `Unknown intent. Valid: ${VALID_INTENTS.join(", ")}` });
+    }
+
+    try {
+      const ctx = await assembleNoteContext(noteId, bookId, intent, lang || "en");
+      const { systemPrompt, userPrompt, maxTokens } = buildStructuredPrompt(ctx);
+
+      // Try premium (user's OpenAI key) first
+      try {
+        const ai = await getOpenAI(req);
+        const model = await getUserModel(req);
+        const completion = await ai.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: maxTokens,
+        });
+        const result = completion.choices[0]?.message?.content || "";
+        const userId = getUserId(req);
+        if (completion.usage?.total_tokens) trackTokens(userId, completion.usage.total_tokens);
+        return res.json({ result, intent, contextSummary: {
+          linkedNotes: ctx.linkedNotes.length,
+          linkedSources: ctx.linkedSources.length,
+          collections: ctx.collections.length,
+          backlinks: ctx.backlinkedNotes.length,
+          recentNotes: ctx.recentNotes.length,
+        }});
+      } catch (e: any) {
+        const { code } = openAIErrorMessage(e);
+        if (code !== "no_api_key") {
+          const { status, message } = openAIErrorMessage(e);
+          return res.status(status).json({ error: message, code });
+        }
+      }
+
+      // Fallback: free Pollinations
+      const seed = Math.floor(Math.random() * 99999);
+      const pollinationsRes = await fetch("https://text.pollinations.ai/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          model: "openai",
+          seed,
+          private: true,
+        }),
+        signal: AbortSignal.timeout(40000),
+      });
+      if (!pollinationsRes.ok) {
+        return res.status(502).json({ error: "free_unavailable", message: `Free AI unavailable (${pollinationsRes.status})` });
+      }
+      let text = (await pollinationsRes.text()).trim();
+      if (text.startsWith("{") || text.startsWith("[")) {
+        try { const p = JSON.parse(text); text = p?.choices?.[0]?.message?.content || p?.content || text; } catch {}
+      }
+      return res.json({ result: text, intent, contextSummary: {
+        linkedNotes: ctx.linkedNotes.length,
+        linkedSources: ctx.linkedSources.length,
+        collections: ctx.collections.length,
+        backlinks: ctx.backlinkedNotes.length,
+        recentNotes: ctx.recentNotes.length,
+      }});
+    } catch (e: any) {
+      return res.status(500).json({ error: "smart_action_error", message: e?.message || "Smart action failed" });
+    }
+  });
+
   // ───── EXPORT ROUTES ─────
 
   function blocksToText(blocks: any[]): string {

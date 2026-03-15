@@ -106,6 +106,12 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
   const [orphansOnly, setOrphansOnly] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
+  // ── Smart-action AI panel ────────────────────────────────────────────────────
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [aiIntent, setAiIntent] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiContextInfo, setAiContextInfo] = useState<Record<string, number> | null>(null);
+
   // ── Quick capture ─────────────────────────────────────────────────────────────
   const [quickText, setQuickText] = useState("");
   const quickRef = useRef<HTMLInputElement>(null);
@@ -428,6 +434,30 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
     );
   };
 
+  // ── Smart-action runner ───────────────────────────────────────────────────────
+  const runSmartAction = async (intent: string) => {
+    if (!editNote?.id) return;
+    setAiLoading(true);
+    setAiIntent(intent);
+    setAiResult(null);
+    setAiContextInfo(null);
+    try {
+      const res = await apiRequest("POST", `/api/ai/notes/${editNote.id}/smart-action`, {
+        bookId,
+        intent,
+        lang: book.language || "en",
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.message || data.error);
+      setAiResult(data.result);
+      setAiContextInfo(data.contextSummary || null);
+    } catch (e: any) {
+      toast({ title: "AI action failed", description: e.message, variant: "destructive" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────────
   // ── EDITOR VIEW ──────────────────────────────────────────────────────────────
   if (view === "editor") {
@@ -481,6 +511,80 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
               style={{ fontFamily: "inherit" }}
             />
           </div>
+
+          {/* ── Smart-action AI strip ─────────────────────────────────────── */}
+          {editNote?.id && (
+            <div className="mx-4 mt-1 mb-2">
+              {/* Action buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {([
+                  { intent: "connect",            label: "Connect",       icon: Network },
+                  { intent: "expand",             label: "Expand",        icon: Sparkles },
+                  { intent: "distill",            label: "Distill",       icon: Lightbulb },
+                  { intent: "suggest_tags",       label: "Tags",          icon: Hash },
+                  { intent: "to_draft",           label: "To Draft",      icon: FileText },
+                ] as const).map(({ intent, label, icon: Icon }) => (
+                  <button
+                    key={intent}
+                    onClick={() => { setAiResult(null); runSmartAction(intent); }}
+                    disabled={aiLoading}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all disabled:opacity-40"
+                    style={{
+                      background: aiIntent === intent && (aiLoading || aiResult) ? "rgba(99,102,241,0.12)" : "rgba(0,0,0,0.04)",
+                      color: aiIntent === intent && (aiLoading || aiResult) ? "#6366F1" : "hsl(var(--muted-foreground))",
+                      border: `1px solid ${aiIntent === intent && (aiLoading || aiResult) ? "rgba(99,102,241,0.25)" : "transparent"}`,
+                    }}
+                  >
+                    {aiLoading && aiIntent === intent
+                      ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      : <Icon className="h-2.5 w-2.5" />
+                    }
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Result panel */}
+              {aiResult && (
+                <div className="mt-2 rounded-lg border border-indigo-200/40 bg-indigo-50/30 dark:bg-indigo-950/20 dark:border-indigo-800/30 overflow-hidden">
+                  {/* Panel header */}
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-indigo-200/30 dark:border-indigo-800/30">
+                    <Sparkles className="h-3 w-3 text-indigo-400 flex-shrink-0" />
+                    <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wide flex-1">
+                      {aiIntent === "connect" ? "Linker Agent" :
+                       aiIntent === "expand" ? "Expansion Agent" :
+                       aiIntent === "distill" ? "Distillation Agent" :
+                       aiIntent === "suggest_tags" ? "Tagging Agent" :
+                       aiIntent === "to_draft" ? "Draft Agent" : "AI Result"}
+                    </span>
+                    {aiContextInfo && Object.values(aiContextInfo).some(v => v > 0) && (
+                      <span className="text-[9px] text-indigo-400/70">
+                        {[
+                          aiContextInfo.linkedNotes   > 0 && `${aiContextInfo.linkedNotes} notes`,
+                          aiContextInfo.linkedSources > 0 && `${aiContextInfo.linkedSources} sources`,
+                          aiContextInfo.collections   > 0 && `${aiContextInfo.collections} collections`,
+                          aiContextInfo.backlinks     > 0 && `${aiContextInfo.backlinks} backlinks`,
+                          aiContextInfo.recentNotes   > 0 && `${aiContextInfo.recentNotes} recent`,
+                        ].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => { setAiResult(null); setAiContextInfo(null); }}
+                      className="w-4 h-4 flex items-center justify-center rounded text-indigo-400 hover:text-indigo-600 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {/* Scrollable result */}
+                  <div className="px-3 py-2.5 max-h-72 overflow-y-auto">
+                    <div className="text-xs leading-relaxed whitespace-pre-wrap text-foreground/85">
+                      {aiResult}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Compact metadata bar ─────────────────────────────────────── */}
           <div className="border-t border-border/25 mx-4" />

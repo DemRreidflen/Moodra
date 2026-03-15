@@ -3,6 +3,34 @@
 ## Overview
 Moodra is a next-gen AI writing environment for serious authors. The platform covers the full lifecycle of a book — from research and hypothesis-testing to character development and final writing. Clean cream/editorial design, block-based editor, interactive idea boards, and deep AI integration.
 
+## Meta-Prompt Architecture (Prompt Ecosystem)
+The AI system uses a layered meta-prompt architecture (`server/promptEngine.ts`) — not flat prompts.
+
+### Context Assembly (`assembleNoteContext`)
+For every note-level AI action, the engine assembles a `NoteContext` from the database:
+- **Object layer**: note content, type, status, importance, tags, semantic tags
+- **Project layer**: book title, mode, genre, core idea, themes, tone
+- **Connection layer**: linked notes (with snippets), linked sources (with summaries/quotes), linked drafts, collections, backlinked notes, recent notes in project
+
+### Prompt Structure (`buildStructuredPrompt`)
+Each assembled prompt contains 9 explicit components: agent role, system goal, object context, project context, connected context, task, desired output structure, tone of response, and transformation rules. Context selectors per intent control which layers are included.
+
+### Specialist Agents (6 intents)
+| Intent | Agent | Context layers |
+|---|---|---|
+| `connect` | Linker Agent | object + project + linked_notes + linked_sources + collections + recent_notes |
+| `expand` | Expansion Agent | object + project + linked_notes + linked_sources + recent_notes |
+| `distill` | Distillation Agent | object + project + linked_notes |
+| `suggest_tags` | Tagging Agent | object + project + recent_notes |
+| `to_draft` | Draft Agent | object + project + linked_notes + linked_sources + linked_drafts |
+| `suggest_collection` | Classification Agent | object + project + collections + recent_notes |
+
+### API Endpoint
+`POST /api/ai/notes/:noteId/smart-action` — authenticated, accepts `{ bookId, intent, lang }`, returns `{ result, intent, contextSummary }`.
+
+### UI
+Notes editor has a compact AI action strip (Connect · Expand · Distill · Tags · To Draft) that renders results in an inline agent panel showing which context layers were used (linked notes count, sources count, etc.).
+
 ## Key Features
 - **Notes System 2.0 + Obsidian-like features** (full atomic notes module in Research panel):
   - **Quick Capture bar**: single-line input → captures to Inbox instantly (Enter key), creates `isQuick: "true"` notes
