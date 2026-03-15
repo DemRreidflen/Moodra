@@ -28,6 +28,7 @@ import {
   Wand2,
   ArrowDownIcon,
   Plus,
+  Minus,
   Sparkles,
   RotateCcw,
   Timer,
@@ -35,6 +36,7 @@ import {
   Clock,
   Zap,
   ChevronUp,
+  ChevronsLeftRight,
 } from "lucide-react";
 import { BlockEditor, Block, blocksToPlainText, BlockEditorAPI } from "./block-editor";
 import { cn } from "@/lib/utils";
@@ -196,7 +198,13 @@ const EDITOR_I18N = {
     sprintStop: "Stop",
     sprintDone: "Sprint done!",
     sprintWordsWritten: "words written",
-    typewriterMode: "Typewriter mode",
+    typewriterMode: "Typewriter mode: current line stays centered on screen",
+    editorFontSmaller: "Decrease editor font size",
+    editorFontLarger: "Increase editor font size",
+    editorNarrow: "Narrow editor",
+    editorWider: "Widen editor",
+    fontSizeLabel: "Font",
+    widthLabel: "Width",
   },
   ru: {
     selectChapter: "Выберите главу для редактирования",
@@ -260,7 +268,13 @@ const EDITOR_I18N = {
     sprintStop: "Стоп",
     sprintDone: "Спринт завершён!",
     sprintWordsWritten: "слов написано",
-    typewriterMode: "Режим машинки",
+    typewriterMode: "Режим пишущей машинки: текущая строка всегда по центру экрана",
+    editorFontSmaller: "Уменьшить шрифт редактора",
+    editorFontLarger: "Увеличить шрифт редактора",
+    editorNarrow: "Уже",
+    editorWider: "Шире",
+    fontSizeLabel: "Шрифт",
+    widthLabel: "Ширина",
   },
   ua: {
     selectChapter: "Оберіть розділ для редагування",
@@ -324,7 +338,13 @@ const EDITOR_I18N = {
     sprintStop: "Стоп",
     sprintDone: "Спринт завершено!",
     sprintWordsWritten: "слів написано",
-    typewriterMode: "Режим машинки",
+    typewriterMode: "Режим машинки: поточний рядок завжди по центру екрана",
+    editorFontSmaller: "Зменшити шрифт редактора",
+    editorFontLarger: "Збільшити шрифт редактора",
+    editorNarrow: "Вужче",
+    editorWider: "Ширше",
+    fontSizeLabel: "Шрифт",
+    widthLabel: "Ширина",
   },
   de: {
     selectChapter: "Wähle ein Kapitel zur Bearbeitung",
@@ -388,7 +408,13 @@ const EDITOR_I18N = {
     sprintStop: "Stop",
     sprintDone: "Sprint fertig!",
     sprintWordsWritten: "Wörter geschrieben",
-    typewriterMode: "Schreibmodus",
+    typewriterMode: "Schreibmaschineneffekt: aktuelle Zeile bleibt zentriert",
+    editorFontSmaller: "Schriftgröße verringern",
+    editorFontLarger: "Schriftgröße erhöhen",
+    editorNarrow: "Schmaler",
+    editorWider: "Breiter",
+    fontSizeLabel: "Schrift",
+    widthLabel: "Breite",
   },
 };
 
@@ -503,6 +529,10 @@ export function ChapterEditor({
   const [sprintWordsAtStart, setSprintWordsAtStart] = useState(0);
   const [sprintExpanded, setSprintExpanded] = useState(false);
   const sprintTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Editor-local view controls (don't affect PDF layout)
+  const [editorFontScale, setEditorFontScale] = useState(100); // 75–150 %
+  const [editorMaxWidth, setEditorMaxWidth] = useState(768);    // 480–1200 px
 
   useEffect(() => {
     if (chapter) {
@@ -946,7 +976,7 @@ export function ChapterEditor({
           {/* Stats: words + reading time */}
           <button
             onClick={() => setShowCharCount(v => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors border-r border-border pr-3 mr-0.5"
+            className="flex items-center gap-1 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors pr-2 mr-0.5"
             title={showCharCount ? "Show word count" : "Show character count"}
           >
             <AlignLeft className="h-3.5 w-3.5 flex-shrink-0" />
@@ -962,11 +992,58 @@ export function ChapterEditor({
             )}
           </button>
 
+          <div className="w-px h-4 bg-border/60 mx-0.5" />
+
+          {/* Editor font size control */}
+          <div className="flex items-center gap-0.5" title={s.editorFontSmaller}>
+            <button
+              onClick={() => setEditorFontScale(v => Math.max(70, v - 5))}
+              className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors text-xs font-bold"
+              title={s.editorFontSmaller}
+            >A<sup className="text-[7px]">–</sup></button>
+            <button
+              onClick={() => setEditorFontScale(100)}
+              className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors w-8 text-center tabular-nums"
+              title="Сбросить размер шрифта"
+            >{editorFontScale}%</button>
+            <button
+              onClick={() => setEditorFontScale(v => Math.min(160, v + 5))}
+              className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors text-xs font-bold"
+              title={s.editorFontLarger}
+            >A<sup className="text-[7px]">+</sup></button>
+          </div>
+
+          <div className="w-px h-4 bg-border/60 mx-0.5" />
+
+          {/* Editor width control */}
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => setEditorMaxWidth(v => Math.max(480, v - 60))}
+              className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors"
+              title={s.editorNarrow}
+            ><Minus className="h-3 w-3" /></button>
+            <button
+              onClick={() => setEditorMaxWidth(768)}
+              className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              title="Сбросить ширину редактора"
+            >
+              <ChevronsLeftRight className="h-3 w-3" />
+              <span className="tabular-nums w-8 text-center">{editorMaxWidth}</span>
+            </button>
+            <button
+              onClick={() => setEditorMaxWidth(v => Math.min(1200, v + 60))}
+              className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-colors"
+              title={s.editorWider}
+            ><Plus className="h-3 w-3" /></button>
+          </div>
+
+          <div className="w-px h-4 bg-border/60 mx-0.5" />
+
           {/* Typewriter mode */}
           <Button
             size="sm"
             variant="ghost"
-            className={cn("h-8 w-8 p-0 transition-colors", isTypewriterMode ? "text-primary" : "text-muted-foreground hover:text-foreground")}
+            className={cn("h-8 w-8 p-0 transition-colors", isTypewriterMode ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground")}
             onClick={() => setIsTypewriterMode(v => !v)}
             title={s.typewriterMode}
           >
@@ -1048,13 +1125,15 @@ export function ChapterEditor({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => setIsReadingMode(true)}
+            className={cn("h-8 w-8 transition-colors", isReadingMode ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground")}
+            onClick={() => setIsReadingMode(v => !v)}
             data-testid="button-reading-mode"
             title={s.readingMode || "Reading mode"}
           >
             <BookOpen className="h-4 w-4" />
           </Button>
+
+          <div className="w-px h-4 bg-border/60 mx-0.5" />
 
           {isDirty && (
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal hidden sm:flex">
@@ -1146,9 +1225,13 @@ export function ChapterEditor({
           ref={editorAreaRef}
           className={cn(
           "mx-auto transition-all duration-500",
-          isReadingMode ? "max-w-[640px]" : "max-w-3xl",
           (isDeepWritingMode || isReadingMode) ? "px-4" : "px-8 py-8"
-        )}>
+        )}
+          style={{
+            maxWidth: isReadingMode ? 640 : editorMaxWidth,
+            fontSize: `${editorFontScale}%`,
+          }}
+        >
           {/* Chapter title — always visible, editable in write/focus modes */}
           <div
             ref={inlineTitleRef}

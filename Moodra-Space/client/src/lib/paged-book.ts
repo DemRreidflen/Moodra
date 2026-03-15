@@ -242,6 +242,7 @@ html, body {
   font-size: ${s.fontSize}pt;
   line-height: ${s.lineHeight};
   color: #1a1007;
+  background: #cdc7bf;
   font-kerning: normal;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   text-rendering: optimizeLegibility;

@@ -25,6 +25,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Superscript, Subscript,
   Palette, Highlighter, Link2, Eraser, Indent, Outdent,
+  Undo2, Redo2, RemoveFormatting,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -307,7 +308,13 @@ function FormatToolbar({ visible }: { visible: boolean }) {
   if (!visible) return null;
 
   return (
-    <div className="sticky top-0 z-30 border-b border-border bg-background px-3 py-1 flex items-center gap-0.5 flex-wrap">
+    <div className="sticky top-0 z-30 border-b border-border/60 bg-background/95 backdrop-blur-sm px-2 py-1 flex items-center gap-0.5 flex-wrap">
+      {/* Undo / Redo */}
+      {fmtBtn(false, "Отменить (Ctrl+Z)", () => cmd("undo"), <Undo2 className="h-3.5 w-3.5" />)}
+      {fmtBtn(false, "Повторить (Ctrl+Y)", () => cmd("redo"), <Redo2 className="h-3.5 w-3.5" />)}
+
+      <Sep />
+
       {/* Font family */}
       <select
         value={fontFamily}
@@ -396,10 +403,10 @@ function FormatToolbar({ visible }: { visible: boolean }) {
 
       <Sep />
 
-      {fmtBtn(formats.insertUnorderedList, s.bulletList, () => cmd("insertUnorderedList"), <List className="h-3.5 w-3.5" />)}
-      {fmtBtn(formats.insertOrderedList, s.numberedList, () => cmd("insertOrderedList"), <ListOrdered className="h-3.5 w-3.5" />)}
-      {fmtBtn(false, s.increaseIndent, () => cmd("indent"), <Indent className="h-3.5 w-3.5" />)}
-      {fmtBtn(false, s.decreaseIndent, () => cmd("outdent"), <Outdent className="h-3.5 w-3.5" />)}
+      {fmtBtn(formats.insertUnorderedList, s.bulletList, () => { restoreSelection(); cmd("insertUnorderedList"); }, <List className="h-3.5 w-3.5" />)}
+      {fmtBtn(formats.insertOrderedList, s.numberedList, () => { restoreSelection(); cmd("insertOrderedList"); }, <ListOrdered className="h-3.5 w-3.5" />)}
+      {fmtBtn(false, s.increaseIndent, () => { restoreSelection(); cmd("indent"); }, <Indent className="h-3.5 w-3.5" />)}
+      {fmtBtn(false, s.decreaseIndent, () => { restoreSelection(); cmd("outdent"); }, <Outdent className="h-3.5 w-3.5" />)}
 
       <Sep />
 
@@ -408,11 +415,15 @@ function FormatToolbar({ visible }: { visible: boolean }) {
 
       <Sep />
 
-      {/* Link */}
+      {/* Link — save selection before prompt (prompt blurs editor) */}
       {fmtBtn(false, s.insertLink, () => {
+        saveSelection();
         const url = window.prompt(s.enterUrl, "https://");
-        if (url) cmd("createLink", url);
+        if (url) { restoreSelection(); cmd("createLink", url); }
       }, <Link2 className="h-3.5 w-3.5" />)}
+
+      {/* Clear formatting */}
+      {fmtBtn(false, s.clearFormat, () => cmd("removeFormat"), <RemoveFormatting className="h-3.5 w-3.5" />)}
 
     </div>
   );
@@ -1083,6 +1094,15 @@ function SortableBlock({
     if (hideControls) return;
     const isEmpty = contentRef.current?.innerText?.trim() === "";
     if (e.key === "Enter" && !e.shiftKey) {
+      // If cursor is inside a list item, let browser handle Enter natively
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const node = sel.getRangeAt(0).startContainer;
+        const li = node.nodeType === Node.TEXT_NODE
+          ? (node.parentElement as HTMLElement)?.closest("li")
+          : (node as HTMLElement)?.closest?.("li");
+        if (li) return; // allow native Enter → new <li>
+      }
       e.preventDefault();
       const el = contentRef.current;
       if (el) {
@@ -1428,14 +1448,14 @@ function renderBlockContent(
 
 function BlockContainer({ icon: Icon, label, bgColor, hideControls, ...props }: any) {
   return (
-    <div className={cn("p-4 rounded-lg flex flex-col gap-2", bgColor, hideControls && "bg-transparent p-0")}>
+    <div className={cn("p-4 rounded-lg flex flex-col gap-2", bgColor, hideControls && "p-3 opacity-90")}>
       {!hideControls && (
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground/60">
           <Icon className="w-3 h-3" />
           {label}
         </div>
       )}
-      <div {...props} className={cn(props.className, "text-lg font-serif", hideControls && "text-inherit font-inherit leading-inherit")} />
+      <div {...props} className={cn(props.className, "text-lg font-serif")} />
     </div>
   );
 }
