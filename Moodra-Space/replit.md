@@ -30,15 +30,14 @@ Moodra is a next-gen AI writing environment for serious authors. The platform co
   - **Quick-add toolbar**: sticky / section / shape buttons in top toolbar
   - **3-tab Add dialog**: Object cards / Semantic cards / Free objects — with color pickers and shape picker
   - **Board data**: stored as JSON blob in books.boardData, no DB migrations needed
-- **AI Agents Panel** (new "agents" tab in book editor, between board and layout):
-  - **8 cognitive knowledge agents**: Linker, Distiller, Expansion, Structuring, Tension, Relevance, Transformation, Mapping
-  - Each agent has 4–5 specialized functions (e.g. "suggest links", "summarize thesis", "expand to draft", "detect conflicts")
-  - **Context sources**: select from book's Notes, book's Sources, or paste text manually
-  - **Output actions**: copy result, save as note, add to Idea Board
-  - **Free mode fallback**: works with Pollinations when no API key; premium uses OpenAI
-  - **Server endpoint**: `/api/ai/cognitive-agent` (POST) — agentType + functionType + content + lang
-  - **Multilingual**: full i18n (EN/RU/UA/DE) for all UI labels
-  - Color-coded agents: Linker=teal, Distiller=blue, Expansion=purple, Structuring=orange, Tension=red, Relevance=amber, Transformation=indigo, Mapping=cyan
+- **Internal Cognitive Agent Engine** (`client/src/lib/agent-engine.ts`) — platform intelligence layer, not user-facing:
+  - **8 internal agent roles**: Linker, Distiller, Expansion, Structuring, Tension, Relevance, Transformation, Mapping
+  - Each agent is a pure analysis function that reads workspace data (notes, sources, board, chapters) and returns typed `Insight` objects
+  - All analysis is client-side heuristic — zero API calls for insights computation
+  - `runAllAgents(data, maxResults)` runs all 8 agents, deduplicates, ranks by priority, returns top N
+  - Each `Insight` has an `actionTarget` (which editor tab to navigate to) — not agent function calls
+  - **Smart Insights drawer** (lightbulb button in top bar): surfaced via `PredictiveInsights` component, shows up to 5 ranked suggestions; clicking an insight navigates to the relevant tab (notes/research/board/editor/layout)
+  - The `/api/ai/cognitive-agent` server endpoint remains available for future AI-powered deeper analysis
 - **Character database**: For fiction — biographies, traits, goals, conflicts
 - **Notes & ideas**: Sticker-style colored cards (7 colors), drag-drop reorder (@dnd-kit), status chips (idea/draft/wip/done), list/card toggle; **quick-capture bar** (Enter to save instantly, Tab to expand to full dialog, click type icon to cycle type); **search filter** across title/content/tags; auto-resize textarea; Ctrl+Enter to save in dialog
 - **Export**: EPUB and PDF (A5 book template with cover, TOC, chapter headers, page numbers, callout blocks)

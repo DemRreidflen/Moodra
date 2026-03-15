@@ -118,7 +118,7 @@ function runLinkerAgent(data: WorkspaceData): Insight[] {
       for (let j = i + 1; j < Math.min(notesWithWords.length, 20); j++) {
         const a = notesWithWords[i].words;
         const b = notesWithWords[j].words;
-        const intersection = new Set([...a].filter(w => b.has(w)));
+        const intersection = new Set(Array.from(a).filter(w => b.has(w)));
         if (intersection.size > maxOverlap) {
           maxOverlap = intersection.size;
           bestPair = [notesWithWords[i].id, notesWithWords[j].id];

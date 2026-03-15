@@ -15,13 +15,14 @@ import { ResearchPanel } from "@/components/research-panel";
 import { BookSettings } from "@/components/book-settings";
 import { IdeaBoard } from "@/components/idea-board";
 import { LayoutMode } from "@/components/layout-mode";
-import { AiAgentsPanel } from "@/components/ai-agents-panel";
+import { PredictiveInsights } from "@/components/predictive-insights";
 import { FocusTimer } from "@/components/focus-timer";
 import { LanguagePicker } from "@/components/language-picker";
+import type { Insight } from "@/lib/agent-engine";
 import {
   ArrowLeft, Sparkles, Users, BookOpen, FileText,
-  FlaskConical, Settings, Feather, Brain, Download, Columns2,
-  File, LayoutList, Network,
+  FlaskConical, Settings, Brain, Download, Columns2,
+  File, LayoutList, Lightbulb, X, FileText as FileText2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-export type EditorTab = "editor" | "characters" | "notes" | "research" | "board" | "agents" | "layout" | "settings";
+export type EditorTab = "editor" | "characters" | "notes" | "research" | "board" | "layout" | "settings";
 type ViewMode = "sheets" | "canvas";
 
 function CoverDot({ book }: { book: Book }) {
@@ -41,14 +42,9 @@ function CoverDot({ book }: { book: Book }) {
     );
   }
   return (
-    <div
-      className="w-5 h-6 rounded-sm flex-shrink-0 flex items-center justify-center shadow-sm"
-      style={{ background: book.coverColor || "#007AFF" }}
-    >
-      {book.mode === "fiction"
-        ? <Feather className="h-3 w-3 text-white/80" />
-        : <FlaskConical className="h-3 w-3 text-white/80" />
-      }
+    <div className="w-5 h-6 rounded-sm flex items-center justify-center flex-shrink-0"
+      style={{ background: "linear-gradient(135deg, #F96D1C22, #F96D1C44)" }}>
+      <BookOpen className="h-3 w-3 text-primary/60" />
     </div>
   );
 }
@@ -64,6 +60,7 @@ export default function BookEditor() {
   const [aiContext, setAiContext] = useState("");
   const [aiInsertCallback, setAiInsertCallback] = useState<((text: string) => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("sheets");
+  const [showInsights, setShowInsights] = useState(false);
 
   const { data: book, isLoading: bookLoading } = useQuery<Book>({
     queryKey: ["/api/books", bookId],
@@ -76,6 +73,31 @@ export default function BookEditor() {
     enabled: !!bookId,
   });
 
+  // ── Data for agent engine ────────────────────────────────────────────────────
+  const { data: notes = [] } = useQuery<any[]>({
+    queryKey: ["/api/books", bookId, "notes"],
+    queryFn: () => apiRequest("GET", `/api/books/${bookId}/notes`),
+    enabled: !!bookId,
+    staleTime: 60_000,
+  });
+
+  const { data: sources = [] } = useQuery<any[]>({
+    queryKey: ["/api/books", bookId, "sources"],
+    queryFn: () => apiRequest("GET", `/api/books/${bookId}/sources`),
+    enabled: !!bookId,
+    staleTime: 60_000,
+  });
+
+  const { data: boardData } = useQuery<{ data: string }>({
+    queryKey: ["/api/books", bookId, "board"],
+    queryFn: () => apiRequest("GET", `/api/books/${bookId}/board`),
+    enabled: !!bookId,
+    staleTime: 60_000,
+  });
+
+  const boardDataRaw = boardData?.data ?? "";
+  // ────────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (chapters.length > 0 && !selectedChapterId) {
       setSelectedChapterId(chapters[0].id);
@@ -83,6 +105,13 @@ export default function BookEditor() {
   }, [chapters, selectedChapterId]);
 
   const selectedChapter = chapters.find(c => c.id === selectedChapterId);
+
+  /** Navigate to the relevant tab when an insight action is triggered */
+  const handleInsightAction = useCallback((insight: Insight) => {
+    const target = insight.actionTarget;
+    setActiveTab(target.tab as EditorTab);
+    setShowInsights(false);
+  }, []);
 
   if (bookLoading) {
     return (
@@ -112,7 +141,6 @@ export default function BookEditor() {
     { id: "notes" as EditorTab, icon: FileText, label: "Заметки" },
     { id: "research" as EditorTab, icon: FlaskConical, label: "Исследования" },
     { id: "board" as EditorTab, icon: Brain, label: "Доска идей" },
-    { id: "agents" as EditorTab, icon: Network, label: "AI Агенты" },
     { id: "layout" as EditorTab, icon: Columns2, label: "Верстка" },
     { id: "settings" as EditorTab, icon: Settings, label: "Настройки" },
   ];
@@ -214,6 +242,24 @@ export default function BookEditor() {
             <FocusTimer />
           </div>
 
+          {/* Smart Insights button — internal agent engine surface */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className={`relative h-8 w-8 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
+                  showInsights
+                    ? "bg-amber-100 text-amber-600"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
+                onClick={() => setShowInsights(v => !v)}
+                data-testid="button-smart-insights"
+              >
+                <Lightbulb className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">Smart Insights</TooltipContent>
+          </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -259,7 +305,7 @@ export default function BookEditor() {
                 onSelect={() => { window.open(`/api/books/${bookId}/export/pdf-html`, "_blank"); }}
                 className="gap-2 cursor-pointer"
               >
-                <FileText className="h-4 w-4" />
+                <FileText2 className="h-4 w-4" />
                 Экспорт PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -273,7 +319,7 @@ export default function BookEditor() {
       )}
 
       {/* Main area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {activeTab === "editor" && !isDeepWritingMode && (
           <BookSidebar
             bookId={bookId}
@@ -324,10 +370,38 @@ export default function BookEditor() {
           {activeTab === "notes" && <NotesPanel bookId={bookId} />}
           {activeTab === "research" && <ResearchPanel bookId={bookId} book={book} />}
           {activeTab === "board" && <IdeaBoard bookId={bookId} book={book} />}
-          {activeTab === "agents" && <AiAgentsPanel bookId={bookId} book={book} />}
           {activeTab === "layout" && <LayoutMode bookId={bookId} book={book} />}
           {activeTab === "settings" && <BookSettings book={book} />}
         </main>
+
+        {/* Smart Insights drawer — engine surface, not user-facing tools */}
+        {showInsights && (
+          <div className="w-80 flex-shrink-0 border-l border-border/60 bg-background/95 backdrop-blur-sm flex flex-col overflow-hidden z-40">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(245,158,11,0.12)" }}>
+                  <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                </div>
+                <span className="text-sm font-semibold">Smart Insights</span>
+              </div>
+              <button
+                onClick={() => setShowInsights(false)}
+                className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <PredictiveInsights
+                notes={notes}
+                sources={sources}
+                boardDataRaw={boardDataRaw}
+                chapters={chapters}
+                onAction={handleInsightAction}
+              />
+            </div>
+          </div>
+        )}
 
         {showAI && !isDeepWritingMode && activeTab === "editor" && viewMode === "sheets" && (
           <AiPanel
