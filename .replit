@@ -34,6 +34,6 @@ localPort = 5000
 externalPort = 80
 
 [deployment]
-deploymentTarget = "autoscale"
-run = ["bash", "-c", "cd Moodra-Space && npm run start"]
-build = ["bash", "-c", "cd Moodra-Space && npm run build"]
+deploymentTarget = "cloudrun"
+run = ["sh", "-c", "cd Moodra-Space && npm run start"]
+build = ["sh", "-c", "cd Moodra-Space && npm run build"]
