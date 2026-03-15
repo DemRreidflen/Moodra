@@ -1584,6 +1584,13 @@ ${body}
     if (!book || book.userId !== userId) return res.status(404).json({ error: "Not found" });
     const chapters = await storage.getChapters(bookId);
 
+    // ─── Language / BCP-47 mapping ──────────────────────────────────
+    // The app stores Ukrainian as "ua" internally, but HTML lang=""
+    // and CSS hyphens:auto require proper BCP 47 codes ("uk" for Ukrainian).
+    const bookLangRaw = (book as any).language || "ru";
+    const langBcp47Map: Record<string, string> = { ua: "uk", ru: "ru", de: "de", en: "en" };
+    const htmlLang = langBcp47Map[bookLangRaw] ?? bookLangRaw;
+
     // ─── Layout settings from query params (with safe defaults) ────
     const q = req.query as Record<string, string>;
     const psKey = (q.pageSize || "A5").toUpperCase();
@@ -1670,7 +1677,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     const date = new Date().toLocaleDateString("ru-RU", { year: "numeric", month: "long", day: "numeric" });
 
     const html = `<!DOCTYPE html>
-<html lang="ru">
+<html lang="${htmlLang}">
 <head>
 <meta charset="UTF-8">
 <title>${escapeXml(book.title)}</title>
@@ -1810,6 +1817,11 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     text-indent: ${firstLineIndent > 0 ? firstLineIndent + "em" : "0"};
     orphans: 3;
     widows: 3;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphenate-limit-chars: 6 3 3;
   }
   p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
   .chapter-content > p:first-child { text-indent: 0; }
@@ -1879,7 +1891,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   }
 </style>
 </head>
-<body>
+<body lang="${htmlLang}">
 
 <!-- Cover -->
 <div class="cover">

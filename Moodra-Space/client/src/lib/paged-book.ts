@@ -43,6 +43,22 @@ function getHypher(lang: string): Hypher {
 }
 
 /**
+ * Convert internal app language codes to valid BCP 47 lang tags for HTML.
+ * This is required for CSS `hyphens: auto` — the browser's built-in hyphenation
+ * dictionary lookup uses the `lang` attribute and requires proper language codes.
+ * "ua" is the app's internal code for Ukrainian, but HTML/CSS needs "uk".
+ */
+function toBcp47(lang: string): string {
+  const map: Record<string, string> = {
+    ua: "uk",  // Ukrainian: app code → BCP 47
+    ru: "ru",
+    de: "de",
+    en: "en",
+  };
+  return map[lang] ?? lang;
+}
+
+/**
  * Add soft hyphens to every word in a PLAIN TEXT segment.
  * Enforces minPrefix=2, minSuffix=2 (typographic minimum).
  */
@@ -783,7 +799,8 @@ export interface PagedBookOptions {
  */
 export function generatePagedJsHtml(opts: PagedBookOptions): string {
   const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1, printMode = false, pagedJsUrl } = opts;
-  const lang = book.language ?? "ru";
+  const lang    = book.language ?? "ru";   // internal code — used for Hypher dict lookup
+  const htmlLang = toBcp47(lang);           // BCP 47 — used for HTML lang="" and CSS hyphens:auto
   const css  = settingsToCss(opts);
 
   const frontMatterHtml = buildFrontMatter(book, fm, chapters, lp, s);
@@ -799,7 +816,7 @@ export function generatePagedJsHtml(opts: PagedBookOptions): string {
   const bridge = printMode ? PRINT_BRIDGE_SCRIPT : makeBridgeScript(zoom);
 
   return `<!DOCTYPE html>
-<html lang="${lang}">
+<html lang="${htmlLang}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -811,7 +828,7 @@ ${printOverrideCss}
 ${bridge}
 <script src="${pagedJsUrl}"></script>
 </head>
-<body lang="${lang}">
+<body lang="${htmlLang}">
 <div id="book-content">
 ${frontMatterHtml}
 ${chaptersHtml}
