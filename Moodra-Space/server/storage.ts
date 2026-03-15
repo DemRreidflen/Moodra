@@ -1,9 +1,9 @@
 import { db } from "./db";
-import { books, chapters, characters, notes, sources, users, hypotheses, boards } from "@shared/schema";
+import { books, chapters, characters, notes, sources, users, hypotheses, boards, drafts } from "@shared/schema";
 import type {
   Book, InsertBook, Chapter, InsertChapter, Character, InsertCharacter,
   Note, InsertNote, Source, InsertSource, User,
-  Hypothesis, InsertHypothesis, Board
+  Hypothesis, InsertHypothesis, Board, Draft, InsertDraft
 } from "@shared/schema";
 import { eq, desc, asc } from "drizzle-orm";
 
@@ -46,6 +46,11 @@ export interface IStorage {
 
   getBoard(bookId: number): Promise<Board | undefined>;
   upsertBoard(bookId: number, data: string): Promise<Board>;
+
+  getDrafts(bookId: number): Promise<Draft[]>;
+  createDraft(draft: InsertDraft): Promise<Draft>;
+  updateDraft(id: number, data: Partial<InsertDraft>): Promise<Draft | undefined>;
+  deleteDraft(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -180,6 +185,21 @@ export class DatabaseStorage implements IStorage {
       const [b] = await db.insert(boards).values({ bookId, data }).returning();
       return b;
     }
+  }
+
+  async getDrafts(bookId: number) {
+    return db.select().from(drafts).where(eq(drafts.bookId, bookId)).orderBy(desc(drafts.updatedAt));
+  }
+  async createDraft(draft: InsertDraft) {
+    const [d] = await db.insert(drafts).values(draft).returning();
+    return d;
+  }
+  async updateDraft(id: number, data: Partial<InsertDraft>) {
+    const [d] = await db.update(drafts).set({ ...data, updatedAt: new Date() }).where(eq(drafts.id, id)).returning();
+    return d;
+  }
+  async deleteDraft(id: number) {
+    await db.delete(drafts).where(eq(drafts.id, id));
   }
 }
 

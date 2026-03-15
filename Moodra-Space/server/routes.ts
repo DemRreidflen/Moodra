@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertBookSchema, insertChapterSchema, insertCharacterSchema, insertNoteSchema, insertSourceSchema, insertHypothesisSchema } from "@shared/schema";
+import { insertBookSchema, insertChapterSchema, insertCharacterSchema, insertNoteSchema, insertSourceSchema, insertHypothesisSchema, insertDraftSchema } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
 import path from "path";
@@ -449,6 +449,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       await storage.deleteHypothesis(Number(req.params.id));
       res.status(204).send();
     } catch (e) { res.status(500).json({ error: "Ошибка удаления" }); }
+  });
+
+  // ---- Drafts ----
+  app.get("/api/books/:bookId/drafts", async (req: Request, res: Response) => {
+    try {
+      const draftsList = await storage.getDrafts(Number(req.params.bookId));
+      res.json(draftsList);
+    } catch (e) { res.status(500).json({ error: "Error loading drafts" }); }
+  });
+
+  app.post("/api/books/:bookId/drafts", async (req: Request, res: Response) => {
+    try {
+      const data = insertDraftSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const draft = await storage.createDraft(data);
+      res.status(201).json(draft);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.patch("/api/drafts/:id", async (req: Request, res: Response) => {
+    try {
+      const draft = await storage.updateDraft(Number(req.params.id), req.body);
+      if (!draft) return res.status(404).json({ error: "Draft not found" });
+      res.json(draft);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.delete("/api/drafts/:id", async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDraft(Number(req.params.id));
+      res.status(204).send();
+    } catch (e) { res.status(500).json({ error: "Error deleting draft" }); }
   });
 
   // ---- Idea Board ----

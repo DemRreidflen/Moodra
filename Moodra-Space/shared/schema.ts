@@ -133,12 +133,28 @@ export const boards = pgTable("boards", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+export const drafts = pgTable("drafts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  content: text("content").default(""),
+  type: text("type").default("paragraph"),
+  status: text("status").default("active"),
+  connectedNoteIds: text("connected_note_ids").default(""),
+  connectedSourceIds: text("connected_source_ids").default(""),
+  tags: text("tags").default(""),
+  wordCount: integer("word_count").default(0),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const insertBookSchema = createInsertSchema(books).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertChapterSchema = createInsertSchema(chapters).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCharacterSchema = createInsertSchema(characters).omit({ id: true, createdAt: true });
 export const insertNoteSchema = createInsertSchema(notes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSourceSchema = createInsertSchema(sources).omit({ id: true, createdAt: true });
 export const insertHypothesisSchema = createInsertSchema(hypotheses).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDraftSchema = createInsertSchema(drafts).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type User = typeof users.$inferSelect;
 export type Book = typeof books.$inferSelect;
@@ -154,3 +170,5 @@ export type InsertSource = z.infer<typeof insertSourceSchema>;
 export type Hypothesis = typeof hypotheses.$inferSelect;
 export type InsertHypothesis = z.infer<typeof insertHypothesisSchema>;
 export type Board = typeof boards.$inferSelect;
+export type Draft = typeof drafts.$inferSelect;
+export type InsertDraft = z.infer<typeof insertDraftSchema>;
