@@ -29,7 +29,7 @@ import type { Draft } from "@shared/schema";
 import { NotesTab } from "@/components/notes-tab";
 import { SourcesTab } from "@/components/sources-tab";
 import { RoleModelsTab } from "@/components/role-models-tab";
-import { ResearchDashboard } from "@/components/research-dashboard";
+import { ResearchWorkspace } from "@/components/research-dashboard";
 import { format } from "date-fns";
 import { ru, uk, de as deDe, enUS } from "date-fns/locale";
 
@@ -2228,6 +2228,14 @@ function DraftsTab({ bookId, book }: { bookId: number; book: Book }) {
 }
 
 export function ResearchPanel({ bookId, book }: { bookId: number; book: Book }) {
+  return (
+    <div className="h-full overflow-hidden">
+      <ResearchWorkspace bookId={bookId} book={book} />
+    </div>
+  );
+}
+
+function _unused_ResearchPanel({ bookId, book }: { bookId: number; book: Book }) {
   const { toast } = useToast();
   const { lang } = useLang();
   const rp = RESEARCH_I18N[lang];

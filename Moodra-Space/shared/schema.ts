@@ -164,6 +164,7 @@ export const drafts = pgTable("drafts", {
   connectedSourceIds: text("connected_source_ids").default(""),
   tags: text("tags").default(""),
   wordCount: integer("word_count").default(0),
+  linkedChapterId: integer("linked_chapter_id"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
