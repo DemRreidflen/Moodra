@@ -561,6 +561,7 @@ body[data-view="spread"] .pagedjs_pages {
   grid-template-columns: auto auto;
   gap: 4mm 6mm;
   justify-content: center;
+  align-content: start;
   padding: 32px 24px;
   min-height: 100vh;
 }
@@ -801,6 +802,10 @@ function makeBridgeScript(zoom: number): string {
         if (pages) {
           pages.style.transformOrigin = 'top center';
           pages.style.transform = 'scale(' + z + ')';
+          // Collapse extra layout space below the visually-scaled content
+          // so the iframe body doesn't have a huge white area at the bottom
+          var extraH = pages.offsetHeight * (1 - z);
+          pages.style.marginBottom = '-' + extraH + 'px';
         }
       }
 

@@ -804,15 +804,33 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = blocks.findIndex((block) => block.id === active.id);
-      const newIndex = blocks.findIndex((block) => block.id === over.id);
-      updateBlocks(arrayMove(blocks, oldIndex, newIndex));
+      const oldIndex = blocks.findIndex((b) => b.id === active.id);
+      const newIndex = blocks.findIndex((b) => b.id === over.id);
+      // Collect children: all consecutive blocks with strictly higher indentLevel
+      const parentLevel = blocks[oldIndex]?.metadata?.indentLevel ?? 0;
+      let groupSize = 1;
+      for (let i = oldIndex + 1; i < blocks.length; i++) {
+        if ((blocks[i].metadata?.indentLevel ?? 0) > parentLevel) groupSize++;
+        else break;
+      }
+      if (groupSize === 1) {
+        updateBlocks(arrayMove(blocks, oldIndex, newIndex));
+      } else {
+        const arr = [...blocks];
+        const group = arr.splice(oldIndex, groupSize);
+        const dest = newIndex > oldIndex ? newIndex - groupSize + 1 : newIndex;
+        arr.splice(Math.max(0, dest), 0, ...group);
+        updateBlocks(arr);
+      }
     }
   };
 
-  const addBlock = (index: number, type: BlockType = "paragraph", content = "") => {
+  const addBlock = (index: number, type: BlockType = "paragraph", content = "", indentLevel = 0) => {
     if (hideControls) return;
-    const newBlock: Block = { id: generateId(), type, content };
+    const newBlock: Block = {
+      id: generateId(), type, content,
+      ...(indentLevel > 0 ? { metadata: { indentLevel } } : {}),
+    };
     const newBlocks = [...blocks];
     newBlocks.splice(index + 1, 0, newBlock);
     updateBlocks(newBlocks);
@@ -1059,7 +1077,7 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
                   onUpdateContent={(content) => updateBlockContent(block.id, content)}
                   onUpdateType={(type) => updateBlockType(block.id, type)}
                   onUpdateMetadata={(metadata) => updateBlockMetadata(block.id, metadata)}
-                  onAddBlock={(type, content) => addBlock(index, type ?? "paragraph", content)}
+                  onAddBlock={(type, content, indentLevel) => addBlock(index, type ?? "paragraph", content ?? "", indentLevel ?? 0)}
                   onDelete={() => deleteBlock(block.id)}
                   onPasteBlocks={(paragraphs) => handlePasteBlocks(block.id, paragraphs)}
                   onMergeWithPrevious={index > 0 ? (content) => mergeWithPrevious(block.id, content) : undefined}
@@ -1085,7 +1103,7 @@ interface SortableBlockProps {
   onUpdateContent: (content: string) => void;
   onUpdateType: (type: BlockType) => void;
   onUpdateMetadata: (metadata: any) => void;
-  onAddBlock: (type?: BlockType, initialContent?: string) => void;
+  onAddBlock: (type?: BlockType, initialContent?: string, indentLevel?: number) => void;
   onDelete: () => void;
   onPasteBlocks?: (paragraphs: string[]) => void;
   onMergeWithPrevious?: (content: string) => void;
@@ -1202,6 +1220,18 @@ function SortableBlock({
     if (hideControls) return;
     const isEmpty = contentRef.current?.innerText?.trim() === "";
     const isListBlock = block.type === "bullet_item" || block.type === "numbered_item" || block.type === "check_item";
+    const currentIndent = block.metadata?.indentLevel ?? 0;
+
+    // Tab / Shift+Tab — change indent level
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (currentIndent > 0) onUpdateMetadata({ ...block.metadata, indentLevel: currentIndent - 1 });
+      } else {
+        if (currentIndent < 3) onUpdateMetadata({ ...block.metadata, indentLevel: currentIndent + 1 });
+      }
+      return;
+    }
 
     if (e.key === "Enter" && !e.shiftKey) {
       if (isListBlock) {
@@ -1209,7 +1239,7 @@ function SortableBlock({
         if (isEmpty) {
           onUpdateType("paragraph");
         } else {
-          onAddBlock(block.type);
+          onAddBlock(block.type, undefined, currentIndent);
         }
         return;
       }
@@ -1245,15 +1275,15 @@ function SortableBlock({
             const htmlAfter = tempAfter.innerHTML;
             el.innerHTML = htmlBefore;
             onUpdateContent(htmlBefore);
-            onAddBlock(undefined, htmlAfter);
+            onAddBlock(undefined, htmlAfter, currentIndent);
           } catch {
-            onAddBlock();
+            onAddBlock(undefined, undefined, currentIndent);
           }
         } else {
-          onAddBlock();
+          onAddBlock(undefined, undefined, currentIndent);
         }
       } else {
-        onAddBlock();
+        onAddBlock(undefined, undefined, currentIndent);
       }
     } else if (e.key === "Backspace" && isEmpty && block.type !== "paragraph") {
       e.preventDefault();
@@ -1323,11 +1353,21 @@ function SortableBlock({
   };
 
   const currentType = BLOCK_TYPES.find(t => t.type === block.type) || BLOCK_TYPES[0];
+  const indentLevel = block.metadata?.indentLevel ?? 0;
+  const INDENT_COLORS = [
+    "transparent",
+    "rgba(249,109,28,0.45)",
+    "rgba(99,102,241,0.45)",
+    "rgba(52,211,153,0.45)",
+  ] as const;
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        marginLeft: hideControls ? `${indentLevel * 24}px` : `${indentLevel * 28}px`,
+      }}
       data-block-id={block.id}
       className={cn(
         "group relative flex items-start gap-2 py-1 px-2 rounded-md transition-colors",
@@ -1336,12 +1376,40 @@ function SortableBlock({
         hideControls && "py-0 px-0 hover:bg-transparent"
       )}
     >
+      {/* Indent hierarchy line */}
+      {indentLevel > 0 && (
+        <div
+          className="absolute top-0 bottom-0 pointer-events-none rounded-sm"
+          style={{
+            left: "2px",
+            width: "2px",
+            background: INDENT_COLORS[indentLevel] || INDENT_COLORS[3],
+          }}
+        />
+      )}
       {/* Left controls */}
       {!hideControls && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute -left-12 top-2 h-6">
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute -left-14 top-2 h-6">
           <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded">
             <GripVertical className="w-4 h-4 text-muted-foreground" />
           </div>
+          {/* Indent / Outdent mini buttons */}
+          <button
+            title="Увеличить вложенность (Tab)"
+            onMouseDown={e => { e.preventDefault(); if (indentLevel < 3) onUpdateMetadata({ ...block.metadata, indentLevel: indentLevel + 1 }); }}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground disabled:opacity-30"
+            disabled={indentLevel >= 3}
+          >
+            <Indent className="w-3 h-3" />
+          </button>
+          <button
+            title="Уменьшить вложенность (Shift+Tab)"
+            onMouseDown={e => { e.preventDefault(); if (indentLevel > 0) onUpdateMetadata({ ...block.metadata, indentLevel: indentLevel - 1 }); }}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground disabled:opacity-30"
+            disabled={indentLevel === 0}
+          >
+            <Outdent className="w-3 h-3" />
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="w-6 h-6 p-0 hover:bg-accent rounded">
