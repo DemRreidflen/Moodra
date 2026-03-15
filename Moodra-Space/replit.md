@@ -4,19 +4,27 @@
 Moodra is a next-gen AI writing environment for serious authors. The platform covers the full lifecycle of a book — from research and hypothesis-testing to character development and final writing. Clean cream/editorial design, block-based editor, interactive idea boards, and deep AI integration.
 
 ## Key Features
-- **Notes System 2.0** (full atomic notes module in Research panel):
+- **Notes System 2.0 + Obsidian-like features** (full atomic notes module in Research panel):
   - **Quick Capture bar**: single-line input → captures to Inbox instantly (Enter key), creates `isQuick: "true"` notes
   - **Inbox view**: all captured notes with 6 one-click actions (Keep active, Develop, → Draft, → Board, Archive, Delete)
-  - **All Notes view**: searchable, filterable by type (11 types) and status; type filter chips auto-hide empty types
-  - **Collections view**: flexible thematic containers (not folders); multi-color, multi-collection membership; click collection → filters All Notes; preview chips show note titles
-  - **Note editor**: 11 type chips, 5 statuses (inbox/active/developed/used/archived), 3 importance levels, tags input, linked notes/sources/drafts multi-select, collections multi-select, Send to Board, → Draft actions
-  - **11 note types**: quick_thought, concept, question, insight, quote, observation, scene_seed, argument_seed, character_note, research_note, reflection — each with distinct color + icon
+  - **All Notes view**: searchable, filterable by type (12 types) and status; Orphan filter chip (notes with zero connections shown in red)
+  - **Collections view**: flexible thematic containers (not folders); multi-color, multi-collection membership
+  - **Graph view** (4th sub-tab): SVG force-directed knowledge graph (notes + drafts + sources); pan + zoom; shows central ideas bar, orphan highlight, node hover tooltip; click note to open
+  - **Note editor Obsidian panels** (all collapsible):
+    - **Backlinks**: shows which notes/drafts reference the current note (auto-computed, bidirectional); sections "Linked from" / "Used in drafts"
+    - **Related Notes**: shared tags + explicit links + backlinks surfaced together with connection type badges
+    - **Embedded Notes**: linked notes rendered as inline preview cards (title + content snippet + tags)
+    - **Map of Content view**: special layout for `map_of_content` type notes — organized sections for core theme, concepts (tags), related notes, related drafts, related sources; open question notes flagged
+    - **Local Graph**: per-note SVG sub-graph showing focal note + all its direct connections; embedded in editor panel
+  - **Orphan detection**: computed from all linked note/draft/source/collection IDs; surfaced in All Notes filter + Global Graph
+  - **12 note types**: quick_thought, concept, question, insight, quote, observation, scene_seed, argument_seed, character_note, research_note, reflection, **map_of_content** (sky blue)
   - **DB tables**: `notes` (extended with `collectionIds`, `isQuick`, `linkedSourceIds`, `linkedDraftIds`, `semanticTags`), `note_collections`
   - **API routes**: GET/POST `/api/books/:id/collections`, PATCH/DELETE `/api/collections/:id`
-  - **Component**: `client/src/components/notes-tab.tsx` (standalone module)
+  - **Components**: `client/src/components/notes-tab.tsx`, `client/src/components/notes-graph.tsx` (SVG graph engine)
 - **Two book modes**: Scientific (non-fiction, philosophy) and Fiction (novels, sci-fi)
 - **Notion-like block editor**: 18+ block types with drag-and-drop reordering (@dnd-kit); solid FormatToolbar (no blur); selection-only AI improve; cursor-at-merge junction
-- **List block types**: `bullet_item`, `numbered_item`, `check_item` — first-class blocks; Enter continues list, Backspace on empty exits to paragraph; numbered items auto-count consecutive runs; check_item toggles checked state via metadata.checked; all render properly in PDF (wrapped in `<ul>/<ol>`)
+- **List block types**: `bullet_item`, `numbered_item`, `check_item` — first-class blocks; Enter continues list, Backspace on empty exits to paragraph; numbered items auto-count consecutive runs; check_item toggles checked state via metadata.checked; all render in PDF/layout with proper indentation
+- **Block nesting / indentLevel**: `metadata.indentLevel` (0–8) persists through layout preview (`layout-panel.tsx`) and PDF/HTML export (`server/routes.ts blockToHtml`). All block types apply `margin-left: indentLevel * 1.8em`. List items additionally offset by +1 level. Drop-cap and first-line-indent only apply at indentLevel 0. Indented paragraphs switch to left-align (not justify).
 - **Floating format toolbar**: pill-shaped, backdrop-blur, no longer sticky top bar; list/indent buttons removed (lists are now block types); inline link popover (no dialog)
 - **Deep Writing Mode**: True fullscreen overlay (`fixed inset-0 z-[200]`) — text always visible and scrollable
 - **Focus Timer**: Compact inline toolbar widget — arc progress, pulse dot, pause/stop micro-buttons, never expands

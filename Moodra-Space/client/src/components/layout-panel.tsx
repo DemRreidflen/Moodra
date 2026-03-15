@@ -52,7 +52,14 @@ const FONT_FAMILIES: Record<FontFamily, string> = {
   mono: "'Courier New', monospace",
 };
 
-function parseBlocks(raw: any): { type: string; text: string }[] {
+interface LayoutBlock {
+  type: string;
+  text: string;
+  indentLevel: number;
+  checked?: boolean;
+}
+
+function parseBlocks(raw: any): LayoutBlock[] {
   let blocks: any[] = [];
   try {
     blocks = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
@@ -62,7 +69,9 @@ function parseBlocks(raw: any): { type: string; text: string }[] {
   return blocks.map((b: any) => ({
     type: b.type || "paragraph",
     text: String(b.content || b.text || "").trim(),
-  })).filter(b => b.text);
+    indentLevel: Math.max(0, Math.min(8, Number(b.metadata?.indentLevel ?? 0))),
+    checked: b.metadata?.checked ?? false,
+  })).filter(b => b.text || b.type === "divider");
 }
 
 function buildPages(
@@ -72,21 +81,21 @@ function buildPages(
   marginPx: number,
   lineSpacing: number,
   paraSpacingPx: number = 0,
-): { chapterIdx: number; chapterTitle: string; blocks: { type: string; text: string }[] }[] {
+): { chapterIdx: number; chapterTitle: string; blocks: LayoutBlock[] }[] {
   const lineH = fontSizePx * lineSpacing;
   const contentH = pageH - marginPx * 2 - 48;
   const h1H = fontSizePx * 2.2;
   const h2H = fontSizePx * 1.6;
   const paraH = lineH * 1.8 + paraSpacingPx;
 
-  const result: { chapterIdx: number; chapterTitle: string; blocks: { type: string; text: string }[] }[] = [];
+  const result: { chapterIdx: number; chapterTitle: string; blocks: LayoutBlock[] }[] = [];
 
   for (let ci = 0; ci < chapters.length; ci++) {
     const ch = chapters[ci];
     const blocks = parseBlocks(ch.content);
 
     let usedH = h1H + 24;
-    let currentPage: { type: string; text: string }[] = [];
+    let currentPage: LayoutBlock[] = [];
     let firstPage = true;
 
     const flush = () => {
@@ -441,6 +450,8 @@ function Page({
           </div>
         )}
         {blocks.map((b, i) => {
+          const indentPx = b.indentLevel * fontSizePx * 1.8;
+
           if (b.type === "h1" || b.type === "h2" || b.type === "heading") {
             return (
               <h3 key={i} style={{
@@ -449,6 +460,7 @@ function Page({
                 fontWeight: 700,
                 marginTop: fontSizePx * 1.0 + paraSpacingPx,
                 marginBottom: fontSizePx * 0.3,
+                marginLeft: indentPx,
                 lineHeight: 1.3,
                 color: accent,
                 borderBottom: `1px solid ${accent}22`,
@@ -466,7 +478,7 @@ function Page({
                 color: "#555",
                 borderLeft: `3px solid ${accent}`,
                 paddingLeft: fontSizePx * 0.9,
-                marginLeft: 0,
+                marginLeft: indentPx,
                 marginRight: 0,
                 marginTop: fontSizePx * 0.4 + paraSpacingPx,
                 marginBottom: fontSizePx * 0.4 + paraSpacingPx,
@@ -476,9 +488,61 @@ function Page({
               }}>{b.text}</blockquote>
             );
           }
+          if (b.type === "bullet_item") {
+            const bulletIndent = (b.indentLevel + 1) * fontSizePx * 1.8;
+            return (
+              <p key={i} style={{
+                fontFamily,
+                fontSize: fontSizePx,
+                lineHeight: lineSpacing,
+                color: "#1a1a1a",
+                marginLeft: bulletIndent,
+                textIndent: `-${fontSizePx * 1.2}px`,
+                marginBottom: fontSizePx * 0.1 + paraSpacingPx,
+                marginTop: 0,
+              }}>
+                <span style={{ marginRight: fontSizePx * 0.4 }}>•</span>{b.text}
+              </p>
+            );
+          }
+          if (b.type === "numbered_item") {
+            const numIndent = (b.indentLevel + 1) * fontSizePx * 1.8;
+            return (
+              <p key={i} style={{
+                fontFamily,
+                fontSize: fontSizePx,
+                lineHeight: lineSpacing,
+                color: "#1a1a1a",
+                marginLeft: numIndent,
+                textIndent: 0,
+                marginBottom: fontSizePx * 0.1 + paraSpacingPx,
+                marginTop: 0,
+              }}>{b.text}</p>
+            );
+          }
+          if (b.type === "check_item") {
+            const checkIndent = (b.indentLevel + 1) * fontSizePx * 1.8;
+            return (
+              <p key={i} style={{
+                fontFamily,
+                fontSize: fontSizePx,
+                lineHeight: lineSpacing,
+                color: "#1a1a1a",
+                marginLeft: checkIndent,
+                textIndent: `-${fontSizePx * 1.2}px`,
+                marginBottom: fontSizePx * 0.1 + paraSpacingPx,
+                marginTop: 0,
+              }}>
+                <span style={{ marginRight: fontSizePx * 0.3, opacity: 0.7 }}>{b.checked ? "☑" : "☐"}</span>{b.text}
+              </p>
+            );
+          }
+          if (b.type === "divider") {
+            return <hr key={i} style={{ borderTop: `1px solid ${accent}30`, margin: `${fontSizePx * 0.8}px 0` }} />;
+          }
           const isFirstParagraph = i === 0 || (i === 1 && !!chapterTitle);
-          const useDropCap = dropCap && isFirstParagraph && b.text.length > 0;
-          const useIndent = firstLineIndent && !isFirstParagraph;
+          const useDropCap = dropCap && isFirstParagraph && b.text.length > 0 && b.indentLevel === 0;
+          const useIndent = firstLineIndent && !isFirstParagraph && b.indentLevel === 0;
           if (useDropCap) {
             const firstChar = b.text[0];
             const rest = b.text.slice(1);
@@ -489,6 +553,7 @@ function Page({
                 lineHeight: lineSpacing,
                 textAlign: "justify",
                 color: "#1a1a1a",
+                marginLeft: indentPx,
                 marginBottom: fontSizePx * 0.3 + paraSpacingPx,
                 marginTop: 0,
               }}>
@@ -512,8 +577,9 @@ function Page({
               fontFamily,
               fontSize: fontSizePx,
               lineHeight: lineSpacing,
-              textAlign: "justify",
+              textAlign: b.indentLevel > 0 ? "left" : "justify",
               textIndent: useIndent ? fontSizePx * 1.5 : 0,
+              marginLeft: indentPx,
               color: "#1a1a1a",
               marginBottom: fontSizePx * 0.15 + paraSpacingPx,
               marginTop: 0,

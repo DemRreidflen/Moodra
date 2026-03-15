@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -11,8 +11,11 @@ import {
   Plus, Trash2, Save, X, ChevronLeft, ChevronDown, ChevronUp,
   Link2, Layers, Check, Loader2, Tag, Search, Filter, Edit3,
   ArrowRight, Folder, FolderPlus, MoreHorizontal, PinIcon,
-  SendHorizontal, StickyNote, ArrowDownToLine, RefreshCw, Pencil
+  SendHorizontal, StickyNote, ArrowDownToLine, RefreshCw, Pencil,
+  GitBranch, AlertCircle, Map, Network, ExternalLink, BookOpen,
+  FileText, Database, Hash
 } from "lucide-react";
+import { NotesGraph } from "@/components/notes-graph";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +31,7 @@ export const NOTE_TYPES: { value: string; label: string; icon: any; color: strin
   { value: "character_note", label: "Character Note",  icon: User,         color: "#F96D1C", bg: "#FFF7ED" },
   { value: "research_note",  label: "Research Note",   icon: Microscope,   color: "#14B8A6", bg: "#F0FDFA" },
   { value: "reflection",     label: "Reflection",      icon: Heart,        color: "#A855F7", bg: "#FAF5FF" },
+  { value: "map_of_content", label: "Map of Content",  icon: Map,          color: "#0EA5E9", bg: "#F0F9FF" },
 ];
 
 const NOTE_STATUSES: { value: string; label: string; icon: any; color: string }[] = [
@@ -49,7 +53,7 @@ const COLLECTION_COLORS = [
   "#10B981", "#3B82F6", "#EF4444", "#F96D1C", "#A855F7",
 ];
 
-type NoteView = "inbox" | "all" | "collections" | "editor";
+type NoteView = "inbox" | "all" | "collections" | "editor" | "graph";
 
 function getNoteType(type: string) {
   return NOTE_TYPES.find(t => t.value === type) || NOTE_TYPES[0];
@@ -93,6 +97,13 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
   const [showLinkDrafts, setShowLinkDrafts] = useState(false);
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const isDirty = useRef(false);
+
+  // ── Obsidian features state ───────────────────────────────────────────────────
+  const [showBacklinks, setShowBacklinks] = useState(false);
+  const [showRelated, setShowRelated] = useState(false);
+  const [showLocalGraph, setShowLocalGraph] = useState(false);
+  const [showEmbedded, setShowEmbedded] = useState(false);
+  const [orphansOnly, setOrphansOnly] = useState(false);
 
   // ── Quick capture ─────────────────────────────────────────────────────────────
   const [quickText, setQuickText] = useState("");
@@ -270,8 +281,58 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
 
   // ── Filtered lists ────────────────────────────────────────────────────────────
   const inboxNotes = notes.filter(n => n.status === "inbox");
+
+  // ── Obsidian computed data ────────────────────────────────────────────────────
+  // Backlinks: notes that have editNote.id in their linkedNoteIds
+  const backlinkedNotes = useMemo(() => {
+    if (!editNote) return [] as Note[];
+    return notes.filter(n => n.id !== editNote.id && (n.linkedNoteIds || "").split(",").map(Number).includes(editNote.id));
+  }, [notes, editNote]);
+
+  // Drafts that reference the current note
+  const backlinkedDrafts = useMemo(() => {
+    if (!editNote) return [] as Draft[];
+    return (drafts as Draft[]).filter((d: Draft) => (d.connectedNoteIds || "").split(",").map(Number).includes(editNote.id));
+  }, [drafts, editNote]);
+
+  // Related notes: explicit links + shared tags
+  const relatedNotes = useMemo(() => {
+    if (!editNote) return [] as Note[];
+    const currentTags = (editNote.tags || "").split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+    const linkedIds = new Set(editLinkedNoteIds);
+    const backlinkIds = new Set(backlinkedNotes.map(n => n.id));
+    return notes.filter(n => {
+      if (n.id === editNote.id) return false;
+      if (linkedIds.has(n.id) || backlinkIds.has(n.id)) return true;
+      if (currentTags.length > 0) {
+        const nTags = (n.tags || "").split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+        return nTags.some(t => currentTags.includes(t));
+      }
+      return false;
+    });
+  }, [notes, editNote, editLinkedNoteIds, backlinkedNotes]);
+
+  // Orphan notes: no linked notes, no backlinks, no collection, no linked drafts/sources
+  const orphanNoteIds = useMemo(() => {
+    const referencedIds = new Set<number>();
+    for (const n of notes) {
+      (n.linkedNoteIds || "").split(",").map(Number).filter(Boolean).forEach(id => referencedIds.add(id));
+    }
+    for (const d of (drafts as Draft[])) {
+      (d.connectedNoteIds || "").split(",").map(Number).filter(Boolean).forEach(id => referencedIds.add(id));
+    }
+    return new Set(notes.filter(n =>
+      !(n.linkedNoteIds || "").split(",").filter(s => s && s !== "0").length &&
+      !(n.linkedSourceIds || "").split(",").filter(s => s && s !== "0").length &&
+      !(n.linkedDraftIds || "").split(",").filter(s => s && s !== "0").length &&
+      !(n.collectionIds || "").split(",").filter(s => s && s !== "0").length &&
+      !referencedIds.has(n.id)
+    ).map(n => n.id));
+  }, [notes, drafts]);
+
   const allActiveNotes = notes.filter(n => {
     if (n.status === "archived") return false;
+    if (orphansOnly && !orphanNoteIds.has(n.id)) return false;
     if (typeFilter !== "all" && n.type !== typeFilter) return false;
     if (statusFilter !== "all" && n.status !== statusFilter) return false;
     if (collectionFilter !== null && !((n.collectionIds || "").split(",").map(Number).includes(collectionFilter))) return false;
@@ -617,6 +678,288 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
             )}
           </div>
 
+          {/* ─── Obsidian: Backlinks ──────────────────────────────────────────── */}
+          {editNote && (
+            <div className="mx-4 mb-2 rounded-xl border border-border/60 overflow-hidden">
+              <button onClick={() => setShowBacklinks(v => !v)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                <GitBranch className="h-3 w-3 text-indigo-400" />
+                Backlinks
+                {(backlinkedNotes.length + backlinkedDrafts.length) > 0 && (
+                  <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(99,102,241,0.12)", color: "#6366F1" }}>
+                    {backlinkedNotes.length + backlinkedDrafts.length}
+                  </span>
+                )}
+                {showBacklinks ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+              </button>
+              {showBacklinks && (
+                <div className="border-t border-border/50">
+                  {backlinkedNotes.length === 0 && backlinkedDrafts.length === 0 ? (
+                    <p className="px-3 py-3 text-xs text-muted-foreground/50 italic">No notes or drafts reference this note yet</p>
+                  ) : (
+                    <>
+                      {backlinkedNotes.length > 0 && (
+                        <div className="px-3 pt-2 pb-1">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/50 mb-1">Linked from</p>
+                          <div className="space-y-1">
+                            {backlinkedNotes.map(n => {
+                              const nt = getNoteType(n.type || "");
+                              const NtI = nt.icon;
+                              return (
+                                <button key={n.id} onClick={() => openEditor(n)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary/50 transition-colors text-left">
+                                  <NtI className="h-3 w-3 flex-shrink-0" style={{ color: nt.color }} />
+                                  <span className="text-xs flex-1 truncate">{n.title}</span>
+                                  <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/40 flex-shrink-0" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {backlinkedDrafts.length > 0 && (
+                        <div className="px-3 pt-1 pb-2">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/50 mb-1">Used in drafts</p>
+                          <div className="space-y-1">
+                            {backlinkedDrafts.map((d: any) => (
+                              <div key={d.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-secondary/30">
+                                <FileText className="h-3 w-3 flex-shrink-0 text-amber-400" />
+                                <span className="text-xs flex-1 truncate">{d.title}</span>
+                                <span className="text-[10px] text-muted-foreground/40 capitalize flex-shrink-0">{d.type}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Obsidian: Related Notes ──────────────────────────────────────── */}
+          {editNote && (
+            <div className="mx-4 mb-2 rounded-xl border border-border/60 overflow-hidden">
+              <button onClick={() => setShowRelated(v => !v)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                <Network className="h-3 w-3 text-emerald-400" />
+                Related Notes
+                {relatedNotes.length > 0 && (
+                  <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(16,185,129,0.12)", color: "#10B981" }}>
+                    {relatedNotes.length}
+                  </span>
+                )}
+                {showRelated ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+              </button>
+              {showRelated && (
+                <div className="border-t border-border/50">
+                  {relatedNotes.length === 0 ? (
+                    <p className="px-3 py-3 text-xs text-muted-foreground/50 italic">
+                      No related notes found. Link notes or add shared tags to build connections.
+                    </p>
+                  ) : (
+                    <div className="p-2 space-y-1">
+                      {relatedNotes.map(n => {
+                        const nt = getNoteType(n.type || "");
+                        const NtI = nt.icon;
+                        const isLinked = editLinkedNoteIds.includes(n.id);
+                        const isBacklink = backlinkedNotes.some(b => b.id === n.id);
+                        const sharedTags = (n.tags || "").split(",").filter(t => {
+                          const tr = t.trim().toLowerCase();
+                          return tr && (editNote.tags || "").split(",").some(et => et.trim().toLowerCase() === tr);
+                        });
+                        return (
+                          <div key={n.id} className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary/30 transition-colors">
+                            <NtI className="h-3 w-3 flex-shrink-0 mt-0.5" style={{ color: nt.color }} />
+                            <div className="flex-1 min-w-0">
+                              <button onClick={() => openEditor(n)} className="text-xs font-medium text-left hover:underline truncate block w-full">
+                                {n.title}
+                              </button>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                {isLinked && <span className="text-[9px] px-1 rounded" style={{ background: "rgba(99,102,241,0.1)", color: "#6366F1" }}>linked</span>}
+                                {isBacklink && <span className="text-[9px] px-1 rounded" style={{ background: "rgba(99,102,241,0.1)", color: "#6366F1" }}>backlink</span>}
+                                {sharedTags.slice(0, 3).map(t => (
+                                  <span key={t} className="text-[9px] px-1 rounded bg-secondary text-muted-foreground/60">#{t.trim()}</span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Obsidian: Embedded Note Previews ────────────────────────────── */}
+          {editNote && editLinkedNoteIds.length > 0 && (
+            <div className="mx-4 mb-2 rounded-xl border border-border/60 overflow-hidden">
+              <button onClick={() => setShowEmbedded(v => !v)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                <BookOpen className="h-3 w-3 text-sky-400" />
+                Embedded Notes
+                <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(14,165,233,0.12)", color: "#0EA5E9" }}>
+                  {editLinkedNoteIds.length}
+                </span>
+                {showEmbedded ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+              </button>
+              {showEmbedded && (
+                <div className="border-t border-border/50 p-2 space-y-2">
+                  {editLinkedNoteIds.map(nid => {
+                    const linked = notes.find(n => n.id === nid);
+                    if (!linked) return null;
+                    const nt = getNoteType(linked.type || "");
+                    const NtI = nt.icon;
+                    return (
+                      <div key={nid} className="rounded-lg border overflow-hidden" style={{ borderColor: `${nt.color}25`, background: `${nt.bg}` }}>
+                        <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: `${nt.color}15` }}>
+                          <NtI className="h-3 w-3 flex-shrink-0" style={{ color: nt.color }} />
+                          <span className="text-xs font-semibold flex-1 truncate">{linked.title}</span>
+                          <button onClick={() => openEditor(linked)} className="flex-shrink-0 text-muted-foreground/40 hover:text-foreground transition-colors">
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                        {linked.content && (
+                          <p className="px-3 py-2 text-[11px] text-muted-foreground/70 line-clamp-3 leading-relaxed">
+                            {linked.content}
+                          </p>
+                        )}
+                        {linked.tags && (
+                          <div className="px-3 pb-2 flex gap-1 flex-wrap">
+                            {linked.tags.split(",").filter(Boolean).slice(0, 4).map(t => (
+                              <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-white/60 text-muted-foreground/60">#{t.trim()}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Obsidian: MOC View ───────────────────────────────────────────── */}
+          {editNote && editType === "map_of_content" && (
+            <div className="mx-4 mb-2 rounded-xl border overflow-hidden" style={{ borderColor: "#0EA5E920", background: "#F0F9FF" }}>
+              <div className="px-3 py-2.5 border-b flex items-center gap-2" style={{ borderColor: "#0EA5E920" }}>
+                <Map className="h-3 w-3 text-sky-500" />
+                <span className="text-xs font-semibold text-sky-600">Map of Content</span>
+                <span className="text-[10px] text-sky-500/60 ml-1">— thematic overview</span>
+              </div>
+              <div className="p-3 space-y-3">
+                {/* Core theme */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-sky-600/60 mb-1.5">Core Theme</p>
+                  <p className="text-xs text-foreground/80 leading-relaxed">{editContent || "Add your core theme description in the content area above."}</p>
+                </div>
+                {/* Linked concepts (from tags) */}
+                {editTags && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-sky-600/60 mb-1.5 flex items-center gap-1">
+                      <Hash className="h-2.5 w-2.5" />Concepts
+                    </p>
+                    <div className="flex gap-1 flex-wrap">
+                      {editTags.split(",").filter(Boolean).map(t => (
+                        <span key={t} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "#0EA5E915", color: "#0EA5E9", border: "1px solid #0EA5E925" }}>
+                          {t.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Related notes in MOC */}
+                {editLinkedNoteIds.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-sky-600/60 mb-1.5">Related Notes</p>
+                    <div className="space-y-1">
+                      {editLinkedNoteIds.map(nid => {
+                        const n = notes.find(x => x.id === nid);
+                        if (!n) return null;
+                        const nt = getNoteType(n.type || "");
+                        const NtI = nt.icon;
+                        const isQuestion = n.type === "question";
+                        return (
+                          <div key={nid} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/70">
+                            <NtI className="h-2.5 w-2.5 flex-shrink-0" style={{ color: nt.color }} />
+                            <button onClick={() => openEditor(n)} className="text-[11px] flex-1 text-left hover:underline truncate">{n.title}</button>
+                            {isQuestion && <span className="text-[9px] text-purple-400 flex-shrink-0">open Q</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Related drafts */}
+                {editLinkedDraftIds.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-sky-600/60 mb-1.5">Related Drafts</p>
+                    <div className="space-y-1">
+                      {editLinkedDraftIds.map(did => {
+                        const d = (drafts as any[]).find((x: any) => x.id === did);
+                        if (!d) return null;
+                        return (
+                          <div key={did} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/70">
+                            <FileText className="h-2.5 w-2.5 flex-shrink-0 text-amber-400" />
+                            <span className="text-[11px] flex-1 truncate">{d.title}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Sources */}
+                {editLinkedSourceIds.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-sky-600/60 mb-1.5">Related Sources</p>
+                    <div className="space-y-1">
+                      {editLinkedSourceIds.map(sid => {
+                        const s = (sources as any[]).find((x: any) => x.id === sid);
+                        if (!s) return null;
+                        return (
+                          <div key={sid} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/70">
+                            <Database className="h-2.5 w-2.5 flex-shrink-0 text-teal-400" />
+                            <span className="text-[11px] flex-1 truncate">{s.title}</span>
+                            {s.author && <span className="text-[9px] text-muted-foreground/50 flex-shrink-0">{s.author}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Obsidian: Local Graph ────────────────────────────────────────── */}
+          {editNote && (
+            <div className="mx-4 mb-2 rounded-xl border border-border/60 overflow-hidden">
+              <button onClick={() => setShowLocalGraph(v => !v)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors">
+                <GitBranch className="h-3 w-3 text-violet-400" />
+                Local Graph
+                {showLocalGraph ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+              </button>
+              {showLocalGraph && (
+                <div className="border-t border-border/50" style={{ height: 320 }}>
+                  <NotesGraph
+                    notes={notes}
+                    drafts={drafts as Draft[]}
+                    sources={sources as Source[]}
+                    mode="local"
+                    focalNoteId={editNote.id}
+                    onOpenNote={id => { const n = notes.find(x => x.id === id); if (n) openEditor(n); }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Action bar */}
           <div className="flex flex-wrap items-center gap-2 px-4 pb-4">
             <button onClick={() => sendToBoard(editNote!)} disabled={!editNote}
@@ -671,18 +1014,25 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
 
       {/* Sub-nav */}
       <div className="flex px-4 py-2 gap-1 flex-shrink-0">
-        {(["inbox", "all", "collections"] as NoteView[]).map(tab => {
-          const labels: Record<string, string> = { inbox: `Inbox${inboxNotes.length > 0 ? ` (${inboxNotes.length})` : ""}`, all: "All Notes", collections: "Collections" };
-          const icons: Record<string, any> = { inbox: Inbox, all: Layers, collections: Folder };
+        {(["inbox", "all", "collections", "graph"] as NoteView[]).map(tab => {
+          const labels: Record<string, string> = {
+            inbox: `Inbox${inboxNotes.length > 0 ? ` (${inboxNotes.length})` : ""}`,
+            all: "All Notes",
+            collections: "Collections",
+            graph: "Graph",
+          };
+          const icons: Record<string, any> = { inbox: Inbox, all: Layers, collections: Folder, graph: GitBranch };
           const TabIcon = icons[tab];
           return (
             <button key={tab} onClick={() => setView(tab as NoteView)}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl text-[11px] font-medium transition-all"
               style={{
                 background: view === tab ? "hsl(var(--background))" : "transparent",
-                color: view === tab ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                color: view === tab
+                  ? tab === "graph" ? "#8B5CF6" : "hsl(var(--foreground))"
+                  : "hsl(var(--muted-foreground))",
                 boxShadow: view === tab ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-                border: view === tab ? "1px solid hsl(var(--border))" : "1px solid transparent",
+                border: view === tab ? `1px solid ${tab === "graph" ? "rgba(139,92,246,0.25)" : "hsl(var(--border))"}` : "1px solid transparent",
               }}
             >
               <TabIcon className="h-3 w-3" />
@@ -800,6 +1150,19 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
             </div>
           </div>
           <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto flex-shrink-0">
+            {orphanNoteIds.size > 0 && (
+              <button
+                onClick={() => setOrphansOnly(v => !v)}
+                className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all"
+                style={{
+                  background: orphansOnly ? "rgba(239,68,68,0.10)" : "transparent",
+                  color: orphansOnly ? "#EF4444" : "hsl(var(--muted-foreground))",
+                  border: orphansOnly ? "1px solid rgba(239,68,68,0.25)" : "1px solid transparent",
+                }}>
+                <AlertCircle className="h-2.5 w-2.5" />
+                Orphans ({orphanNoteIds.size})
+              </button>
+            )}
             <button onClick={() => openEditor(null, "all")}
               className="ml-auto flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
               style={{ background: "rgba(249,109,28,0.10)", color: "#F96D1C", border: "1px solid rgba(249,109,28,0.20)" }}>
@@ -938,6 +1301,22 @@ export function NotesTab({ bookId, book }: { bookId: number; book: Book }) {
             )}
           </div>
         </ScrollArea>
+      )}
+
+      {/* ── Graph View ──────────────────────────────────────────────────────────── */}
+      {view === "graph" && (
+        <div className="flex-1 min-h-0">
+          <NotesGraph
+            notes={notes}
+            drafts={drafts as Draft[]}
+            sources={sources as Source[]}
+            mode="global"
+            onOpenNote={id => {
+              const n = notes.find(x => x.id === id);
+              if (n) { setPrevView("graph"); openEditor(n, "graph"); }
+            }}
+          />
+        </div>
       )}
     </div>
   );
