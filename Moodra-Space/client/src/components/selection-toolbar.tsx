@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Wand2, RefreshCw, Minimize2, ArrowUpRight, Globe, Sliders, SpellCheck, Loader2, ChevronDown, Key, X, Zap } from "lucide-react";
+import { Wand2, RefreshCw, Minimize2, ArrowUpRight, Globe, SpellCheck, Loader2, ChevronDown, Key, X, Zap } from "lucide-react";
 import { useLang } from "@/contexts/language-context";
 import { useFreeMode } from "@/hooks/use-free-mode";
 import { useLocation } from "wouter";
@@ -117,7 +117,6 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
     { mode: "simplify",   label: s.simplify,   icon: Minimize2,   color: "#34D399" },
     { mode: "expand",     label: s.expand,     icon: ArrowUpRight,color: "#F59E0B" },
     { mode: "translate",  label: s.translate,  icon: Globe,       color: "#A78BFA" },
-    { mode: "adapt-tone", label: s.adaptTone,  icon: Sliders,     color: "#F472B6" },
     { mode: "fix-grammar",label: s.fixGrammar, icon: SpellCheck,  color: "#6EE7B7" },
   ];
 

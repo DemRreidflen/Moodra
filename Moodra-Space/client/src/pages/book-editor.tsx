@@ -335,6 +335,15 @@ export default function BookEditor() {
             onInsert={aiInsertCallback}
           />
         )}
+        {showAI && !isDeepWritingMode && (activeTab === "notes" || activeTab === "board") && (
+          <AiPanel
+            book={book}
+            chapter={null}
+            context={""}
+            chapters={chapters}
+            onInsert={null}
+          />
+        )}
       </div>
     </div>
   );

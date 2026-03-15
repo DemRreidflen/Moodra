@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useFreeMode } from "@/hooks/use-free-mode";
@@ -19,7 +19,7 @@ import {
   FlaskConical, Plus, Trash2, Edit, BookOpen, Globe, FileText,
   GraduationCap, ExternalLink, Sparkles, Search, ArrowDownToLine,
   Lightbulb, RefreshCw, ChevronDown, ChevronUp, CheckCircle2, Info,
-  Brain, UserSearch
+  Brain, UserSearch, Upload, Loader2, Microscope
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru, uk, de as deDe, enUS } from "date-fns/locale";
@@ -109,6 +109,15 @@ const RESEARCH_I18N = {
     close: "Close",
     addApiKey: "Add API key",
     refreshSuggestions: "Refresh suggestions",
+    uploadFile: "Upload file",
+    uploadFileTypes: "TXT or MD, up to 1 MB",
+    analyzeWithAi: "Analyze with AI",
+    analyzing: "Analyzing…",
+    aiAnalysis: "AI Analysis",
+    closeAnalysis: "Hide",
+    testHypothesis: "Test hypothesis",
+    testingHypothesis: "Testing…",
+    hypothesisAnalysis: "Evidence assessment",
   },
   ru: {
     sourceTypes: { book: "Книга", article: "Статья", website: "Веб-сайт", research: "Исследование", agent_review: "Отзыв агента", author_analysis: "Анализ автора" },
@@ -192,6 +201,15 @@ const RESEARCH_I18N = {
     close: "Закрыть",
     addApiKey: "Добавить API ключ",
     refreshSuggestions: "Обновить предложения",
+    uploadFile: "Загрузить файл",
+    uploadFileTypes: "TXT или MD, до 1 МБ",
+    analyzeWithAi: "Анализировать с AI",
+    analyzing: "Анализирую…",
+    aiAnalysis: "AI-анализ",
+    closeAnalysis: "Скрыть",
+    testHypothesis: "Проверить гипотезу",
+    testingHypothesis: "Проверяю…",
+    hypothesisAnalysis: "Оценка доказательств",
   },
   ua: {
     sourceTypes: { book: "Книга", article: "Стаття", website: "Веб-сайт", research: "Дослідження", agent_review: "Відгук агента", author_analysis: "Аналіз автора" },
@@ -275,6 +293,15 @@ const RESEARCH_I18N = {
     close: "Закрити",
     addApiKey: "Додати API ключ",
     refreshSuggestions: "Оновити пропозиції",
+    uploadFile: "Завантажити файл",
+    uploadFileTypes: "TXT або MD, до 1 МБ",
+    analyzeWithAi: "Аналізувати з AI",
+    analyzing: "Аналізую…",
+    aiAnalysis: "AI-аналіз",
+    closeAnalysis: "Сховати",
+    testHypothesis: "Перевірити гіпотезу",
+    testingHypothesis: "Перевіряю…",
+    hypothesisAnalysis: "Оцінка доказів",
   },
   de: {
     sourceTypes: { book: "Buch", article: "Artikel", website: "Website", research: "Forschung", agent_review: "Agentenbericht", author_analysis: "Autorenanalyse" },
@@ -358,6 +385,15 @@ const RESEARCH_I18N = {
     close: "Schließen",
     addApiKey: "API-Schlüssel hinzufügen",
     refreshSuggestions: "Vorschläge aktualisieren",
+    uploadFile: "Datei hochladen",
+    uploadFileTypes: "TXT oder MD, bis 1 MB",
+    analyzeWithAi: "Mit KI analysieren",
+    analyzing: "Analysiere…",
+    aiAnalysis: "KI-Analyse",
+    closeAnalysis: "Ausblenden",
+    testHypothesis: "Hypothese testen",
+    testingHypothesis: "Teste…",
+    hypothesisAnalysis: "Beweisbewertung",
   },
 };
 
@@ -414,7 +450,28 @@ function SourceCard({ source, onEdit, onDelete }: {
 }) {
   const { lang } = useLang();
   const s = RESEARCH_I18N[lang];
+  const { showError } = useAiError();
   const typeLabel = s.sourceTypes[source.type as keyof typeof s.sourceTypes] || source.type;
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleAnalyze = async () => {
+    const content = [source.title, source.author, source.quote, source.notes].filter(Boolean).join("\n");
+    if (!content.trim()) return;
+    setIsAnalyzing(true);
+    try {
+      const res = await apiRequest("POST", "/api/ai/improve", {
+        text: content,
+        mode: "improve",
+        customInstruction: "Do not rewrite this text. Instead, deeply analyze it as a research source: identify the main ideas, assess relevance for academic or creative work, extract key insights, note potential biases or limitations, and suggest how this source could be used in writing. Format your response in clear sections.",
+      });
+      setAnalysis(res.improved || "");
+    } catch (e: any) {
+      showError(e?.message || s.errorAi);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   return (
     <div
@@ -439,7 +496,7 @@ function SourceCard({ source, onEdit, onDelete }: {
           {source.notes && (
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{source.notes}</p>
           )}
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             {source.url && (
               <a
                 href={source.url}
@@ -452,10 +509,38 @@ function SourceCard({ source, onEdit, onDelete }: {
                 {s.openLink}
               </a>
             )}
-            <span className="text-xs text-muted-foreground/60 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-primary rounded-lg ml-auto"
+              onClick={handleAnalyze}
+              disabled={isAnalyzing}
+            >
+              {isAnalyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Microscope className="h-3 w-3" />}
+              {isAnalyzing ? s.analyzing : s.analyzeWithAi}
+            </Button>
+            <span className="text-xs text-muted-foreground/60">
               {format(new Date(source.createdAt), "d MMM", { locale: DATE_LOCALES[lang] })}
             </span>
           </div>
+
+          {analysis && (
+            <div className="mt-3 pt-3 border-t border-border animate-in fade-in slide-in-from-top-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  {s.aiAnalysis}
+                </span>
+                <button
+                  onClick={() => setAnalysis(null)}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  {s.closeAnalysis}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{analysis}</p>
+            </div>
+          )}
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => onEdit(source)}>
@@ -1136,7 +1221,32 @@ function HypothesisCard({ hypothesis, onEdit, onDelete, bookId }: {
 }) {
   const { lang } = useLang();
   const hc = RESEARCH_I18N[lang];
+  const { showError } = useAiError();
   const [expanded, setExpanded] = useState(false);
+  const [assessment, setAssessment] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleTest = async () => {
+    setIsTesting(true);
+    try {
+      const content = [
+        `Hypothesis: ${hypothesis.title}`,
+        hypothesis.description ? `Description: ${hypothesis.description}` : "",
+        hypothesis.arguments ? `Arguments: ${hypothesis.arguments}` : "",
+        hypothesis.counterarguments ? `Counterarguments: ${hypothesis.counterarguments}` : "",
+      ].filter(Boolean).join("\n");
+      const res = await apiRequest("POST", "/api/ai/improve", {
+        text: content,
+        mode: "improve",
+        customInstruction: "Do not rewrite this text. Act as a critical research methodologist. Evaluate this hypothesis: assess logical soundness, identify gaps in argumentation, suggest missing evidence types, rate the existing arguments vs counterarguments, point out potential research methods to test it, and give a verdicts on its current status. Be rigorous and specific.",
+      });
+      setAssessment(res.improved || "");
+    } catch (e: any) {
+      showError(e?.message || hc.errorAi);
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const statusColors: Record<string, string> = {
     hypothesis: "bg-blue-500/10 text-blue-600 border-blue-200",
@@ -1183,7 +1293,7 @@ function HypothesisCard({ hypothesis, onEdit, onDelete, bookId }: {
         {hypothesis.description}
       </p>
 
-      <div className="flex items-center gap-3 mt-3">
+      <div className="flex items-center gap-3 mt-3 flex-wrap">
         <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
           <CheckCircle2 className="h-3 w-3 text-green-500" />
           {hc.argCount(argCount)}
@@ -1192,6 +1302,16 @@ function HypothesisCard({ hypothesis, onEdit, onDelete, bookId }: {
           <Info className="h-3 w-3 text-red-500" />
           {hc.counterCount(counterCount)}
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-primary rounded-lg"
+          onClick={handleTest}
+          disabled={isTesting}
+        >
+          {isTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Microscope className="h-3 w-3" />}
+          {isTesting ? hc.testingHypothesis : hc.testHypothesis}
+        </Button>
         <button
           onClick={() => setExpanded(!expanded)}
           className="text-[11px] text-primary ml-auto font-medium"
@@ -1199,6 +1319,24 @@ function HypothesisCard({ hypothesis, onEdit, onDelete, bookId }: {
           {expanded ? hc.collapse : hc.expand}
         </button>
       </div>
+
+      {assessment && (
+        <div className="mt-3 pt-3 border-t border-border animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              {hc.hypothesisAnalysis}
+            </span>
+            <button
+              onClick={() => setAssessment(null)}
+              className="text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              {hc.closeAnalysis}
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{assessment}</p>
+        </div>
+      )}
 
       {expanded && (
         <div className="mt-4 pt-4 border-t border-border space-y-4 animate-in fade-in slide-in-from-top-1">
@@ -1305,11 +1443,41 @@ export function ResearchPanel({ bookId, book }: { bookId: number; book: Book }) 
   const [activeTab, setActiveTab] = useState<"library" | "ai" | "hypotheses">("ai");
   const [showDialog, setShowDialog] = useState(false);
   const [editSource, setEditSource] = useState<Source | undefined>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: sources = [], isLoading } = useQuery<Source[]>({
     queryKey: ["/api/books", bookId, "sources"],
     queryFn: () => apiRequest("GET", `/api/books/${bookId}/sources`),
   });
+
+  const addSourceMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", `/api/books/${bookId}/sources`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "sources"] });
+      toast({ title: rp.sourceSavedToLib });
+    },
+  });
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      toast({ title: rp.uploadFileTypes, variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const name = file.name.replace(/\.[^.]+$/, "");
+      addSourceMutation.mutate({
+        title: name,
+        type: "research",
+        notes: text.slice(0, 4000),
+      });
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/sources/${id}`),
@@ -1369,20 +1537,39 @@ export function ResearchPanel({ bookId, book }: { bookId: number; book: Book }) 
 
         {activeTab === "library" && (
           <div className="h-full flex flex-col">
-            <div className="p-4 border-b border-border flex items-center justify-between">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,text/plain,text/markdown"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <div className="p-4 border-b border-border flex items-center justify-between gap-2">
               <div>
                 <h3 className="font-semibold text-sm">{rp.yourSources}</h3>
                 <p className="text-xs text-muted-foreground">{rp.materialsCount(sources.length)}</p>
               </div>
-              <Button
-                size="sm"
-                onClick={() => { setEditSource(undefined); setShowDialog(true); }}
-                className="rounded-xl h-8 px-3 gap-1.5"
-                data-testid="button-add-source-manual"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {rp.add}
-              </Button>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-xl h-8 px-3 gap-1.5"
+                  data-testid="button-upload-file"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {rp.uploadFile}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => { setEditSource(undefined); setShowDialog(true); }}
+                  className="rounded-xl h-8 px-3 gap-1.5"
+                  data-testid="button-add-source-manual"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {rp.add}
+                </Button>
+              </div>
             </div>
 
             <ScrollArea className="flex-1">
