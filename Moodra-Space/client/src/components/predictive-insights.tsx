@@ -107,15 +107,6 @@ export function PredictiveInsights({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-5 h-5 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Lightbulb className="h-3 w-3 text-primary" />
-        </div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-          Smart Insights · {insights.length} found
-        </p>
-      </div>
-
       {insights.map(ins => {
         const pr = PRIORITY_DISPLAY[ins.priority];
         return (

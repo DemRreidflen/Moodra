@@ -403,7 +403,7 @@ export default function BookEditor() {
           </div>
         )}
 
-        {showAI && !isDeepWritingMode && activeTab === "editor" && viewMode === "sheets" && (
+        {showAI && !isDeepWritingMode && activeTab === "editor" && (
           <AiPanel
             book={book}
             chapter={selectedChapter || null}

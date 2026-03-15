@@ -475,63 +475,71 @@ export function BookSettings({ book }: { book: Book }) {
           {/* ── Role Models / Co-Authors ─────────────────────────── */}
           <div className="space-y-3 pt-4 border-t border-border">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(168,85,247,0.15)" }}>
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(168,85,247,0.12)" }}>
                 <Brain className="h-3.5 w-3.5" style={{ color: "#A855F7" }} />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm">
                   {lang === "ru" ? "Ролевые модели авторов" : lang === "ua" ? "Рольові моделі авторів" : lang === "de" ? "Autoren-Rollenmodelle" : "Author Role Models"}
                 </h3>
-                <p className="text-[10px] text-muted-foreground/60 leading-tight">
+                <p className="text-[10px] text-muted-foreground/55 leading-tight">
                   {lang === "ru"
-                    ? "Управляйте % влияния каждого автора-соавтора на стиль работы ИИ"
-                    : lang === "ua"
-                      ? "Керуйте % впливу кожного автора-співавтора на стиль роботи ІІ"
-                      : lang === "de"
-                        ? "Steuern Sie den Einfluss jedes Autors auf den KI-Schreibstil"
-                        : "Control how much each co-author style model influences AI writing"}
+                    ? "% влияния каждого автора на стиль ИИ"
+                    : lang === "ua" ? "% впливу автора на стиль ІІ"
+                    : lang === "de" ? "Einfluss auf den KI-Schreibstil"
+                    : "Style influence on AI writing"}
                 </p>
               </div>
             </div>
 
             {roleModels.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
-                <UserSearch className="h-5 w-5 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground/50">
+              <div className="rounded-xl border border-dashed border-border/50 p-5 text-center" style={{ background: "rgba(168,85,247,0.03)" }}>
+                <div className="w-8 h-8 rounded-xl mx-auto mb-2 flex items-center justify-center" style={{ background: "rgba(168,85,247,0.08)" }}>
+                  <UserSearch className="h-4 w-4" style={{ color: "#A855F7" }} />
+                </div>
+                <p className="text-xs font-medium text-muted-foreground/60 mb-0.5">
+                  {lang === "ru" ? "Нет ролевых моделей" : lang === "ua" ? "Немає рольових моделей" : lang === "de" ? "Keine Rollenmodelle" : "No role models yet"}
+                </p>
+                <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
                   {lang === "ru"
-                    ? "Нет ролевых моделей. Добавьте анализ автора в панели ИИ и сохраните как модель."
-                    : "No role models yet. Analyze an author in the AI panel and save as Role Model."}
+                    ? "Добавьте анализ автора в Исследовании"
+                    : "Add an author analysis in Research"}
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
                 {roleModels.map(model => {
                   const currentPct = pendingInfluence[model.id] ?? model.influencePercent ?? 0;
+                  const color = model.avatarColor || "#8B5CF6";
+                  const isActive = currentPct > 0;
                   return (
-                    <div key={model.id} className="rounded-xl border border-border/50 p-3 space-y-2"
-                      style={{ borderColor: `${model.avatarColor || "#8B5CF6"}20` }}>
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-white"
-                          style={{ background: model.avatarColor || "#8B5CF6" }}>
+                    <div key={model.id}
+                      className="rounded-2xl overflow-hidden transition-shadow hover:shadow-sm"
+                      style={{ border: `1.5px solid ${isActive ? color + "30" : "rgba(0,0,0,0.06)"}`, background: isActive ? color + "06" : "transparent" }}>
+                      <div className="flex items-center gap-3 px-3 pt-3 pb-2">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-[12px] font-bold text-white shadow-sm"
+                          style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}>
                           {(model.authorName || model.name || "?")[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{model.name}</p>
-                          {model.authorName && <p className="text-[10px] text-muted-foreground/60 truncate">{model.authorName}</p>}
+                          <p className="text-xs font-semibold truncate leading-tight">{model.name}</p>
+                          {model.authorName && (
+                            <p className="text-[10px] truncate" style={{ color: color + "99" }}>{model.authorName}</p>
+                          )}
                         </div>
-                        <span className="text-[11px] font-semibold tabular-nums" style={{ color: currentPct > 0 ? (model.avatarColor || "#8B5CF6") : "hsl(var(--muted-foreground))" }}>
-                          {currentPct}%
-                        </span>
-                        <button
-                          onClick={() => deleteRoleModelMutation.mutate(model.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-destructive/10 transition-colors"
-                        >
-                          <X className="h-3 w-3 text-muted-foreground/50 hover:text-destructive" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold tabular-nums leading-none" style={{ color: isActive ? color : "hsl(var(--muted-foreground))", opacity: isActive ? 1 : 0.4 }}>
+                            {currentPct}<span className="text-[10px] font-normal">%</span>
+                          </span>
+                          <button
+                            onClick={() => deleteRoleModelMutation.mutate(model.id)}
+                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors ml-1"
+                          >
+                            <X className="h-3 w-3 text-muted-foreground/40 hover:text-destructive" />
+                          </button>
+                        </div>
                       </div>
-                      {/* Influence slider */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] text-muted-foreground/40 w-4">0</span>
+                      <div className="px-3 pb-3">
                         <input
                           type="range" min={0} max={100} step={5}
                           value={currentPct}
@@ -544,26 +552,21 @@ export function BookSettings({ book }: { book: Book }) {
                             const pct = pendingInfluence[model.id] ?? model.influencePercent ?? 0;
                             updateRoleModelMutation.mutate({ id: model.id, data: { influencePercent: pct } });
                           }}
-                          className="flex-1 h-1.5 accent-violet-500 cursor-pointer"
-                          style={{ accentColor: model.avatarColor || "#8B5CF6" }}
+                          className="w-full h-1.5 rounded-full cursor-pointer appearance-none"
+                          style={{ accentColor: color, background: `linear-gradient(to right, ${color} ${currentPct}%, rgba(0,0,0,0.08) ${currentPct}%)` }}
                         />
-                        <span className="text-[9px] text-muted-foreground/40 w-6 text-right">100</span>
                       </div>
-                      {/* Influence bar visual */}
-                      {currentPct > 0 && (
-                        <div className="h-0.5 rounded-full overflow-hidden bg-border/40">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${currentPct}%`, background: model.avatarColor || "#8B5CF6" }} />
-                        </div>
-                      )}
                     </div>
                   );
                 })}
                 {roleModels.filter(m => (m.influencePercent ?? 0) > 0).length > 0 && (
-                  <p className="text-[10px] text-muted-foreground/50 px-1">
-                    {lang === "ru"
-                      ? `${roleModels.filter(m => (m.influencePercent ?? 0) > 0).length} активных моделей — синтез-агент будет объединять их стили пропорционально указанному % при работе ИИ.`
-                      : `${roleModels.filter(m => (m.influencePercent ?? 0) > 0).length} active model${roleModels.filter(m => (m.influencePercent ?? 0) > 0).length !== 1 ? "s" : ""} — the synthesis agent will blend styles proportionally when AI writes.`}
-                  </p>
+                  <div className="rounded-xl px-3 py-2" style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.12)" }}>
+                    <p className="text-[10px] leading-relaxed" style={{ color: "#A855F7", opacity: 0.75 }}>
+                      {lang === "ru"
+                        ? `${roleModels.filter(m => (m.influencePercent ?? 0) > 0).length} ${roleModels.filter(m => (m.influencePercent ?? 0) > 0).length === 1 ? "активная модель" : "активных модели"} — ИИ будет смешивать стили пропорционально указанным процентам.`
+                        : `${roleModels.filter(m => (m.influencePercent ?? 0) > 0).length} active model${roleModels.filter(m => (m.influencePercent ?? 0) > 0).length !== 1 ? "s" : ""} — styles blended proportionally when AI writes.`}
+                    </p>
+                  </div>
                 )}
               </div>
             )}

@@ -32,6 +32,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -62,6 +63,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     superscript: "Superscript", subscript: "Subscript", insertLink: "Insert link", enterUrl: "Enter URL:", clearFormat: "Clear formatting",
     lineSpacing: "Line spacing",
     blockTypes: "Block Types", placeholder: "Press '/' to select a block type...",
+    layoutGroupLabel: "Structure & Formatting",
+    editorOnlyGroupLabel: "Editor only · invisible in layout",
     toAi: "To AI", copy: "Copy", toCard: "To Card", delete: "Delete",
     aiImprovement: "AI Text Improvement", comparisonDesc: "Comparison of original and improved text",
     original: "Original", improved: "Improved", reject: "Reject", accept: "Accept",
@@ -87,6 +90,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     superscript: "Надстрочный", subscript: "Подстрочный", insertLink: "Вставить ссылку", enterUrl: "Введите URL:", clearFormat: "Сбросить форматирование",
     lineSpacing: "Межстрочный интервал",
     blockTypes: "Типы блоков", placeholder: "Нажмите '/' для выбора типа блока...",
+    layoutGroupLabel: "Структура и оформление",
+    editorOnlyGroupLabel: "Только редактор · не видно в вёрстке",
     toAi: "В AI", copy: "Копировать", toCard: "В карточку", delete: "Удалить",
     aiImprovement: "AI-улучшение текста", comparisonDesc: "Сравнение оригинального и улучшенного текста",
     original: "Оригинал", improved: "Улучшено", reject: "Отклонить", accept: "Принять",
@@ -112,6 +117,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     superscript: "Надрядковий", subscript: "Підрядковий", insertLink: "Вставити посилання", enterUrl: "Введіть URL:", clearFormat: "Скинути форматування",
     lineSpacing: "Міжрядковий інтервал",
     blockTypes: "Типи блоків", placeholder: "Натисніть '/' для вибору типу блоку...",
+    layoutGroupLabel: "Структура та оформлення",
+    editorOnlyGroupLabel: "Тільки редактор · невидиме у вёрстці",
     toAi: "До AI", copy: "Копіювати", toCard: "До картки", delete: "Видалити",
     aiImprovement: "AI-поліпшення тексту", comparisonDesc: "Порівняння оригінального та поліпшеного тексту",
     original: "Оригінал", improved: "Поліпшено", reject: "Відхилити", accept: "Прийняти",
@@ -137,6 +144,8 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     superscript: "Hochgestellt", subscript: "Tiefgestellt", insertLink: "Link einfügen", enterUrl: "URL eingeben:", clearFormat: "Formatierung löschen",
     lineSpacing: "Zeilenabstand",
     blockTypes: "Blocktypen", placeholder: "Drücken Sie '/' um einen Blocktyp zu wählen...",
+    layoutGroupLabel: "Struktur & Formatierung",
+    editorOnlyGroupLabel: "Nur Editor · im Layout unsichtbar",
     toAi: "Zur KI", copy: "Kopieren", toCard: "Zur Karte", delete: "Löschen",
     aiImprovement: "KI-Textverbesserung", comparisonDesc: "Vergleich von Original- und verbessertem Text",
     original: "Original", improved: "Verbessert", reject: "Ablehnen", accept: "Annehmen",
@@ -545,7 +554,7 @@ export type BlockEditorAPI = {
   appendBlock: (content: string, type?: string) => void;
 };
 
-const BLOCK_TYPES: { type: BlockType; icon: any }[] = [
+const LAYOUT_BLOCK_TYPES: { type: BlockType; icon: any }[] = [
   { type: "paragraph", icon: Type },
   { type: "h1", icon: Heading1 },
   { type: "h2", icon: Heading2 },
@@ -559,12 +568,17 @@ const BLOCK_TYPES: { type: BlockType; icon: any }[] = [
   { type: "counterargument", icon: XCircle },
   { type: "idea", icon: Lightbulb },
   { type: "question", icon: HelpCircle },
+  { type: "divider", icon: Minus },
+];
+
+const EDITOR_ONLY_BLOCK_TYPES: { type: BlockType; icon: any }[] = [
   { type: "example", icon: Info },
   { type: "observation", icon: Search },
   { type: "research", icon: MessageSquare },
   { type: "source_ref", icon: LinkIcon },
-  { type: "divider", icon: Minus },
 ];
+
+const BLOCK_TYPES = [...LAYOUT_BLOCK_TYPES, ...EDITOR_ONLY_BLOCK_TYPES];
 
 function generateId() {
   return Math.random().toString(36).substring(2, 11);
@@ -935,7 +949,7 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
     />
     <div
       ref={containerRef}
-      className={cn("w-full max-w-3xl mx-auto py-10 px-4 relative", hideControls && "py-0 px-0")}
+      className={cn("w-full max-w-[1200px] mx-auto py-10 px-4 relative", hideControls && "py-0 px-0")}
       onMouseUp={handleMouseUp}
       onClick={(e) => {
         if (selectionBar && !(e.target as HTMLElement).closest("[data-selection-bar]")) {
@@ -1409,8 +1423,11 @@ function SortableBlock({
                 <currentType.icon className="w-3.5 h-3.5 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              {BLOCK_TYPES.map((t) => {
+            <DropdownMenuContent align="start" className="w-60">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 px-2 pt-1.5 pb-0.5">
+                {s.layoutGroupLabel}
+              </div>
+              {LAYOUT_BLOCK_TYPES.map((t) => {
                 const m = BLOCK_TYPE_I18N_MAP[t.type];
                 return (
                   <DropdownMenuItem
@@ -1419,6 +1436,26 @@ function SortableBlock({
                     className="flex items-center gap-2"
                   >
                     <t.icon className="w-4 h-4" />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{m ? s[m.labelKey] : t.type}</span>
+                      <span className="text-xs text-muted-foreground">{m ? s[m.descKey] : ""}</span>
+                    </div>
+                  </DropdownMenuItem>
+                );
+              })}
+              <DropdownMenuSeparator />
+              <div className="text-[9px] font-bold uppercase tracking-wider px-2 pt-1.5 pb-0.5" style={{ color: "#8B5CF6", opacity: 0.7 }}>
+                {s.editorOnlyGroupLabel}
+              </div>
+              {EDITOR_ONLY_BLOCK_TYPES.map((t) => {
+                const m = BLOCK_TYPE_I18N_MAP[t.type];
+                return (
+                  <DropdownMenuItem
+                    key={t.type}
+                    onClick={() => onUpdateType(t.type)}
+                    className="flex items-center gap-2"
+                  >
+                    <t.icon className="w-4 h-4 text-violet-400" />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">{m ? s[m.labelKey] : t.type}</span>
                       <span className="text-xs text-muted-foreground">{m ? s[m.descKey] : ""}</span>
@@ -1484,12 +1521,12 @@ function SortableBlock({
             <PopoverTrigger asChild>
               <div className="absolute top-0 left-0 w-full h-0 pointer-events-none" />
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-1" align="start">
-              <div className="text-xs font-semibold text-muted-foreground px-2 py-1.5 uppercase tracking-wider">
-                {s.blockTypes}
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {BLOCK_TYPES.map((t) => {
+            <PopoverContent className="w-72 p-1" align="start">
+              <div className="max-h-96 overflow-y-auto">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 px-2 pt-2 pb-1">
+                  {s.layoutGroupLabel}
+                </div>
+                {LAYOUT_BLOCK_TYPES.map((t) => {
                   const m = BLOCK_TYPE_I18N_MAP[t.type];
                   return (
                     <button
@@ -1504,6 +1541,33 @@ function SortableBlock({
                     >
                       <div className="w-8 h-8 flex items-center justify-center bg-background border rounded-md">
                         <t.icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{m ? s[m.labelKey] : t.type}</span>
+                        <span className="text-xs text-muted-foreground">{m ? s[m.descKey] : ""}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+                <div className="border-t border-border/20 my-1" />
+                <div className="text-[9px] font-bold uppercase tracking-wider px-2 pb-1 pt-0.5" style={{ color: "#8B5CF6", opacity: 0.7 }}>
+                  {s.editorOnlyGroupLabel}
+                </div>
+                {EDITOR_ONLY_BLOCK_TYPES.map((t) => {
+                  const m = BLOCK_TYPE_I18N_MAP[t.type];
+                  return (
+                    <button
+                      key={t.type}
+                      onClick={() => {
+                        onUpdateType(t.type);
+                        onUpdateContent("");
+                        if (contentRef.current) contentRef.current.innerText = "";
+                        setShowSlashMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-2 py-1.5 hover:bg-accent rounded-sm text-left transition-colors"
+                    >
+                      <div className="w-8 h-8 flex items-center justify-center rounded-md" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
+                        <t.icon className="w-4 h-4 text-violet-400" />
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-medium">{m ? s[m.labelKey] : t.type}</span>
@@ -1600,10 +1664,13 @@ function renderBlockContent(
     case "question":
       return <BlockContainer icon={HelpCircle} label={i.question} bgColor="bg-[#F5F3FF]" hideControls={hideControls} {...commonProps} />;
     case "example":
+      if (hideControls) return <div {...commonProps} className={cn(commonProps.className, "text-lg font-serif")} />;
       return <BlockContainer icon={Info} label={i.exampleBlock} bgColor="bg-[#F0FDFA]" hideControls={hideControls} {...commonProps} />;
     case "observation":
+      if (hideControls) return <div {...commonProps} className={cn(commonProps.className, "text-lg font-serif")} />;
       return <BlockContainer icon={Search} label={i.observation} bgColor="bg-[#FFF7ED]" hideControls={hideControls} {...commonProps} />;
     case "research":
+      if (hideControls) return <div {...commonProps} className={cn(commonProps.className, "text-lg font-serif")} />;
       return <BlockContainer icon={MessageSquare} label={i.research} bgColor="bg-[#F9FAFB]" hideControls={hideControls} {...commonProps} />;
     case "bullet_item":
       return (
@@ -1645,6 +1712,7 @@ function renderBlockContent(
       );
     }
     case "source_ref":
+      if (hideControls) return <div {...commonProps} className={cn(commonProps.className, "text-lg font-serif")} />;
       return (
         <div className="flex items-center gap-2 text-sm text-primary underline decoration-primary/30 underline-offset-4">
           <LinkIcon className="w-3 h-3" />

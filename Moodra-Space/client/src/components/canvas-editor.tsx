@@ -175,7 +175,7 @@ export function CanvasEditor({
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ background: "#FFFDF9" }}>
-      <div className="max-w-2xl mx-auto py-12 px-8">
+      <div className="max-w-[1200px] mx-auto py-12 px-8">
         {chapters.map((ch, idx) => (
           <div key={ch.id}>
             <ChapterSection
