@@ -3,122 +3,166 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAiError } from "@/contexts/ai-error-context";
-import { useFreeMode } from "@/hooks/use-free-mode";
 import { useLang } from "@/contexts/language-context";
 import type { Book, Source } from "@shared/schema";
 import {
   Search, Sparkles, BookOpen, StickyNote, FlaskConical,
-  FileEdit, Brain, Network, Plus, ChevronRight, Loader2,
+  FileEdit, Brain, Network, Plus, ArrowRight, Loader2,
   ArrowDownToLine, CheckCircle2, Lightbulb, ChevronDown,
-  ChevronUp, Globe, FileText, BookMarked, Quote, Microscope, X
+  ChevronUp, Globe, FileText, BookMarked, Quote, Microscope,
+  X, Layers, Zap, TrendingUp, Database
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 interface AISuggestedSource {
-  title: string;
-  author: string;
-  url?: string;
-  type: string;
-  quote?: string;
-  notes: string;
+  title: string; author: string; url?: string;
+  type: string; quote?: string; notes: string;
 }
-
-interface AIResearchResult {
-  advice?: string;
-  sources: AISuggestedSource[];
-}
-
+interface AIResearchResult { advice?: string; sources: AISuggestedSource[]; }
 type DashTab = "notes" | "library" | "dashboard" | "hypotheses" | "drafts" | "models";
-
-// ─── Category chips ─────────────────────────────────────────────────────────
 
 const CATEGORY_CHIPS = {
   nonfiction: ["Current research", "Classic works", "Statistics & data", "Methodology", "Debates & theory"],
-  fiction: ["Character psychology", "Historical context", "Plot techniques", "Atmosphere & setting", "Dialogue patterns"],
+  fiction: ["Character psychology", "Historical context", "Plot techniques", "Atmosphere & setting", "Dialogue"],
 };
 
-// ─── Source type icon ───────────────────────────────────────────────────────
+// ─── Source type config ──────────────────────────────────────────────────────
 
-function SourceTypeChip({ type }: { type: string }) {
-  const cfg: Record<string, { icon: any; color: string; label: string }> = {
-    book:             { icon: BookOpen,   color: "#6366F1", label: "Book" },
-    article:          { icon: FileText,   color: "#3B82F6", label: "Article" },
-    website:          { icon: Globe,      color: "#10B981", label: "Web" },
-    pdf:              { icon: FileText,   color: "#EF4444", label: "PDF" },
-    quote:            { icon: Quote,      color: "#F59E0B", label: "Quote" },
-    research_snippet: { icon: Microscope, color: "#8B5CF6", label: "Research" },
-    book_excerpt:     { icon: BookMarked, color: "#0D9488", label: "Excerpt" },
-  };
-  const c = cfg[type] || { icon: FileText, color: "#6B7280", label: type };
+const SOURCE_TYPES: Record<string, { icon: any; color: string; label: string }> = {
+  book:             { icon: BookOpen,   color: "#6366F1", label: "Book" },
+  article:          { icon: FileText,   color: "#3B82F6", label: "Article" },
+  website:          { icon: Globe,      color: "#10B981", label: "Web" },
+  pdf:              { icon: FileText,   color: "#EF4444", label: "PDF" },
+  quote:            { icon: Quote,      color: "#F59E0B", label: "Quote" },
+  research_snippet: { icon: Microscope, color: "#8B5CF6", label: "Research" },
+  book_excerpt:     { icon: BookMarked, color: "#0D9488", label: "Excerpt" },
+};
+
+function TypeBadge({ type }: { type: string }) {
+  const c = SOURCE_TYPES[type] || { icon: FileText, color: "#6B7280", label: type };
   const Icon = c.icon;
   return (
-    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold"
-      style={{ background: `${c.color}12`, color: c.color }}>
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold"
+      style={{ background: `${c.color}15`, color: c.color }}>
       <Icon className="h-2.5 w-2.5" />{c.label}
     </span>
   );
 }
 
-// ─── Mini source row ────────────────────────────────────────────────────────
+// ─── Source card (hero library style) ───────────────────────────────────────
 
-function MiniSourceRow({ source }: { source: Source }) {
+function SourceCard({ source }: { source: Source }) {
+  const cfg = SOURCE_TYPES[source.type || "book"] || SOURCE_TYPES.book;
+  const Icon = cfg.icon;
   return (
-    <div className="flex items-center gap-2 py-1.5 border-t border-border/20 first:border-0">
-      <SourceTypeChip type={source.type || "book"} />
-      <span className="flex-1 text-[11px] font-medium truncate">{source.title}</span>
-      {source.author && <span className="text-[10px] text-muted-foreground/50 truncate max-w-[70px]">{source.author}</span>}
+    <div className="flex items-center gap-3 p-2.5 rounded-xl border border-border/30 bg-background/70 hover:bg-background hover:border-border/60 hover:shadow-sm transition-all cursor-default group">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ background: `${cfg.color}12` }}>
+        <Icon className="h-4 w-4" style={{ color: cfg.color }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11.5px] font-semibold truncate leading-tight">{source.title}</p>
+        {source.author && (
+          <p className="text-[10px] text-muted-foreground/55 truncate mt-0.5">{source.author}</p>
+        )}
+      </div>
+      <TypeBadge type={source.type || "book"} />
     </div>
   );
 }
 
-// ─── Bento card shell ───────────────────────────────────────────────────────
+// ─── Workspace tile ──────────────────────────────────────────────────────────
 
-function BentoCard({
-  children, className = "", onClick, accent
+function WorkspaceTile({
+  icon: Icon, title, description, count, countLabel, color, gradient,
+  onClick, cta = "Open",
 }: {
-  children: React.ReactNode;
-  className?: string;
-  onClick?: () => void;
-  accent?: string;
+  icon: any; title: string; description: string;
+  count: number; countLabel: string; color: string; gradient: string;
+  onClick: () => void; cta?: string;
 }) {
   return (
-    <div
+    <button
       onClick={onClick}
-      className={`relative rounded-2xl border border-border/50 bg-background/80 overflow-hidden transition-all ${onClick ? "cursor-pointer hover:border-border hover:shadow-sm hover:bg-background" : ""} ${className}`}
+      className="group text-left w-full rounded-2xl border border-border/40 bg-background/80 overflow-hidden hover:border-border hover:shadow-md transition-all duration-200"
     >
-      {accent && <div style={{ height: 2.5, background: accent, opacity: 0.65 }} />}
-      {children}
+      <div className="p-4">
+        {/* Icon + arrow */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: gradient }}>
+            <Icon className="h-5 w-5" style={{ color }} />
+          </div>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5 transition-all mt-1" />
+        </div>
+        {/* Title + description */}
+        <p className="text-[13px] font-semibold leading-snug mb-1">{title}</p>
+        <p className="text-[10.5px] text-muted-foreground/55 leading-relaxed">{description}</p>
+        {/* Count + CTA */}
+        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/20">
+          <span className="text-[11px] font-semibold" style={{ color }}>
+            {count} <span className="text-muted-foreground/40 font-normal">{countLabel}</span>
+          </span>
+          <span className="text-[10px] font-medium text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors">
+            {cta} →
+          </span>
+        </div>
+      </div>
+      {/* Bottom accent bar */}
+      <div className="h-0.5 w-full" style={{ background: gradient, opacity: 0.7 }} />
+    </button>
+  );
+}
+
+// ─── AI search result card ────────────────────────────────────────────────────
+
+function AISourceCard({
+  source, added, adding, onAdd,
+}: {
+  source: AISuggestedSource; added: boolean; adding: boolean;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border/40 bg-background/90 p-3 hover:border-border/70 transition-all">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <TypeBadge type={source.type} />
+            <span className="text-[12px] font-semibold leading-tight">{source.title}</span>
+          </div>
+          {source.author && <p className="text-[10.5px] text-muted-foreground/55 mb-1.5">{source.author}</p>}
+          <p className="text-[10.5px] text-muted-foreground/65 line-clamp-2 leading-relaxed">{source.notes}</p>
+        </div>
+        <button
+          onClick={onAdd}
+          disabled={added || adding}
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-xl transition-all disabled:opacity-50"
+          style={{ background: added ? "rgba(16,185,129,0.12)" : "rgba(249,109,28,0.10)" }}
+        >
+          {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />
+            : added ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              : <Plus className="h-3.5 w-3.5 text-orange-500" />}
+        </button>
+      </div>
     </div>
   );
 }
 
-// ─── Main Dashboard ─────────────────────────────────────────────────────────
+// ─── Main Dashboard ──────────────────────────────────────────────────────────
 
 export function ResearchDashboard({
-  bookId,
-  book,
-  sources,
-  notesCount,
-  draftsCount,
-  hypothesesCount,
-  modelsCount,
-  modelsAnalyzedCount,
-  onNavigate,
+  bookId, book, sources,
+  notesCount, draftsCount, hypothesesCount,
+  modelsCount, modelsAnalyzedCount, onNavigate,
 }: {
-  bookId: number;
-  book: Book;
-  sources: Source[];
-  notesCount: number;
-  draftsCount: number;
-  hypothesesCount: number;
-  modelsCount: number;
-  modelsAnalyzedCount: number;
+  bookId: number; book: Book; sources: Source[];
+  notesCount: number; draftsCount: number; hypothesesCount: number;
+  modelsCount: number; modelsAnalyzedCount: number;
   onNavigate: (tab: DashTab) => void;
 }) {
   const { toast } = useToast();
   const { handleAiError } = useAiError();
-  const { isFreeMode } = useFreeMode();
   const { lang } = useLang();
 
   const [query, setQuery] = useState("");
@@ -127,11 +171,11 @@ export function ResearchDashboard({
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedTitles, setAddedTitles] = useState<Set<string>>(new Set());
   const [showAdvice, setShowAdvice] = useState(true);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const chips = book.mode === "fiction" ? CATEGORY_CHIPS.fiction : CATEGORY_CHIPS.nonfiction;
-  const recentSources = sources.slice(0, 4);
-
-  // ── Search ────────────────────────────────────────────────────────────────
+  const recentSources = sources.slice(0, 5);
+  const totalNodes = notesCount + sources.length + hypothesesCount;
 
   const handleSearch = async (q?: string) => {
     const finalQuery = q !== undefined ? q : query;
@@ -172,7 +216,8 @@ export function ResearchDashboard({
 
   const addAll = () => {
     if (!searchResult) return;
-    searchResult.sources.filter(s => !addedTitles.has(s.title)).forEach(s => {
+    const toAdd = searchResult.sources.filter(s => !addedTitles.has(s.title));
+    toAdd.forEach(s => {
       apiRequest("POST", `/api/books/${bookId}/sources`, {
         title: s.title, author: s.author, url: s.url || "",
         quote: s.quote || "", notes: s.notes, type: s.type,
@@ -181,27 +226,66 @@ export function ResearchDashboard({
         queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "sources"] });
       });
     });
-    toast({ title: `${searchResult.sources.length} sources added` });
+    toast({ title: `${toAdd.length} sources saved to library` });
   };
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* ── Search bar ─────────────────────────────────────────────────── */}
-      <div className="px-4 pt-3 pb-2 flex-shrink-0">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
+      {/* ╔══ HERO HEADER ══════════════════════════════════════════════════╗ */}
+      <div className="flex-shrink-0 px-4 pt-4 pb-3"
+        style={{
+          background: "linear-gradient(160deg, rgba(249,109,28,0.04) 0%, rgba(99,102,241,0.03) 100%)",
+          borderBottom: "1px solid rgba(0,0,0,0.04)",
+        }}>
+        {/* Brand bar */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg, #F96D1C 0%, #f59e0b 100%)" }}>
+            <Database className="h-3 w-3 text-white" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold tracking-tight leading-none">Research Studio</p>
+            <p className="text-[9px] text-muted-foreground/45 mt-0.5 truncate max-w-[180px]">{book.title}</p>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-[9px] px-2 py-0.5 rounded-full font-semibold"
+              style={{ background: "rgba(99,102,241,0.1)", color: "#6366F1" }}>
+              {sources.length} sources
+            </span>
+            <span className="text-[9px] px-2 py-0.5 rounded-full font-semibold"
+              style={{ background: "rgba(245,158,11,0.1)", color: "#D97706" }}>
+              {notesCount} notes
+            </span>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="relative"
+          style={{
+            filter: searchFocused ? "drop-shadow(0 0 8px rgba(249,109,28,0.18))" : undefined,
+            transition: "filter 0.2s",
+          }}>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
+            style={{ color: searchFocused ? "#F96D1C" : "rgba(0,0,0,0.25)" }} />
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSearch()}
-            placeholder={`Search sources for "${book.title}"…`}
-            className="w-full pl-9 pr-16 py-2 rounded-xl border border-border/60 bg-background/90 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/35 transition-all"
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="Search for sources, topics, references…"
+            className="w-full pl-9 pr-16 py-2.5 rounded-xl text-[12px] outline-none transition-all"
+            style={{
+              background: "rgba(255,255,255,0.85)",
+              border: `1.5px solid ${searchFocused ? "rgba(249,109,28,0.4)" : "rgba(0,0,0,0.08)"}`,
+              color: "#1a1a1a",
+            }}
           />
           <button
             onClick={() => handleSearch()}
             disabled={searching || !query.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all disabled:opacity-40"
-            style={{ background: "rgba(249,109,28,0.12)", color: "#F96D1C" }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all disabled:opacity-40"
+            style={{ background: "linear-gradient(135deg, #F96D1C, #f59e0b)", color: "white" }}
           >
             {searching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
             {searching ? "…" : "Find"}
@@ -209,277 +293,303 @@ export function ResearchDashboard({
         </div>
 
         {/* Category chips */}
-        <div className="flex gap-1.5 mt-2 flex-wrap">
+        <div className="flex gap-1.5 mt-2.5 flex-wrap">
           {chips.map(chip => (
-            <button
-              key={chip}
-              onClick={() => { setQuery(chip); handleSearch(chip); }}
+            <button key={chip} onClick={() => { setQuery(chip); handleSearch(chip); }}
               disabled={searching}
-              className="text-[10px] px-2.5 py-1 rounded-full border border-border/50 bg-muted/30 hover:bg-primary/8 hover:border-primary/30 hover:text-primary transition-all disabled:opacity-40"
-            >
+              className="text-[10px] px-2.5 py-1 rounded-full font-medium transition-all disabled:opacity-40 hover:scale-105"
+              style={{
+                background: "rgba(255,255,255,0.7)",
+                border: "1px solid rgba(0,0,0,0.08)",
+                color: "#555",
+              }}>
               {chip}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Scrollable content ─────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      {/* ╔══ SCROLLABLE BODY ══════════════════════════════════════════════╗ */}
+      <div className="flex-1 overflow-y-auto">
 
-        {/* ── Search results ──────────────────────────────────────────── */}
+        {/* ── AI Search results ─────────────────────────────────────────── */}
         {(searching || searchResult) && (
-          <div className="mb-3">
+          <div className="px-4 py-4 space-y-3">
             {/* Results header */}
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-muted-foreground/70">
-                {searching ? "Searching…" : `${searchResult?.sources?.length || 0} sources found`}
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-lg flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, #F96D1C, #f59e0b)" }}>
+                  <Sparkles className="h-3 w-3 text-white" />
+                </div>
+                <span className="text-[12px] font-semibold">
+                  {searching ? "AI is searching…" : `${searchResult?.sources?.length || 0} sources found`}
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 {searchResult && searchResult.sources.length > 0 && (
                   <button onClick={addAll}
-                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg"
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg"
                     style={{ background: "rgba(99,102,241,0.1)", color: "#6366F1" }}>
-                    <ArrowDownToLine className="h-2.5 w-2.5" />
-                    Add all
+                    <ArrowDownToLine className="h-3 w-3" /> Add all
                   </button>
                 )}
                 <button onClick={() => { setSearchResult(null); setQuery(""); }}
-                  className="text-muted-foreground/50 hover:text-muted-foreground">
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground/60">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Loading skeleton */}
+            {/* Loading */}
             {searching && (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-14 bg-muted/40 rounded-xl animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+                  <div key={i} className="h-16 bg-muted/30 rounded-xl animate-pulse"
+                    style={{ animationDelay: `${i * 70}ms` }} />
                 ))}
               </div>
             )}
 
             {/* Strategy advice */}
             {!searching && searchResult?.advice && (
-              <div className="mb-2 rounded-xl bg-primary/5 border border-primary/15 overflow-hidden">
-                <button className="w-full flex items-center gap-2 px-3 py-2 text-left"
+              <div className="rounded-2xl overflow-hidden border"
+                style={{ background: "rgba(249,109,28,0.04)", borderColor: "rgba(249,109,28,0.15)" }}>
+                <button className="w-full flex items-center gap-2.5 px-4 py-3 text-left"
                   onClick={() => setShowAdvice(!showAdvice)}>
-                  <Lightbulb className="h-3 w-3 text-primary/70 flex-shrink-0" />
-                  <span className="text-[11px] font-semibold text-primary/80 flex-1">Research strategy</span>
-                  {showAdvice ? <ChevronUp className="h-3 w-3 text-primary/50" /> : <ChevronDown className="h-3 w-3 text-primary/50" />}
+                  <div className="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(249,109,28,0.12)" }}>
+                    <Lightbulb className="h-3 w-3" style={{ color: "#F96D1C" }} />
+                  </div>
+                  <span className="text-[11.5px] font-semibold flex-1" style={{ color: "#F96D1C" }}>Research strategy</span>
+                  {showAdvice
+                    ? <ChevronUp className="h-3.5 w-3.5 opacity-50" style={{ color: "#F96D1C" }} />
+                    : <ChevronDown className="h-3.5 w-3.5 opacity-50" style={{ color: "#F96D1C" }} />}
                 </button>
                 {showAdvice && (
-                  <div className="px-3 pb-3">
-                    <p className="text-[11px] text-foreground/75 leading-relaxed whitespace-pre-line">{searchResult.advice}</p>
+                  <div className="px-4 pb-4">
+                    <p className="text-[11px] leading-relaxed text-foreground/70 whitespace-pre-line">{searchResult.advice}</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* AI source cards */}
+            {/* Source cards */}
             {!searching && searchResult && (
-              <div className="space-y-1.5">
-                {searchResult.sources.map((s, i) => {
-                  const added = addedTitles.has(s.title);
-                  const adding = addingId === s.title;
-                  return (
-                    <div key={`${s.title}-${i}`}
-                      className="rounded-xl border border-border/50 bg-background/80 p-2.5">
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                            <SourceTypeChip type={s.type} />
-                            <span className="text-[11px] font-semibold truncate">{s.title}</span>
-                          </div>
-                          {s.author && <p className="text-[10px] text-muted-foreground/60 mb-1">{s.author}</p>}
-                          <p className="text-[10px] text-muted-foreground/70 line-clamp-2 leading-relaxed">{s.notes}</p>
-                        </div>
-                        <button
-                          onClick={() => { setAddingId(s.title); addSourceMutation.mutate(s); }}
-                          disabled={added || adding}
-                          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg transition-all disabled:opacity-60"
-                          style={{ background: added ? "rgba(16,185,129,0.12)" : "rgba(249,109,28,0.1)" }}
-                        >
-                          {adding ? <Loader2 className="h-3 w-3 animate-spin text-orange-500" />
-                            : added ? <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                              : <Plus className="h-3 w-3 text-orange-500" />}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="space-y-2">
+                {searchResult.sources.map((s, i) => (
+                  <AISourceCard key={`${s.title}-${i}`} source={s}
+                    added={addedTitles.has(s.title)}
+                    adding={addingId === s.title}
+                    onAdd={() => { setAddingId(s.title); addSourceMutation.mutate(s); }}
+                  />
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Bento grid ─────────────────────────────────────────────── */}
+        {/* ── Main dashboard content ─────────────────────────────────────── */}
         {!searching && !searchResult && (
-          <div className="grid grid-cols-2 gap-2.5 mt-1">
+          <div className="px-4 pt-4 pb-6 space-y-5">
 
-            {/* Source Library — full width */}
-            <BentoCard
-              className="col-span-2"
-              accent="#6366F1"
-              onClick={() => onNavigate("library")}
-            >
-              <div className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-                      style={{ background: "rgba(99,102,241,0.12)" }}>
-                      <BookOpen className="h-3.5 w-3.5 text-indigo-500" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-semibold leading-none">Source Library</p>
-                      <p className="text-[9px] text-muted-foreground/50 mt-0.5">{sources.length} source{sources.length !== 1 ? "s" : ""}</p>
-                    </div>
+            {/* ── SOURCE LIBRARY ── the hero element ───────────────────── */}
+            <section>
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-lg flex items-center justify-center"
+                    style={{ background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" }}>
+                    <Database className="h-3 w-3 text-white" />
                   </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
+                  <p className="text-[12px] font-bold tracking-tight">Source Library</p>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(99,102,241,0.1)", color: "#6366F1" }}>
+                    {sources.length}
+                  </span>
                 </div>
-                {sources.length > 0 ? (
-                  <div className="space-y-0">
-                    {recentSources.map(s => <MiniSourceRow key={s.id} source={s} />)}
-                    {sources.length > 4 && (
-                      <p className="text-[10px] text-muted-foreground/40 pt-1.5 border-t border-border/20">
-                        +{sources.length - 4} more sources
-                      </p>
+                <button onClick={() => onNavigate("library")}
+                  className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-all hover:scale-105"
+                  style={{ background: "rgba(99,102,241,0.08)", color: "#6366F1" }}>
+                  Open <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+
+              {sources.length > 0 ? (
+                <div className="rounded-2xl border overflow-hidden"
+                  style={{ borderColor: "rgba(99,102,241,0.15)", background: "rgba(99,102,241,0.02)" }}>
+                  {/* Type breakdown bar */}
+                  {(() => {
+                    const typeCounts: Record<string, number> = {};
+                    sources.forEach(s => { typeCounts[s.type || "book"] = (typeCounts[s.type || "book"] || 0) + 1; });
+                    const total = sources.length;
+                    const entries = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+                    return (
+                      <div className="px-4 pt-3 pb-2 border-b" style={{ borderColor: "rgba(99,102,241,0.08)" }}>
+                        <div className="flex gap-0.5 h-1.5 rounded-full overflow-hidden mb-2">
+                          {entries.map(([type, count]) => {
+                            const cfg = SOURCE_TYPES[type] || SOURCE_TYPES.book;
+                            return (
+                              <div key={type} style={{
+                                width: `${(count / total) * 100}%`,
+                                background: cfg.color,
+                                opacity: 0.65,
+                              }} />
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          {entries.map(([type, count]) => (
+                            <span key={type} className="flex items-center gap-1">
+                              <TypeBadge type={type} />
+                              <span className="text-[10px] font-semibold text-muted-foreground/50">{count}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {/* Source list */}
+                  <div className="p-3 space-y-1.5">
+                    {recentSources.map(s => <SourceCard key={s.id} source={s} />)}
+                    {sources.length > 5 && (
+                      <button onClick={() => onNavigate("library")}
+                        className="w-full text-center text-[10px] font-medium text-muted-foreground/50 hover:text-muted-foreground py-1.5 transition-colors">
+                        +{sources.length - 5} more · View all →
+                      </button>
                     )}
                   </div>
-                ) : (
-                  <p className="text-[10px] text-muted-foreground/45 italic">No sources yet — search above or add manually</p>
-                )}
-              </div>
-            </BentoCard>
-
-            {/* Notes */}
-            <BentoCard
-              accent="#F59E0B"
-              onClick={() => onNavigate("notes")}
-            >
-              <div className="p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-                    style={{ background: "rgba(245,158,11,0.12)" }}>
-                    <StickyNote className="h-3.5 w-3.5 text-amber-500" />
+                </div>
+              ) : (
+                <div className="rounded-2xl border-2 border-dashed flex flex-col items-center py-8 text-center"
+                  style={{ borderColor: "rgba(99,102,241,0.2)", background: "rgba(99,102,241,0.02)" }}>
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+                    style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08))" }}>
+                    <BookOpen className="h-6 w-6 text-indigo-400" />
                   </div>
-                  <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+                  <p className="text-[12px] font-semibold text-foreground/70 mb-1">No sources yet</p>
+                  <p className="text-[10.5px] text-muted-foreground/45">Search with AI above or open the Library to add manually</p>
                 </div>
-                <p className="text-[11px] font-semibold leading-none">Notes</p>
-                <p className="text-[9px] text-muted-foreground/50 mt-0.5">{notesCount} captured</p>
-                <div className="mt-2 h-1 rounded-full bg-muted/50 overflow-hidden">
-                  <div className="h-full rounded-full bg-amber-400/60" style={{ width: `${Math.min(100, (notesCount / 20) * 100)}%` }} />
-                </div>
-              </div>
-            </BentoCard>
+              )}
+            </section>
 
-            {/* Hypotheses */}
-            <BentoCard
-              accent="#8B5CF6"
-              onClick={() => onNavigate("hypotheses")}
-            >
-              <div className="p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-                    style={{ background: "rgba(139,92,246,0.12)" }}>
-                    <FlaskConical className="h-3.5 w-3.5 text-violet-500" />
-                  </div>
-                  <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+            {/* ── AI PANEL ─────────────────────────────────────────────── */}
+            <section>
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-5 h-5 rounded-lg flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, #F96D1C 0%, #f59e0b 100%)" }}>
+                  <Zap className="h-3 w-3 text-white" />
                 </div>
-                <p className="text-[11px] font-semibold leading-none">Hypotheses</p>
-                <p className="text-[9px] text-muted-foreground/50 mt-0.5">{hypothesesCount} in progress</p>
-                <div className="mt-2 h-1 rounded-full bg-muted/50 overflow-hidden">
-                  <div className="h-full rounded-full bg-violet-400/60" style={{ width: `${Math.min(100, (hypothesesCount / 10) * 100)}%` }} />
-                </div>
+                <p className="text-[12px] font-bold tracking-tight">AI Agents</p>
               </div>
-            </BentoCard>
-
-            {/* Drafts */}
-            <BentoCard
-              accent="#3B82F6"
-              onClick={() => onNavigate("drafts")}
-            >
-              <div className="p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-                    style={{ background: "rgba(59,130,246,0.12)" }}>
-                    <FileEdit className="h-3.5 w-3.5 text-blue-500" />
-                  </div>
-                  <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-                </div>
-                <p className="text-[11px] font-semibold leading-none">Drafts</p>
-                <p className="text-[9px] text-muted-foreground/50 mt-0.5">{draftsCount} fragment{draftsCount !== 1 ? "s" : ""}</p>
-                <div className="mt-2 h-1 rounded-full bg-muted/50 overflow-hidden">
-                  <div className="h-full rounded-full bg-blue-400/60" style={{ width: `${Math.min(100, (draftsCount / 15) * 100)}%` }} />
-                </div>
-              </div>
-            </BentoCard>
-
-            {/* Role Models */}
-            <BentoCard
-              accent="#EC4899"
-              onClick={() => onNavigate("models")}
-            >
-              <div className="p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-                    style={{ background: "rgba(236,72,153,0.12)" }}>
-                    <Brain className="h-3.5 w-3.5 text-pink-500" />
-                  </div>
-                  <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-                </div>
-                <p className="text-[11px] font-semibold leading-none">Role Models</p>
-                <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                  {modelsAnalyzedCount}/{modelsCount} analyzed
-                </p>
-                {modelsCount === 0 && (
-                  <p className="text-[9px] text-muted-foreground/40 mt-1 italic">Upload author excerpts</p>
-                )}
-              </div>
-            </BentoCard>
-
-            {/* Source type breakdown — full width, only if sources exist */}
-            {sources.length > 0 && (() => {
-              const typeCounts: Record<string, number> = {};
-              sources.forEach(s => { typeCounts[s.type || "book"] = (typeCounts[s.type || "book"] || 0) + 1; });
-              const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-              return (
-                <BentoCard className="col-span-2">
-                  <div className="p-3">
-                    <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-2">Source breakdown</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {topTypes.map(([type, count]) => (
-                        <span key={type} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg border border-border/40">
-                          <SourceTypeChip type={type} />
-                          <span className="font-semibold ml-0.5">{count}</span>
-                        </span>
-                      ))}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { icon: Sparkles, label: "Source finder", hint: "Discover relevant references", action: "Current research" },
+                  { icon: TrendingUp, label: "Argument map", hint: "Map logical structure", action: "Theories & arguments" },
+                  { icon: Layers, label: "Idea extractor", hint: "Pull key insights", action: "Key concepts & ideas" },
+                ].map(agent => (
+                  <button key={agent.label}
+                    onClick={() => { setQuery(agent.action); handleSearch(agent.action); }}
+                    className="flex flex-col items-center text-center p-3 rounded-xl border border-border/40 bg-background/80 hover:border-border hover:shadow-sm hover:bg-background transition-all group">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2"
+                      style={{ background: "linear-gradient(135deg, rgba(249,109,28,0.10), rgba(245,158,11,0.06))" }}>
+                      <agent.icon className="h-4 w-4 text-orange-500" />
                     </div>
-                  </div>
-                </BentoCard>
-              );
-            })()}
-
-            {/* Knowledge Graph card */}
-            <BentoCard
-              className="col-span-2"
-              accent="#10B981"
-              onClick={() => onNavigate("notes")}
-            >
-              <div className="p-3 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(16,185,129,0.10)" }}>
-                  <Network className="h-4 w-4 text-emerald-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold">Knowledge Graph</p>
-                  <p className="text-[10px] text-muted-foreground/55">
-                    {notesCount + sources.length} nodes · open in Notes → Graph view
-                  </p>
-                </div>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+                    <p className="text-[10px] font-semibold leading-tight mb-0.5">{agent.label}</p>
+                    <p className="text-[9px] text-muted-foreground/40 leading-tight">{agent.hint}</p>
+                  </button>
+                ))}
               </div>
-            </BentoCard>
+            </section>
+
+            {/* ── WORKSPACES ────────────────────────────────────────────── */}
+            <section>
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-5 h-5 rounded-lg flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, #1a1a1a 0%, #3a3a3a 100%)" }}>
+                  <Layers className="h-3 w-3 text-white" />
+                </div>
+                <p className="text-[12px] font-bold tracking-tight">Workspaces</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <WorkspaceTile
+                  icon={StickyNote}
+                  title="Notes"
+                  description="Capture ideas, quotes, and observations while you research"
+                  count={notesCount}
+                  countLabel="captured"
+                  color="#D97706"
+                  gradient="linear-gradient(135deg, rgba(245,158,11,0.14), rgba(234,179,8,0.06))"
+                  onClick={() => onNavigate("notes")}
+                />
+                <WorkspaceTile
+                  icon={FlaskConical}
+                  title="Hypotheses"
+                  description="Form and test your ideas, concepts, and research claims"
+                  count={hypothesesCount}
+                  countLabel="active"
+                  color="#7C3AED"
+                  gradient="linear-gradient(135deg, rgba(139,92,246,0.14), rgba(99,102,241,0.06))"
+                  onClick={() => onNavigate("hypotheses")}
+                />
+                <WorkspaceTile
+                  icon={FileEdit}
+                  title="Drafts"
+                  description="Rough fragments and text drafts from your research process"
+                  count={draftsCount}
+                  countLabel="fragments"
+                  color="#2563EB"
+                  gradient="linear-gradient(135deg, rgba(59,130,246,0.14), rgba(37,99,235,0.06))"
+                  onClick={() => onNavigate("drafts")}
+                />
+                <WorkspaceTile
+                  icon={Brain}
+                  title="Role Models"
+                  description="Deep structural analysis of author minds and styles"
+                  count={modelsCount}
+                  countLabel={`${modelsAnalyzedCount} analyzed`}
+                  color="#BE185D"
+                  gradient="linear-gradient(135deg, rgba(236,72,153,0.14), rgba(190,24,93,0.06))"
+                  onClick={() => onNavigate("models")}
+                />
+              </div>
+            </section>
+
+            {/* ── KNOWLEDGE GRAPH ───────────────────────────────────────── */}
+            <section>
+              <button onClick={() => onNavigate("notes")}
+                className="w-full group rounded-2xl overflow-hidden border hover:border-border hover:shadow-sm transition-all"
+                style={{
+                  borderColor: "rgba(16,185,129,0.2)",
+                  background: "linear-gradient(135deg, rgba(16,185,129,0.04) 0%, rgba(5,150,105,0.02) 100%)",
+                }}>
+                <div className="p-4 flex items-center gap-4">
+                  {/* Mini graph illustration */}
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 relative"
+                    style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.14), rgba(5,150,105,0.08))" }}>
+                    <Network className="h-6 w-6 text-emerald-500" />
+                    {totalNodes > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-bold flex items-center justify-center"
+                        style={{ background: "#10B981", color: "white" }}>
+                        {Math.min(totalNodes, 99)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-[13px] font-semibold leading-tight">Knowledge Graph</p>
+                    <p className="text-[10.5px] text-muted-foreground/50 mt-0.5">
+                      {totalNodes} nodes — notes, sources, ideas, hypotheses
+                    </p>
+                    <p className="text-[9.5px] mt-1 font-medium" style={{ color: "#10B981" }}>
+                      Open Notes → switch to Graph view
+                    </p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                </div>
+                <div className="h-0.5"
+                  style={{ background: "linear-gradient(90deg, #10B981, #34D399, transparent)", opacity: 0.6 }} />
+              </button>
+            </section>
 
           </div>
         )}
