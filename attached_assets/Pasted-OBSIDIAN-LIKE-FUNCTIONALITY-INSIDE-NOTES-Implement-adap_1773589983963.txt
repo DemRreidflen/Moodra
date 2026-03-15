@@ -1,0 +1,133 @@
+OBSIDIAN-LIKE FUNCTIONALITY INSIDE NOTES
+
+Implement adapted Obsidian-inspired features inside Moodra Notes.
+
+This should not be a clone of Obsidian, but a writer-centered adaptation.
+
+6.1 Bidirectional links
+
+If note A links to note B, note B must automatically show that it is referenced.
+
+This should work both through explicit note linking UI and optionally through inline syntax-like reference support.
+
+6.2 Backlinks
+
+Each note should have a section:
+
+linked from
+
+used in
+
+referenced by
+
+This should show:
+
+other notes
+
+drafts
+
+sources
+
+board objects
+
+project maps
+
+6.3 Related notes
+
+The system should show related notes based on:
+
+explicit links
+
+shared tags
+
+shared semantic tags
+
+similar concepts
+
+AI-detected semantic similarity
+
+6.4 Local graph
+
+Each note should have an optional local graph view showing:
+
+connected notes
+
+related sources
+
+connected drafts
+
+linked board objects
+
+associated project nodes
+
+6.5 Global graph
+
+Create a graph view for the Notes ecosystem showing:
+
+note to note
+
+note to source
+
+note to draft
+
+note to board item
+
+note to theme
+
+note to project
+
+This graph must be useful, not decorative.
+
+It should help detect:
+
+central ideas
+
+isolated notes
+
+underdeveloped clusters
+
+overly dense themes
+
+6.6 Orphan note detection
+
+The system should identify notes with no connections and surface them as:
+
+orphan notes
+
+unused ideas
+
+disconnected fragments
+
+6.7 Embedded note blocks
+
+Allow one note to embed another note as a preview block.
+
+Useful for:
+
+theme maps
+
+concept hierarchies
+
+note compilations
+
+master notes
+
+6.8 MOC style notes
+
+Allow creation of special “Map of Content” notes.
+
+These are note-based topic maps that organize:
+
+core theme
+
+related notes
+
+related drafts
+
+related sources
+
+linked concepts
+
+key open questions
+
+This is extremely valuable for book architecture and thematic writing. Сделайте так, чтобы структурная логика вложенности блоков (возможность помещать один блок в другой и выстраивать иерархию абзацев) отображалась не только в текстовом редакторе, но и сохранялась на этапе верстки и в конечном экспортируемом файле, чтобы структура текста полностью соответствовала той, что была создана автором в редакторе; кроме того, на функциональной панели в режиме редактирования текста, в разделе анализа авторского разума, добавьте возможность загружать файлы форматов TXT и EPUB для проведения глубокого системного анализа стиля других авторов, при котором создаются подробные аналитические слепки их стиля, структуры мышления, аргументации и письма, автоматически сохраняющиеся в разделе исследований как ролевые модели авторов, после чего в настройках книги пользователь может назначать процент влияния каждой такой ролевой модели на стиль и глубину работы ИИ, так чтобы эти модели выступали как агенты-соавторы: при наличии нескольких моделей (например, пяти) система должна обрабатывать их ответы параллельно, после чего общий агент синтеза объединяет их обратную связь и формирует единый итоговый результат, логично объединяя стилистические и структурные особенности каждой модели пропорционально указанному пользователем проценту их влияния.
