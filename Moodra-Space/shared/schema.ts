@@ -124,6 +124,12 @@ export const sources = pgTable("sources", {
   keyConcepts: text("key_concepts").default(""),
   keyQuotes: text("key_quotes").default(""),
   tags: text("tags").default(""),
+  rawContent: text("raw_content").default(""),
+  linkedNoteIds: text("linked_note_ids").default(""),
+  linkedDraftIds: text("linked_draft_ids").default(""),
+  importance: text("importance").default("normal"),
+  status: text("status").default("active"),
+  aiAnalysis: text("ai_analysis").default(""),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
