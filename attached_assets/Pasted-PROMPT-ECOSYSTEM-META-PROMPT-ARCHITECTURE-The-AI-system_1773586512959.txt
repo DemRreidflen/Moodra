@@ -1,0 +1,232 @@
+PROMPT ECOSYSTEM / META-PROMPT ARCHITECTURE
+
+The AI system must not rely on one flat prompt.
+
+Implement a layered meta-prompt architecture.
+
+Each agent should receive a structured prompt assembled dynamically from context.
+
+13.1 Prompt input context
+
+Possible prompt context components:
+
+current object type
+
+current object content
+
+note type
+
+note status
+
+project metadata
+
+related notes
+
+backlinks
+
+related sources
+
+related drafts
+
+board context
+
+collections
+
+tags
+
+semantic tags
+
+user action intent
+
+book or project theme if available
+
+13.2 Prompt structure
+
+Each internal prompt should include:
+
+agent role
+
+system goal
+
+object context
+
+project context
+
+connected context
+
+task
+
+desired output structure
+
+tone of response
+
+transformation rules
+
+13.3 Example internal behaviors
+User action: “Connect this note”
+
+System should not only pass the text of the note.
+It should assemble:
+
+note content
+
+note type
+
+project theme
+
+current links
+
+related notes
+
+collection
+
+recent notes
+
+semantic neighbors
+
+Then Linker Agent returns:
+
+likely connections
+
+why they matter
+
+possible new structure
+
+User action: “Develop this thought”
+
+System should assemble:
+
+note content
+
+note status
+
+related ideas
+
+project context
+
+active themes
+
+Then Expansion Agent returns:
+
+3 possible expansions
+
+conceptual direction
+
+possible transformation into draft
+
+14. AI OUTPUTS MUST BE STRUCTURED OBJECTS, NOT CHAT MESSAGES
+
+Any AI-generated result in these modules should preferably become a structured system object.
+
+Examples:
+
+extracted concept becomes a note
+
+source review becomes an agent report
+
+theme map becomes a board cluster
+
+suggested structure becomes a MOC note
+
+expanded thought becomes a draft
+
+The system must reduce random ephemeral chat output.
+It should save meaningful outputs inside the platform ecosystem.
+
+15. AGENT REPORTS INSIDE RESEARCH
+
+Add a dedicated object type inside Research:
+
+Agent Review
+
+This is a saved AI analysis report.
+
+Possible reports:
+
+source analysis
+
+conceptual map
+
+author style analysis
+
+note cluster synthesis
+
+contradiction report
+
+theme extraction
+
+idea evolution review
+
+Each report should include:
+
+title
+
+report type
+
+agent used
+
+source object(s)
+
+creation date
+
+structured output
+
+links to created notes / drafts / board elements
+
+These reports should be stored and reusable.
+
+16. ROLE MODEL LIBRARY INSIDE RESEARCH
+
+Add a special advanced section in Research:
+
+Role Model Library
+
+Purpose:
+Allow users to upload articles, excerpts, books, or author materials and generate deep structural analyses of style, thinking method, tone, narrative rhythm, argument logic, and conceptual behavior.
+
+This system should reconstruct the “creative model” of an author or source.
+
+It should not just summarize the text.
+It should analyze:
+
+how the author thinks
+
+how the author structures ideas
+
+how the author argues
+
+how the author creates rhythm
+
+how the author builds scenes or conceptual progression
+
+how the author sounds
+
+The result must be a structured Role Model object stored in Research.
+
+16.1 Role Model object should contain:
+
+source material reference
+
+author or model name
+
+conceptual tendencies
+
+style patterns
+
+structure patterns
+
+rhythm observations
+
+vocabulary tendencies
+
+argument behavior
+
+emotional or narrative dynamics
+
+reusable writing parameters
+
+16.2 Role Model usage
+
+These Role Models can later be referenced by AI systems across the platform to shape outputs indirectly.
+
+Even if writing mode is not changed now, the architecture should be prepared.
