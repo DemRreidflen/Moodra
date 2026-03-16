@@ -6,13 +6,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useLang } from "@/contexts/language-context";
 import {
   FileText, Plus, Trash2, Edit, Lightbulb, MessageSquare, Hash, BookOpen, Star,
-  LayoutList, LayoutGrid, GripVertical, X, Check, Search, Zap,
+  GripVertical, X, Check, Search, Zap,
   ChevronRight, Inbox, Pin, PinOff, FolderOpen, Tag, Filter, Eye, Archive,
   Sparkles, Brain, Target, HelpCircle, Telescope, Feather, Users, Microscope,
   ChevronDown, ChevronUp, StickyNote, Layers, RotateCcw, AlertTriangle,
-  Bold, Italic, Underline, Strikethrough, List, ListOrdered, ListChecks,
+  Bold, Italic, Underline, Strikethrough, List, ListOrdered,
   Heading1, Heading2, Heading3, Quote, Indent, Outdent, Table, Link2,
-  Highlighter, Type, ImagePlus, Paperclip, Download
+  Highlighter, Type, ImagePlus, Paperclip, Download, Link, Palette
 } from "lucide-react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -90,6 +90,12 @@ const NOTES_I18N = {
     fileTooLarge: "File is too large (max 5 MB)",
     optional: "Optional fields",
     collectionDropdown: "No collection",
+    linkNotes: "Linked notes",
+    searchNotes: "Search notes to link…",
+    linkUrl: "URL",
+    linkText: "Link text (optional)",
+    insertLink: "Insert link",
+    colorNone: "No color",
   },
   ru: {
     title: "Заметки",
@@ -154,6 +160,12 @@ const NOTES_I18N = {
     fileTooLarge: "Файл слишком большой (макс 5 МБ)",
     optional: "Дополнительные поля",
     collectionDropdown: "Без коллекции",
+    linkNotes: "Связанные заметки",
+    searchNotes: "Поиск заметок для связи…",
+    linkUrl: "Ссылка (URL)",
+    linkText: "Текст ссылки (необязательно)",
+    insertLink: "Вставить ссылку",
+    colorNone: "Без цвета",
   },
   ua: {
     title: "Нотатки",
@@ -218,6 +230,12 @@ const NOTES_I18N = {
     fileTooLarge: "Файл завеликий (макс 5 МБ)",
     optional: "Додаткові поля",
     collectionDropdown: "Без колекції",
+    linkNotes: "Пов'язані нотатки",
+    searchNotes: "Пошук нотаток для зв'язку…",
+    linkUrl: "Посилання (URL)",
+    linkText: "Текст посилання (необов'язково)",
+    insertLink: "Вставити посилання",
+    colorNone: "Без кольору",
   },
   de: {
     title: "Notizen",
@@ -282,6 +300,12 @@ const NOTES_I18N = {
     fileTooLarge: "Datei zu groß (max 5 MB)",
     optional: "Optionale Felder",
     collectionDropdown: "Keine Sammlung",
+    linkNotes: "Verknüpfte Notizen",
+    searchNotes: "Notizen zum Verknüpfen suchen…",
+    linkUrl: "URL",
+    linkText: "Linktext (optional)",
+    insertLink: "Link einfügen",
+    colorNone: "Keine Farbe",
   },
 };
 
@@ -319,6 +343,15 @@ const NOTE_COLORS = [
   { value: "pink",   bg: "#FEF3FA", border: "#DCAECF", text: "#5C2848", clip: "#A04C86" },
   { value: "orange", bg: "#FFF7F0", border: "#E8C4A0", text: "#5C3420", clip: "#B45C28" },
   { value: "gray",   bg: "#F7F7F7", border: "#CCCCCC", text: "#3A3A3A", clip: "#707070" },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: "Yellow", color: "#FEF08A" },
+  { label: "Orange", color: "#FED7AA" },
+  { label: "Blue",   color: "#BFDBFE" },
+  { label: "Green",  color: "#BBF7D0" },
+  { label: "Pink",   color: "#FBCFE8" },
+  { label: "Violet", color: "#DDD6FE" },
 ];
 
 function getColor(value?: string | null) {
@@ -373,7 +406,7 @@ function NoteCard({ note, onEdit, onTrash, onPin }: {
         <GripVertical className="h-3 w-3" style={{ color: col.clip }} />
       </div>
 
-      {/* Top row: type icon (if set) + date + pin */}
+      {/* Top row: type icon + date + pin */}
       <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
         <div className="flex items-center gap-1">
           {type && (
@@ -395,17 +428,23 @@ function NoteCard({ note, onEdit, onTrash, onPin }: {
       {/* Title */}
       <h4 className="font-semibold text-[12px] leading-snug line-clamp-2 flex-shrink-0" style={{ color: col.text }}>{note.title}</h4>
 
-      {/* Content preview — rich HTML render */}
+      {/* Content preview — rich HTML, fills available height with fade */}
       {note.content && (
-        <div
-          className="nte-preview flex-1 mt-1.5 min-h-0 overflow-hidden"
-          style={{ color: `${col.text}85`, maxHeight: "72px" }}
-          dangerouslySetInnerHTML={{ __html: note.content }}
-        />
+        <div className="relative flex-1 mt-1.5 min-h-0 overflow-hidden">
+          <div
+            className="nte-preview"
+            style={{ color: `${col.text}85` }}
+            dangerouslySetInnerHTML={{ __html: note.content }}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
+            style={{ background: `linear-gradient(to bottom, transparent, ${col.bg})` }}
+          />
+        </div>
       )}
 
-      {/* Bottom pills: status + importance + tag (only when set) */}
-      <div className="flex flex-wrap gap-0.5 mt-auto pt-1.5 flex-shrink-0">
+      {/* Bottom pills: status + importance + tag */}
+      <div className="flex flex-wrap gap-0.5 mt-auto pt-1 flex-shrink-0">
         {noteStatus && (note as any).status && (
           <span className="text-[8px] px-1 py-0.5 rounded-full font-medium"
             style={{ background: `${noteStatus.color}18`, color: noteStatus.color }}>
@@ -447,107 +486,7 @@ function NoteCard({ note, onEdit, onTrash, onPin }: {
   );
 }
 
-// ─── List Row (Apple Notes style) ─────────────────────────────────────
-function NoteRow({ note, onEdit, onTrash, onPin }: {
-  note: Note; onEdit: (n: Note) => void; onTrash: (id: number) => void; onPin: (n: Note) => void;
-}) {
-  const { lang } = useLang();
-  const s = NOTES_I18N[lang];
-  const col = getColor((note as any).color);
-  const type = getTypeOrDefault(note.type);
-  const Icon = type.icon;
-  const isPinned = (note as any).isPinned === "true";
-  const importance = (note as any).importance;
-
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: note.id });
-  const style = { transform: CSS.Transform.toString(transform), transition };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      onClick={() => onEdit(note)}
-      className="group flex items-stretch gap-0 cursor-pointer transition-colors hover:bg-secondary/40 rounded-xl border border-transparent hover:border-border/30"
-    >
-      {/* Color strip */}
-      <div className="w-[3px] flex-shrink-0 rounded-l-xl my-2" style={{ background: col.clip }} />
-
-      {/* Drag handle */}
-      <div
-        {...attributes} {...listeners}
-        onClick={e => e.stopPropagation()}
-        className="opacity-0 group-hover:opacity-25 cursor-grab active:cursor-grabbing transition-opacity flex items-center px-1.5"
-      >
-        <GripVertical className="h-3 w-3 text-muted-foreground" />
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0 py-3 pr-2">
-        {/* Title row */}
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <h4 className="font-semibold text-[13px] leading-snug truncate flex-1 text-foreground">{note.title}</h4>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {isPinned && <Pin className="h-2.5 w-2.5 text-muted-foreground/50" />}
-            {importance === "core" && <span className="text-[8px] font-bold text-red-400">●</span>}
-            {importance === "high" && <span className="text-[8px] font-bold text-amber-400">●</span>}
-            <span className="text-[10px] text-muted-foreground/50 whitespace-nowrap">
-              {format(new Date(note.updatedAt), "d MMM", { locale: DATE_LOCALES[lang] })}
-            </span>
-          </div>
-        </div>
-
-        {/* Preview row: type + content */}
-        <div className="flex items-center gap-1.5">
-          <Icon className="h-2.5 w-2.5 flex-shrink-0" style={{ color: type.accent }} />
-          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-[1.55] flex-1">
-            {note.content ? stripHtml(note.content) : <span className="italic opacity-50">—</span>}
-          </p>
-        </div>
-
-        {/* Tags + collection */}
-        {(note.tags || (note as any).collection) && (
-          <div className="flex items-center gap-2 mt-1">
-            {(note as any).collection && (
-              <span className="text-[9px] text-muted-foreground/60 flex items-center gap-0.5">
-                <FolderOpen className="h-2 w-2" />{(note as any).collection}
-              </span>
-            )}
-            {note.tags && (
-              <div className="flex gap-1">
-                {note.tags.split(",").slice(0, 2).map(t => t.trim()).filter(Boolean).map(tag => (
-                  <span key={tag} className="text-[9px] px-1.5 py-0 rounded-full font-medium" style={{ background: `${col.clip}14`, color: `${col.clip}BB` }}>#{tag}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Actions — hover only */}
-      <div
-        className="flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0"
-        onClick={e => e.stopPropagation()}
-      >
-        <button onClick={() => onPin(note)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground/60 hover:text-foreground transition-colors">
-          {isPinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
-        </button>
-        <button onClick={() => onTrash(note.id)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground/60 hover:text-destructive transition-colors">
-          <Trash2 className="h-3 w-3" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Note Dialog — WYSIWYG mini workspace ─────────────────────────────────────
-const HIGHLIGHT_COLORS = [
-  { label: "Yellow", color: "#FEF08A" },
-  { label: "Orange", color: "#FED7AA" },
-  { label: "Blue",   color: "#BFDBFE" },
-  { label: "Green",  color: "#BBF7D0" },
-  { label: "Pink",   color: "#FBCFE8" },
-];
-
 function TBtn({ onAction, title, children, active }: { onAction: () => void; title: string; children: React.ReactNode; active?: boolean }) {
   return (
     <button
@@ -561,9 +500,9 @@ function TBtn({ onAction, title, children, active }: { onAction: () => void; tit
   );
 }
 
-function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, collections }: {
+function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, collections, allNotes }: {
   open: boolean; onClose: () => void; bookId: number; note?: Note;
-  prefillTitle?: string; prefillStatus?: string; collections: string[];
+  prefillTitle?: string; prefillStatus?: string; collections: string[]; allNotes: Note[];
 }) {
   const { toast } = useToast();
   const { lang } = useLang();
@@ -571,44 +510,58 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
   const editorRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const savedSelectionRef = useRef<Range | null>(null);
 
-  const [autoTitle, setAutoTitle] = useState("");
+  const [titleInput, setTitleInput] = useState("");
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
+  const [noteColor, setNoteColor] = useState("none");
   const [showMeta, setShowMeta] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [showHL, setShowHL] = useState(false);
   const [attachUploading, setAttachUploading] = useState(false);
 
-  const updateTitle = useCallback(() => {
-    const div = editorRef.current;
-    if (!div) return;
-    const firstEl = div.firstElementChild;
-    const txt = (firstEl?.textContent || div.textContent || "").split("\n")[0].trim().slice(0, 80);
-    setAutoTitle(txt);
-  }, []);
+  // Link dialog
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkText, setLinkText] = useState("");
+
+  // Note linking
+  const [linkedNoteIds, setLinkedNoteIds] = useState<number[]>([]);
+  const [noteSearch, setNoteSearch] = useState("");
+  const [showNoteSearch, setShowNoteSearch] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setType(note?.type || "");
     setTagInput(note?.tags || "");
     setStatus((note as any)?.status || "");
+    setNoteColor((note as any)?.color || "none");
     setShowMeta(!!(note?.type || (note as any)?.status || note?.tags));
     setShowHL(false);
+    setShowLinkDialog(false);
+    setNoteSearch("");
+    setShowNoteSearch(false);
+
+    // Parse linked note IDs
+    const rawLinked = (note as any)?.linkedNoteIds || "";
+    setLinkedNoteIds(rawLinked ? rawLinked.split(",").map((id: string) => parseInt(id.trim())).filter(Boolean) : []);
+
+    // Set title
+    setTitleInput(note?.title || prefillTitle || "");
+
     setTimeout(() => {
       const div = editorRef.current;
       if (!div) return;
       if (note) {
         const raw = note.content || "";
-        const title = note.title || "";
         if (raw.trim().startsWith("<")) {
           div.innerHTML = raw;
         } else {
-          const combined = raw.startsWith(title) ? raw : [title, raw].filter(Boolean).join("\n");
-          div.innerHTML = combined.split("\n").map(l => `<p>${l || "<br>"}</p>`).join("");
+          div.innerHTML = (raw || "<br>").split("\n").map((l: string) => `<p>${l || "<br>"}</p>`).join("");
         }
       } else {
-        div.innerHTML = prefillTitle ? `<p>${prefillTitle}</p><p><br></p>` : "<p><br></p>";
+        div.innerHTML = "<p><br></p>";
       }
       div.focus();
       const range = document.createRange();
@@ -616,21 +569,18 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
       range.collapse(false);
       window.getSelection()?.removeAllRanges();
       window.getSelection()?.addRange(range);
-      updateTitle();
     }, 40);
   }, [open, note?.id]);
 
   const exec = useCallback((cmd: string, val?: string) => {
     document.execCommand(cmd, false, val);
     editorRef.current?.focus();
-    updateTitle();
-  }, [updateTitle]);
+  }, []);
 
   const fmtBlock = useCallback((tag: string) => {
     document.execCommand("formatBlock", false, tag);
     editorRef.current?.focus();
-    updateTitle();
-  }, [updateTitle]);
+  }, []);
 
   const insertHTML = useCallback((html: string) => {
     document.execCommand("insertHTML", false, html);
@@ -645,43 +595,80 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
     `</table><p><br></p>`
   );
 
-  const insertChecklist = () => insertHTML(
-    `<div style="display:flex;gap:8px;align-items:flex-start;padding:2px 0;margin:2px 0">` +
-    `<input type="checkbox" style="margin-top:4px;flex-shrink:0;accent-color:#F96D1C;cursor:pointer">` +
-    `<span style="flex:1;outline:none" contenteditable="true">Task</span></div><p><br></p>`
-  );
+  // Save selection before opening link dialog
+  const openLinkDialog = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+      setLinkText(sel.toString());
+    } else {
+      savedSelectionRef.current = null;
+      setLinkText("");
+    }
+    setLinkUrl("");
+    setShowLinkDialog(true);
+  };
 
-  const insertLink = () => {
-    const url = prompt("URL:");
-    if (url) exec("createLink", url);
+  const confirmLink = () => {
+    if (!linkUrl.trim()) return;
+    const url = linkUrl.trim().startsWith("http") ? linkUrl.trim() : `https://${linkUrl.trim()}`;
+    editorRef.current?.focus();
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(savedSelectionRef.current);
+    }
+    if (linkText.trim()) {
+      document.execCommand("insertHTML", false, `<a href="${url}" target="_blank" rel="noopener noreferrer">${linkText.trim()}</a>`);
+    } else {
+      document.execCommand("createLink", false, url);
+    }
+    setShowLinkDialog(false);
+    savedSelectionRef.current = null;
+  };
+
+  // Highlight: save selection before toggling color menu
+  const openHighlight = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    }
+    setShowHL(v => !v);
   };
 
   const applyHighlight = (color: string) => {
-    document.execCommand("hiliteColor", false, color);
     editorRef.current?.focus();
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(savedSelectionRef.current);
+    }
+    // Try backColor (Chrome) then hiliteColor (Firefox)
+    if (!document.execCommand("backColor", false, color)) {
+      document.execCommand("hiliteColor", false, color);
+    }
     setShowHL(false);
+    savedSelectionRef.current = null;
   };
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData("text/plain");
     if (!text) return;
-    const escaped = text
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const html = escaped.split("\n").map(l => `<p>${l || "<br>"}</p>`).join("");
     document.execCommand("insertHTML", false, html);
-    updateTitle();
-  }, [updateTitle]);
+  }, []);
 
   const handleImageInsert = (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: lang === "ru" ? "Файл слишком большой (макс. 5 МБ)" : "File too large (max 5 MB)", variant: "destructive" });
+      toast({ title: s.fileTooLarge, variant: "destructive" });
       return;
     }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
-      restoreEditorFocus();
+      editorRef.current?.focus();
       document.execCommand("insertHTML", false,
         `<img src="${dataUrl}" style="max-width:100%;border-radius:8px;margin:6px 0;display:block" /><p><br></p>`
       );
@@ -689,14 +676,10 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
     reader.readAsDataURL(file);
   };
 
-  const restoreEditorFocus = () => {
-    editorRef.current?.focus();
-  };
-
   const handleFileAttach = async (file: File) => {
     if (!note?.id) return;
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: lang === "ru" ? "Файл слишком большой (макс. 5 МБ)" : "File too large (max 5 MB)", variant: "destructive" });
+      toast({ title: s.fileTooLarge, variant: "destructive" });
       return;
     }
     setAttachUploading(true);
@@ -742,15 +725,38 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
   const handleSave = () => {
     const div = editorRef.current;
     if (!div) return;
-    const html = div.innerHTML;
-    const firstEl = div.firstElementChild;
-    const title = (firstEl?.textContent || div.textContent || "").split("\n")[0].trim().slice(0, 80);
+    const title = titleInput.trim();
     if (!title) {
-      toast({ title: lang === "ru" ? "Напишите хотя бы одну строку" : "Write at least one line", variant: "destructive" });
+      toast({ title: lang === "ru" ? "Введите заголовок заметки" : lang === "ua" ? "Введіть назву нотатки" : lang === "de" ? "Titel eingeben" : "Enter a note title", variant: "destructive" });
       return;
     }
-    mutation.mutate({ title, content: html, type, tags: tagInput.trim(), status, color: "none", collection: "", importance: "", isPinned: "false" });
+    const html = div.innerHTML;
+    mutation.mutate({
+      title,
+      content: html,
+      type,
+      tags: tagInput.trim(),
+      status,
+      color: noteColor,
+      collection: "",
+      importance: "",
+      isPinned: (note as any)?.isPinned || "false",
+      linkedNoteIds: linkedNoteIds.join(","),
+    });
   };
+
+  const toggleLinkedNote = (id: number) => {
+    setLinkedNoteIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const filteredLinkableNotes = allNotes.filter(n =>
+    n.id !== note?.id &&
+    (noteSearch === "" || n.title.toLowerCase().includes(noteSearch.toLowerCase()))
+  );
+
+  const linkedNotes = allNotes.filter(n => linkedNoteIds.includes(n.id));
 
   const activeType = type ? NOTE_TYPES.find(t => t.value === type) : null;
 
@@ -760,24 +766,27 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
     <div
       className="fixed inset-0 z-[500] flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.42)", backdropFilter: "blur(3px)" }}
-      onClick={() => { setShowHL(false); onClose(); }}
+      onClick={() => { setShowHL(false); setShowLinkDialog(false); onClose(); }}
     >
       <div
-        className="w-full max-w-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ maxHeight: "88vh", background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+        className="w-full max-w-[620px] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ maxHeight: "90vh", background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
         onClick={e => e.stopPropagation()}
       >
         {/* ── Top bar ── */}
         <div className="flex items-center gap-3 px-4 pt-3.5 pb-3 border-b border-border/40 flex-shrink-0">
           <div className="flex-1 min-w-0">
-            {autoTitle
-              ? <span className="text-[13px] font-semibold text-foreground truncate block leading-snug">{autoTitle}</span>
-              : <span className="text-[13px] text-muted-foreground/35 italic">{lang === "ru" ? "Новая заметка" : lang === "ua" ? "Нова нотатка" : lang === "de" ? "Neue Notiz" : "New note"}</span>
-            }
+            <input
+              value={titleInput}
+              onChange={e => setTitleInput(e.target.value)}
+              placeholder={s.titlePlaceholder}
+              className="w-full text-[14px] font-semibold bg-transparent outline-none placeholder:text-muted-foreground/35 placeholder:font-normal text-foreground"
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); editorRef.current?.focus(); } }}
+            />
           </div>
           <button
             onClick={handleSave}
-            disabled={!autoTitle || mutation.isPending}
+            disabled={!titleInput.trim() || mutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-40 flex-shrink-0 text-white"
             style={{ background: "linear-gradient(135deg,#F96D1C,#FB923C)" }}
           >
@@ -804,9 +813,9 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
 
           {/* Highlight picker */}
           <div className="relative flex-shrink-0">
-            <TBtn onAction={() => { setShowHL(v => !v); }} title="Highlight"><Highlighter className="h-3.5 w-3.5" /></TBtn>
+            <TBtn onAction={openHighlight} title="Highlight" active={showHL}><Highlighter className="h-3.5 w-3.5" /></TBtn>
             {showHL && (
-              <div className="absolute top-full left-0 mt-1 z-50 flex gap-1 p-1.5 rounded-xl shadow-lg border border-border bg-card">
+              <div className="absolute top-full left-0 mt-1 z-50 flex items-center gap-1 p-1.5 rounded-xl shadow-lg border border-border bg-card">
                 {HIGHLIGHT_COLORS.map(hc => (
                   <button
                     key={hc.color}
@@ -819,7 +828,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
                 <button
                   title="Remove highlight"
                   onMouseDown={e => { e.preventDefault(); applyHighlight("transparent"); }}
-                  className="w-5 h-5 rounded-full border-2 border-border text-[8px] flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
+                  className="w-5 h-5 rounded-full border-2 border-border text-[8px] flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors flex-shrink-0"
                 >✕</button>
               </div>
             )}
@@ -831,7 +840,6 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
           {/* Lists */}
           <TBtn onAction={() => exec("insertUnorderedList")} title="Bullet list"><List className="h-3.5 w-3.5" /></TBtn>
           <TBtn onAction={() => exec("insertOrderedList")} title="Numbered list"><ListOrdered className="h-3.5 w-3.5" /></TBtn>
-          <TBtn onAction={insertChecklist} title="Checklist"><ListChecks className="h-3.5 w-3.5" /></TBtn>
 
           {/* Divider */}
           <div className="w-px h-4 bg-border/50 mx-1 flex-shrink-0" />
@@ -850,9 +858,52 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
 
           {/* Insert */}
           <TBtn onAction={insertTable} title="Insert table"><Table className="h-3.5 w-3.5" /></TBtn>
-          <TBtn onAction={insertLink} title="Insert link"><Link2 className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={openLinkDialog} title="Insert link"><Link2 className="h-3.5 w-3.5" /></TBtn>
           <TBtn onAction={() => imageInputRef.current?.click()} title="Insert image"><ImagePlus className="h-3.5 w-3.5" /></TBtn>
         </div>
+
+        {/* ── Link dialog (inline) ── */}
+        {showLinkDialog && (
+          <div className="border-b border-border/40 px-4 py-3 flex-shrink-0 bg-secondary/30">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Link2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-[11px] font-semibold text-foreground">{s.insertLink}</span>
+              </div>
+              <input
+                autoFocus
+                value={linkUrl}
+                onChange={e => setLinkUrl(e.target.value)}
+                placeholder={s.linkUrl}
+                className="w-full px-3 py-1.5 rounded-lg text-[12px] bg-card border border-border/60 outline-none focus:border-primary/40 transition-colors"
+                onKeyDown={e => { if (e.key === "Enter") confirmLink(); if (e.key === "Escape") setShowLinkDialog(false); }}
+              />
+              <input
+                value={linkText}
+                onChange={e => setLinkText(e.target.value)}
+                placeholder={s.linkText}
+                className="w-full px-3 py-1.5 rounded-lg text-[12px] bg-card border border-border/60 outline-none focus:border-primary/40 transition-colors"
+                onKeyDown={e => { if (e.key === "Enter") confirmLink(); if (e.key === "Escape") setShowLinkDialog(false); }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={confirmLink}
+                  disabled={!linkUrl.trim()}
+                  className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-white disabled:opacity-40 transition-all"
+                  style={{ background: "linear-gradient(135deg,#F96D1C,#FB923C)" }}
+                >
+                  {s.insertLink}
+                </button>
+                <button
+                  onClick={() => setShowLinkDialog(false)}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium text-muted-foreground hover:bg-secondary transition-colors"
+                >
+                  {s.cancel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Hidden file inputs */}
         <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleImageInsert(f); e.target.value = ""; }} />
@@ -860,7 +911,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
 
         {/* ── Editor styles ── */}
         <style>{`
-          .nte-editor { min-height:280px; outline:none; }
+          .nte-editor { min-height:260px; outline:none; font-size:13.5px; }
           .nte-editor p { margin:0; min-height:1.6em; }
           .nte-editor h1 { font-size:1.5rem; font-weight:700; margin:12px 0 4px; line-height:1.25; }
           .nte-editor h2 { font-size:1.2rem; font-weight:600; margin:10px 0 4px; line-height:1.3; }
@@ -870,9 +921,18 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
           .nte-editor ul { list-style:disc; padding-left:1.5rem; margin:4px 0; }
           .nte-editor ol { list-style:decimal; padding-left:1.5rem; margin:4px 0; }
           .nte-editor li { margin:2px 0; }
-          .nte-editor a { color:#F96D1C; text-decoration:underline; }
+          .nte-editor a { color:#F96D1C; text-decoration:underline; cursor:pointer; }
           .nte-editor table td, .nte-editor table th { border:1px solid #e5e7eb; padding:5px 10px; min-width:80px; }
           .nte-editor:empty:before { content:attr(data-placeholder); color:rgba(100,116,139,0.4); pointer-events:none; font-style:italic; }
+          .nte-preview { font-size:11px; line-height:1.55; font-family:inherit; }
+          .nte-preview p { margin:0 0 2px; }
+          .nte-preview h1,.nte-preview h2,.nte-preview h3,.nte-preview h4 { font-size:11px; font-weight:700; margin:0 0 2px; }
+          .nte-preview ul,.nte-preview ol { padding-left:1rem; margin:0 0 2px; }
+          .nte-preview li { margin:0; }
+          .nte-preview blockquote { border-left:2px solid #F96D1C; padding-left:6px; margin:0 0 2px; font-style:italic; }
+          .nte-preview table { font-size:10px; border-collapse:collapse; }
+          .nte-preview table td { border:1px solid #e5e7eb; padding:2px 4px; }
+          .nte-preview a { color:#F96D1C; }
         `}</style>
 
         {/* ── WYSIWYG editor area ── */}
@@ -881,9 +941,8 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            className="nte-editor w-full px-5 pt-4 pb-5 text-sm leading-[1.85]"
+            className="nte-editor w-full px-5 pt-4 pb-5 leading-[1.85]"
             data-placeholder={lang === "ru" ? "Начни писать мысль…" : lang === "ua" ? "Почни писати думку…" : lang === "de" ? "Schreib deine Gedanken…" : "Start writing your thought…"}
-            onInput={updateTitle}
             onPaste={handlePaste}
             onKeyDown={e => {
               if (e.key === "Escape") onClose();
@@ -898,7 +957,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 flex items-center gap-1.5">
                 <Paperclip className="h-2.5 w-2.5" />
-                {lang === "ru" ? "Вложения" : lang === "ua" ? "Вкладення" : lang === "de" ? "Anhänge" : "Attachments"}
+                {s.attachments}
                 {attachments.length > 0 && <span className="text-muted-foreground/40">({attachments.length})</span>}
               </span>
               {note?.id && (
@@ -961,7 +1020,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
           >
             <Tag className="h-3 w-3 flex-shrink-0" />
             <span className="flex-1 text-left">
-              {(type || status || tagInput) ? (
+              {(type || status || tagInput || noteColor !== "none") ? (
                 <span className="flex items-center gap-2 flex-wrap">
                   {type && activeType && (
                     <span className="flex items-center gap-1 font-medium" style={{ color: activeType.accent }}>
@@ -974,13 +1033,16 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
                       ● {s.statuses[status as keyof typeof s.statuses]}
                     </span>
                   )}
+                  {noteColor !== "none" && (
+                    <span className="w-3 h-3 rounded-full inline-block border border-white/30" style={{ background: NOTE_COLORS.find(c => c.value === noteColor)?.clip }} />
+                  )}
                   {tagInput && <span className="text-muted-foreground/60">#{tagInput.split(",")[0]?.trim()}{tagInput.split(",").length > 1 ? " …" : ""}</span>}
                 </span>
               ) : (
-                lang === "ru" ? "Добавить тип, статус, теги…" :
-                lang === "ua" ? "Додати тип, статус, теги…" :
-                lang === "de" ? "Typ, Status, Tags hinzufügen…" :
-                "Add type, status, tags…"
+                lang === "ru" ? "Добавить тип, статус, цвет, теги…" :
+                lang === "ua" ? "Додати тип, статус, колір, теги…" :
+                lang === "de" ? "Typ, Status, Farbe, Tags hinzufügen…" :
+                "Add type, status, color, tags…"
               )}
             </span>
             {showMeta ? <ChevronUp className="h-3 w-3 flex-shrink-0" /> : <ChevronDown className="h-3 w-3 flex-shrink-0" />}
@@ -988,6 +1050,42 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
 
           {showMeta && (
             <div className="px-4 pb-4 space-y-3 border-t border-border/20 pt-3">
+              {/* Color picker */}
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/50 flex items-center gap-1.5">
+                  <Palette className="h-2.5 w-2.5" />
+                  {s.colorLabel}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {NOTE_COLORS.map(c => (
+                    <button
+                      key={c.value}
+                      title={c.value === "none" ? s.colorNone : c.value}
+                      onClick={() => setNoteColor(c.value)}
+                      className="transition-all hover:scale-110"
+                    >
+                      {c.value === "none" ? (
+                        <div className={cn(
+                          "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+                          noteColor === "none" ? "border-primary" : "border-border"
+                        )}>
+                          <X className="h-3 w-3 text-muted-foreground/50" />
+                        </div>
+                      ) : (
+                        <div
+                          className={cn("w-6 h-6 rounded-full border-2 shadow-sm", noteColor === c.value ? "scale-110" : "")}
+                          style={{
+                            background: c.clip,
+                            borderColor: noteColor === c.value ? c.clip : `${c.clip}50`,
+                            boxShadow: noteColor === c.value ? `0 0 0 2px ${c.clip}40` : undefined,
+                          }}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Type */}
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/50">{s.typeLabel}</p>
@@ -1034,6 +1132,79 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSave(); } }} />
                 </div>
               </div>
+
+              {/* Note linking */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 flex items-center gap-1.5">
+                    <Link className="h-2.5 w-2.5" />
+                    {s.linkNotes}
+                    {linkedNoteIds.length > 0 && <span className="text-muted-foreground/40">({linkedNoteIds.length})</span>}
+                  </p>
+                  <button
+                    onClick={() => setShowNoteSearch(v => !v)}
+                    className="text-[9px] px-1.5 py-0.5 rounded-md text-muted-foreground/60 hover:bg-secondary hover:text-foreground transition-colors"
+                  >
+                    {showNoteSearch ? "↑" : "+ Link"}
+                  </button>
+                </div>
+
+                {/* Linked notes display */}
+                {linkedNotes.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {linkedNotes.map(n => {
+                      const t = getType(n.type);
+                      return (
+                        <div key={n.id} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium border border-border/50 bg-secondary/30">
+                          {t && <t.icon className="h-2.5 w-2.5 flex-shrink-0" style={{ color: t.accent }} />}
+                          <span className="truncate max-w-[100px] text-foreground">{n.title}</span>
+                          <button onClick={() => toggleLinkedNote(n.id)} className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5">
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {showNoteSearch && (
+                  <div className="rounded-xl border border-border/50 overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/30 bg-secondary/30">
+                      <Search className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />
+                      <input
+                        autoFocus
+                        value={noteSearch}
+                        onChange={e => setNoteSearch(e.target.value)}
+                        placeholder={s.searchNotes}
+                        className="flex-1 bg-transparent outline-none text-[11px] placeholder:text-muted-foreground/35"
+                      />
+                    </div>
+                    <div className="max-h-32 overflow-y-auto">
+                      {filteredLinkableNotes.slice(0, 12).map(n => {
+                        const t = getType(n.type);
+                        const isLinked = linkedNoteIds.includes(n.id);
+                        return (
+                          <button
+                            key={n.id}
+                            onClick={() => toggleLinkedNote(n.id)}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors",
+                              isLinked ? "bg-primary/8 text-primary" : "hover:bg-secondary/50 text-foreground"
+                            )}
+                          >
+                            {t && <t.icon className="h-2.5 w-2.5 flex-shrink-0" style={{ color: t.accent }} />}
+                            <span className="flex-1 truncate text-[11px]">{n.title}</span>
+                            {isLinked && <Check className="h-2.5 w-2.5 text-primary flex-shrink-0" />}
+                          </button>
+                        );
+                      })}
+                      {filteredLinkableNotes.length === 0 && (
+                        <p className="px-3 py-2 text-[10px] text-muted-foreground/50 italic">{s.noResults}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1052,7 +1223,6 @@ export function NotesPanel({ bookId, aiPanelOpen }: { bookId: number; aiPanelOpe
   const [editNote, setEditNote] = useState<Note | undefined>();
   const [dialogPrefill, setDialogPrefill] = useState("");
   const [dialogPrefillStatus, setDialogPrefillStatus] = useState("active");
-  const [viewMode, setViewMode] = useState<"list" | "cards">("cards");
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
   const [search, setSearch] = useState("");
   const [sidebarView, setSidebarView] = useState<string>("all");
@@ -1158,7 +1328,6 @@ export function NotesPanel({ bookId, aiPanelOpen }: { bookId: number; aiPanelOpe
     if (sidebarView === col) setSidebarView("all");
   };
 
-  const inboxCount = notes.filter(n => (n as any).status === "inbox").length;
   const pinnedCount = notes.filter(n => (n as any).isPinned === "true").length;
 
   const searchLower = search.toLowerCase();
@@ -1204,24 +1373,16 @@ export function NotesPanel({ bookId, aiPanelOpen }: { bookId: number; aiPanelOpe
         <StickyNote className="h-3.5 w-3.5 text-primary flex-shrink-0" />
         <h2 className="font-bold text-sm flex-1">{s.title}</h2>
         <span className="text-[11px] text-muted-foreground/50">{s.count(notes.length)}</span>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        {!isTrashView && (
           <button
-            onClick={() => setViewMode(viewMode === "cards" ? "list" : "cards")}
-            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-secondary transition-colors text-muted-foreground"
+            onClick={() => { setEditNote(undefined); setDialogPrefill(""); setDialogPrefillStatus("active"); setShowDialog(true); }}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex-shrink-0"
+            style={{ background: "rgba(249,109,28,0.1)", color: "#F96D1C", border: "1px solid rgba(249,109,28,0.2)" }}
           >
-            {viewMode === "cards" ? <LayoutList className="h-3 w-3" /> : <LayoutGrid className="h-3 w-3" />}
+            <Plus className="h-3 w-3" />
+            {s.newBtn}
           </button>
-          {!isTrashView && (
-            <button
-              onClick={() => { setEditNote(undefined); setDialogPrefill(""); setDialogPrefillStatus("active"); setShowDialog(true); }}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-              style={{ background: "rgba(249,109,28,0.1)", color: "#F96D1C", border: "1px solid rgba(249,109,28,0.2)" }}
-            >
-              <Plus className="h-3 w-3" />
-              {s.newBtn}
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       <div className="flex flex-1 overflow-hidden" ref={sidebarContainerRef}>
@@ -1446,13 +1607,13 @@ export function NotesPanel({ bookId, aiPanelOpen }: { bookId: number; aiPanelOpe
                 )}
               </div>
 
-              {/* Notes list/grid */}
+              {/* Notes grid */}
               <div className="flex-1 overflow-y-auto">
                 <div className="p-3">
                   {isLoading ? (
-                    <div className={viewMode === "cards" ? `grid ${gridCols} gap-2` : "space-y-2"}>
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className={viewMode === "cards" ? "bg-muted animate-pulse rounded-xl aspect-square" : "h-14 bg-muted animate-pulse rounded-xl"} />
+                    <div className={`grid ${gridCols} gap-2`}>
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <div key={i} className="bg-muted animate-pulse rounded-xl aspect-square" />
                       ))}
                     </div>
                   ) : isEmptyView ? (
@@ -1475,31 +1636,17 @@ export function NotesPanel({ bookId, aiPanelOpen }: { bookId: number; aiPanelOpe
                   ) : (
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                       <SortableContext items={sorted.map(n => n.id)} strategy={rectSortingStrategy}>
-                        {viewMode === "cards" ? (
-                          <div className={`grid ${gridCols} gap-2`}>
-                            {sorted.map(note => (
-                              <NoteCard
-                                key={note.id}
-                                note={note}
-                                onEdit={n => { setEditNote(n); setDialogPrefill(""); setShowDialog(true); }}
-                                onTrash={id => trashMutation.mutate(id)}
-                                onPin={n => pinMutation.mutate({ id: n.id, isPinned: (n as any).isPinned === "true" ? "false" : "true" })}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {sorted.map(note => (
-                              <NoteRow
-                                key={note.id}
-                                note={note}
-                                onEdit={n => { setEditNote(n); setDialogPrefill(""); setShowDialog(true); }}
-                                onTrash={id => trashMutation.mutate(id)}
-                                onPin={n => pinMutation.mutate({ id: n.id, isPinned: (n as any).isPinned === "true" ? "false" : "true" })}
-                              />
-                            ))}
-                          </div>
-                        )}
+                        <div className={`grid ${gridCols} gap-2`}>
+                          {sorted.map(note => (
+                            <NoteCard
+                              key={note.id}
+                              note={note}
+                              onEdit={n => { setEditNote(n); setDialogPrefill(""); setShowDialog(true); }}
+                              onTrash={id => trashMutation.mutate(id)}
+                              onPin={n => pinMutation.mutate({ id: n.id, isPinned: (n as any).isPinned === "true" ? "false" : "true" })}
+                            />
+                          ))}
+                        </div>
                       </SortableContext>
                     </DndContext>
                   )}
@@ -1518,6 +1665,7 @@ export function NotesPanel({ bookId, aiPanelOpen }: { bookId: number; aiPanelOpe
         prefillTitle={dialogPrefill}
         prefillStatus={dialogPrefillStatus}
         collections={collections}
+        allNotes={notes}
       />
     </div>
   );
