@@ -9,7 +9,10 @@ import {
   LayoutList, LayoutGrid, GripVertical, X, Check, Search, Zap,
   ChevronRight, Inbox, Pin, PinOff, FolderOpen, Tag, Filter, Eye, Archive,
   Sparkles, Brain, Target, HelpCircle, Telescope, Feather, Users, Microscope,
-  ChevronDown, ChevronUp, StickyNote, Layers, RotateCcw, AlertTriangle
+  ChevronDown, ChevronUp, StickyNote, Layers, RotateCcw, AlertTriangle,
+  Bold, Italic, Underline, Strikethrough, List, ListOrdered, ListChecks,
+  Heading1, Heading2, Heading3, Quote, Indent, Outdent, Table, Link2,
+  Highlighter, Type
 } from "lucide-react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -335,6 +338,10 @@ function getTypeOrDefault(value?: string | null) {
   return NOTE_TYPES.find(t => t.value === value) || NOTE_TYPES[0];
 }
 
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
+}
+
 // ─── Note Card (square sticky, aspect-ratio 1/1) ────────────────────
 function NoteCard({ note, onEdit, onTrash, onPin }: {
   note: Note; onEdit: (n: Note) => void; onTrash: (id: number) => void; onPin: (n: Note) => void;
@@ -390,7 +397,7 @@ function NoteCard({ note, onEdit, onTrash, onPin }: {
 
       {/* Content preview */}
       {note.content && (
-        <p className="text-[10px] leading-relaxed line-clamp-3 flex-1 mt-1 min-h-0" style={{ color: `${col.text}85` }}>{note.content}</p>
+        <p className="text-[11px] leading-[1.65] line-clamp-4 flex-1 mt-1.5 min-h-0" style={{ color: `${col.text}85` }}>{stripHtml(note.content)}</p>
       )}
 
       {/* Bottom pills: status + importance + tag (only when set) */}
@@ -488,8 +495,8 @@ function NoteRow({ note, onEdit, onTrash, onPin }: {
         {/* Preview row: type + content */}
         <div className="flex items-center gap-1.5">
           <Icon className="h-2.5 w-2.5 flex-shrink-0" style={{ color: type.accent }} />
-          <p className="text-[11px] text-muted-foreground line-clamp-1 flex-1">
-            {note.content ? note.content : <span className="italic opacity-50">—</span>}
+          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-[1.55] flex-1">
+            {note.content ? stripHtml(note.content) : <span className="italic opacity-50">—</span>}
           </p>
         </div>
 
@@ -528,7 +535,28 @@ function NoteRow({ note, onEdit, onTrash, onPin }: {
   );
 }
 
-// ─── Note Dialog — mini workspace (Apple Notes–inspired) ──────────────────────
+// ─── Note Dialog — WYSIWYG mini workspace ─────────────────────────────────────
+const HIGHLIGHT_COLORS = [
+  { label: "Yellow", color: "#FEF08A" },
+  { label: "Orange", color: "#FED7AA" },
+  { label: "Blue",   color: "#BFDBFE" },
+  { label: "Green",  color: "#BBF7D0" },
+  { label: "Pink",   color: "#FBCFE8" },
+];
+
+function TBtn({ onAction, title, children, active }: { onAction: () => void; title: string; children: React.ReactNode; active?: boolean }) {
+  return (
+    <button
+      title={title}
+      onMouseDown={e => { e.preventDefault(); onAction(); }}
+      className="w-7 h-7 flex items-center justify-center rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary/70 flex-shrink-0"
+      style={active ? { background: "rgba(249,109,28,0.1)", color: "#F96D1C" } : {}}
+    >
+      {children}
+    </button>
+  );
+}
+
 function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, collections }: {
   open: boolean; onClose: () => void; bookId: number; note?: Note;
   prefillTitle?: string; prefillStatus?: string; collections: string[];
@@ -536,71 +564,95 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
   const { toast } = useToast();
   const { lang } = useLang();
   const s = NOTES_I18N[lang];
-  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
 
-  const [content, setContent] = useState("");
+  const [autoTitle, setAutoTitle] = useState("");
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
   const [showMeta, setShowMeta] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [showHL, setShowHL] = useState(false);
 
-  const autoTitle = content.trim().split("\n")[0].replace(/^#+\s*/, "").trim().slice(0, 80) || "";
+  const updateTitle = useCallback(() => {
+    const div = editorRef.current;
+    if (!div) return;
+    const firstEl = div.firstElementChild;
+    const txt = (firstEl?.textContent || div.textContent || "").split("\n")[0].trim().slice(0, 80);
+    setAutoTitle(txt);
+  }, []);
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    setType(note?.type || "");
+    setTagInput(note?.tags || "");
+    setStatus((note as any)?.status || "");
+    setShowMeta(!!(note?.type || (note as any)?.status || note?.tags));
+    setShowHL(false);
+    setTimeout(() => {
+      const div = editorRef.current;
+      if (!div) return;
       if (note) {
-        const noteContent = note.content || "";
-        const noteTitle = note.title || "";
-        const combined = noteContent.startsWith(noteTitle) ? noteContent : (noteTitle ? noteTitle + (noteContent ? "\n" + noteContent : "") : noteContent);
-        setContent(combined);
-        setType(note.type || "");
-        setTagInput(note.tags || "");
-        setStatus((note as any).status || "");
-        setShowMeta(!!(note.type || (note as any).status || note.tags));
-      } else {
-        setContent(prefillTitle || "");
-        setType("");
-        setTagInput("");
-        setStatus("");
-        setShowMeta(false);
-      }
-      setTimeout(() => {
-        if (editorRef.current) {
-          editorRef.current.focus();
-          const len = editorRef.current.value.length;
-          editorRef.current.setSelectionRange(len, len);
-          autoResizeEditor();
+        const raw = note.content || "";
+        const title = note.title || "";
+        if (raw.trim().startsWith("<")) {
+          div.innerHTML = raw;
+        } else {
+          const combined = raw.startsWith(title) ? raw : [title, raw].filter(Boolean).join("\n");
+          div.innerHTML = combined.split("\n").map(l => `<p>${l || "<br>"}</p>`).join("");
         }
-      }, 30);
-    }
+      } else {
+        div.innerHTML = prefillTitle ? `<p>${prefillTitle}</p><p><br></p>` : "<p><br></p>";
+      }
+      div.focus();
+      const range = document.createRange();
+      range.selectNodeContents(div);
+      range.collapse(false);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+      updateTitle();
+    }, 40);
   }, [open, note?.id]);
 
-  const autoResizeEditor = () => {
-    const el = editorRef.current;
-    if (el) { el.style.height = "auto"; el.style.height = `${Math.max(260, el.scrollHeight)}px`; }
+  const exec = useCallback((cmd: string, val?: string) => {
+    document.execCommand(cmd, false, val);
+    editorRef.current?.focus();
+    updateTitle();
+  }, [updateTitle]);
+
+  const fmtBlock = useCallback((tag: string) => {
+    document.execCommand("formatBlock", false, tag);
+    editorRef.current?.focus();
+    updateTitle();
+  }, [updateTitle]);
+
+  const insertHTML = useCallback((html: string) => {
+    document.execCommand("insertHTML", false, html);
+    editorRef.current?.focus();
+  }, []);
+
+  const insertTable = () => insertHTML(
+    `<table style="border-collapse:collapse;width:100%;margin:10px 0;font-size:13px">` +
+    `<tr><td style="border:1px solid #d1d5db;padding:5px 10px;min-width:80px"><br></td><td style="border:1px solid #d1d5db;padding:5px 10px;min-width:80px"><br></td><td style="border:1px solid #d1d5db;padding:5px 10px;min-width:80px"><br></td></tr>` +
+    `<tr><td style="border:1px solid #d1d5db;padding:5px 10px"><br></td><td style="border:1px solid #d1d5db;padding:5px 10px"><br></td><td style="border:1px solid #d1d5db;padding:5px 10px"><br></td></tr>` +
+    `<tr><td style="border:1px solid #d1d5db;padding:5px 10px"><br></td><td style="border:1px solid #d1d5db;padding:5px 10px"><br></td><td style="border:1px solid #d1d5db;padding:5px 10px"><br></td></tr>` +
+    `</table><p><br></p>`
+  );
+
+  const insertChecklist = () => insertHTML(
+    `<div style="display:flex;gap:8px;align-items:flex-start;padding:2px 0;margin:2px 0">` +
+    `<input type="checkbox" style="margin-top:4px;flex-shrink:0;accent-color:#F96D1C;cursor:pointer">` +
+    `<span style="flex:1;outline:none" contenteditable="true">Task</span></div><p><br></p>`
+  );
+
+  const insertLink = () => {
+    const url = prompt("URL:");
+    if (url) exec("createLink", url);
   };
 
-  const applyFormat = (prefix: string, suffix = "", linePrefix = "") => {
-    const el = editorRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = content.slice(start, end);
-    let replacement = "";
-    if (linePrefix) {
-      const lines = (selected || "line").split("\n").map(l => linePrefix + l);
-      replacement = lines.join("\n");
-    } else {
-      replacement = prefix + (selected || "text") + suffix;
-    }
-    const newContent = content.slice(0, start) + replacement + content.slice(end);
-    setContent(newContent);
-    setTimeout(() => {
-      el.focus();
-      const newPos = start + replacement.length;
-      el.setSelectionRange(newPos, newPos);
-      autoResizeEditor();
-    }, 0);
+  const applyHighlight = (color: string) => {
+    document.execCommand("hiliteColor", false, color);
+    editorRef.current?.focus();
+    setShowHL(false);
   };
 
   const mutation = useMutation({
@@ -615,22 +667,16 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
   });
 
   const handleSave = () => {
-    const lines = content.trim().split("\n");
-    const derivedTitle = lines[0].replace(/^#+\s*/, "").trim().slice(0, 80);
-    const bodyContent = content.trim();
-    if (!derivedTitle) { toast({ title: lang === "ru" ? "Напишите хотя бы одну строку" : "Write at least one line", variant: "destructive" }); return; }
-    const finalTags = tagInput.trim();
-    mutation.mutate({
-      title: derivedTitle,
-      content: bodyContent,
-      type: type || "",
-      tags: finalTags,
-      status: status || "",
-      color: "none",
-      collection: "",
-      importance: "",
-      isPinned: "false",
-    });
+    const div = editorRef.current;
+    if (!div) return;
+    const html = div.innerHTML;
+    const firstEl = div.firstElementChild;
+    const title = (firstEl?.textContent || div.textContent || "").split("\n")[0].trim().slice(0, 80);
+    if (!title) {
+      toast({ title: lang === "ru" ? "Напишите хотя бы одну строку" : "Write at least one line", variant: "destructive" });
+      return;
+    }
+    mutation.mutate({ title, content: html, type, tags: tagInput.trim(), status, color: "none", collection: "", importance: "", isPinned: "false" });
   };
 
   const activeType = type ? NOTE_TYPES.find(t => t.value === type) : null;
@@ -640,33 +686,31 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
   return (
     <div
       className="fixed inset-0 z-[500] flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
-      onClick={onClose}
+      style={{ background: "rgba(0,0,0,0.42)", backdropFilter: "blur(3px)" }}
+      onClick={() => { setShowHL(false); onClose(); }}
     >
       <div
-        className="w-full max-w-[560px] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ maxHeight: "85vh", background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+        className="w-full max-w-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ maxHeight: "88vh", background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
         onClick={e => e.stopPropagation()}
       >
         {/* ── Top bar ── */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border/40 flex-shrink-0">
-          {/* Auto-title preview */}
+        <div className="flex items-center gap-3 px-4 pt-3.5 pb-3 border-b border-border/40 flex-shrink-0">
           <div className="flex-1 min-w-0">
-            {autoTitle ? (
-              <span className="text-[13px] font-semibold text-foreground truncate block leading-snug">{autoTitle}</span>
-            ) : (
-              <span className="text-[13px] text-muted-foreground/40 italic">{lang === "ru" ? "Новая заметка" : lang === "ua" ? "Нова нотатка" : lang === "de" ? "Neue Notiz" : "New note"}</span>
-            )}
+            {autoTitle
+              ? <span className="text-[13px] font-semibold text-foreground truncate block leading-snug">{autoTitle}</span>
+              : <span className="text-[13px] text-muted-foreground/35 italic">{lang === "ru" ? "Новая заметка" : lang === "ua" ? "Нова нотатка" : lang === "de" ? "Neue Notiz" : "New note"}</span>
+            }
           </div>
           <button
             onClick={handleSave}
             disabled={!autoTitle || mutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-40 flex-shrink-0 text-white"
-            style={{ background: "linear-gradient(135deg, #F96D1C, #FB923C)" }}
+            style={{ background: "linear-gradient(135deg,#F96D1C,#FB923C)" }}
           >
-            {mutation.isPending ? (
-              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
-            ) : <Check className="h-3 w-3" />}
+            {mutation.isPending
+              ? <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+              : <Check className="h-3 w-3" />}
             {s.save}
           </button>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors text-muted-foreground flex-shrink-0">
@@ -675,45 +719,97 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
         </div>
 
         {/* ── Type accent stripe ── */}
-        {activeType && (
-          <div style={{ height: 2, background: activeType.accent, opacity: 0.7, flexShrink: 0 }} />
-        )}
+        {activeType && <div style={{ height: 2, background: activeType.accent, opacity: 0.7, flexShrink: 0 }} />}
 
-        {/* ── Formatting toolbar ── */}
-        <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-border/25 flex-shrink-0">
-          {([
-            { label: "B",  title: "Bold",         action: () => applyFormat("**", "**") },
-            { label: "I",  title: "Italic",        action: () => applyFormat("_", "_") },
-            { label: "H1", title: "Heading 1",     action: () => applyFormat("# ", "", "") },
-            { label: "H2", title: "Heading 2",     action: () => applyFormat("## ", "", "") },
-            { label: "• ", title: "Bullet list",   action: () => applyFormat("", "", "- ") },
-            { label: "1.", title: "Ordered list",  action: () => applyFormat("", "", "1. ") },
-            { label: "❝",  title: "Quote",         action: () => applyFormat("", "", "> ") },
-          ] as const).map(btn => (
-            <button
-              key={btn.title}
-              title={btn.title}
-              onMouseDown={e => { e.preventDefault(); btn.action(); }}
-              className="px-2 py-1 rounded-md text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors min-w-[26px] text-center"
-            >
-              {btn.label}
-            </button>
-          ))}
+        {/* ── WYSIWYG Toolbar ── */}
+        <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-border/25 flex-shrink-0 overflow-x-auto">
+          {/* Text formatting */}
+          <TBtn onAction={() => exec("bold")} title="Bold"><Bold className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => exec("italic")} title="Italic"><Italic className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => exec("underline")} title="Underline"><Underline className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => exec("strikeThrough")} title="Strikethrough"><Strikethrough className="h-3.5 w-3.5" /></TBtn>
+
+          {/* Highlight picker */}
+          <div className="relative flex-shrink-0">
+            <TBtn onAction={() => { setShowHL(v => !v); }} title="Highlight"><Highlighter className="h-3.5 w-3.5" /></TBtn>
+            {showHL && (
+              <div className="absolute top-full left-0 mt-1 z-50 flex gap-1 p-1.5 rounded-xl shadow-lg border border-border bg-card">
+                {HIGHLIGHT_COLORS.map(hc => (
+                  <button
+                    key={hc.color}
+                    title={hc.label}
+                    onMouseDown={e => { e.preventDefault(); applyHighlight(hc.color); }}
+                    className="w-5 h-5 rounded-full border-2 border-white/60 hover:scale-110 transition-transform shadow-sm"
+                    style={{ background: hc.color }}
+                  />
+                ))}
+                <button
+                  title="Remove highlight"
+                  onMouseDown={e => { e.preventDefault(); applyHighlight("transparent"); }}
+                  className="w-5 h-5 rounded-full border-2 border-border text-[8px] flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
+                >✕</button>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-4 bg-border/50 mx-1 flex-shrink-0" />
+
+          {/* Lists */}
+          <TBtn onAction={() => exec("insertUnorderedList")} title="Bullet list"><List className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => exec("insertOrderedList")} title="Numbered list"><ListOrdered className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={insertChecklist} title="Checklist"><ListChecks className="h-3.5 w-3.5" /></TBtn>
+
+          {/* Divider */}
+          <div className="w-px h-4 bg-border/50 mx-1 flex-shrink-0" />
+
+          {/* Structure */}
+          <TBtn onAction={() => fmtBlock("h1")} title="Title"><Type className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => fmtBlock("h2")} title="Heading 1"><Heading1 className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => fmtBlock("h3")} title="Heading 2"><Heading2 className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => fmtBlock("h4")} title="Heading 3"><Heading3 className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => fmtBlock("blockquote")} title="Quote"><Quote className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => exec("indent")} title="Indent"><Indent className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={() => exec("outdent")} title="Outdent"><Outdent className="h-3.5 w-3.5" /></TBtn>
+
+          {/* Divider */}
+          <div className="w-px h-4 bg-border/50 mx-1 flex-shrink-0" />
+
+          {/* Insert */}
+          <TBtn onAction={insertTable} title="Insert table"><Table className="h-3.5 w-3.5" /></TBtn>
+          <TBtn onAction={insertLink} title="Insert link"><Link2 className="h-3.5 w-3.5" /></TBtn>
         </div>
 
-        {/* ── Main editor (writing area) ── */}
+        {/* ── Editor styles ── */}
+        <style>{`
+          .nte-editor { min-height:280px; outline:none; }
+          .nte-editor p { margin:0; min-height:1.6em; }
+          .nte-editor h1 { font-size:1.5rem; font-weight:700; margin:12px 0 4px; line-height:1.25; }
+          .nte-editor h2 { font-size:1.2rem; font-weight:600; margin:10px 0 4px; line-height:1.3; }
+          .nte-editor h3 { font-size:1.05rem; font-weight:600; margin:8px 0 4px; }
+          .nte-editor h4 { font-size:0.95rem; font-weight:600; margin:6px 0 4px; color:#6b7280; }
+          .nte-editor blockquote { border-left:3px solid #F96D1C; background:rgba(249,109,28,0.05); margin:8px 0; padding:8px 14px; border-radius:0 8px 8px 0; color:#6b7280; font-style:italic; }
+          .nte-editor ul { list-style:disc; padding-left:1.5rem; margin:4px 0; }
+          .nte-editor ol { list-style:decimal; padding-left:1.5rem; margin:4px 0; }
+          .nte-editor li { margin:2px 0; }
+          .nte-editor a { color:#F96D1C; text-decoration:underline; }
+          .nte-editor table td, .nte-editor table th { border:1px solid #e5e7eb; padding:5px 10px; min-width:80px; }
+          .nte-editor:empty:before { content:attr(data-placeholder); color:rgba(100,116,139,0.4); pointer-events:none; font-style:italic; }
+        `}</style>
+
+        {/* ── WYSIWYG editor area ── */}
         <div className="flex-1 overflow-y-auto">
-          <textarea
+          <div
             ref={editorRef}
-            value={content}
-            onChange={e => { setContent(e.target.value); autoResizeEditor(); }}
+            contentEditable
+            suppressContentEditableWarning
+            className="nte-editor w-full px-5 pt-4 pb-5 text-sm leading-[1.85]"
+            data-placeholder={lang === "ru" ? "Начни писать мысль…" : lang === "ua" ? "Почни писати думку…" : lang === "de" ? "Schreib deine Gedanken…" : "Start writing your thought…"}
+            onInput={updateTitle}
             onKeyDown={e => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSave(); }
               if (e.key === "Escape") onClose();
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSave(); }
             }}
-            placeholder={lang === "ru" ? "Начни писать мысль…" : lang === "ua" ? "Почни писати думку…" : lang === "de" ? "Schreib deine Gedanken…" : "Start writing your thought…"}
-            className="w-full bg-transparent outline-none text-sm leading-[1.9] resize-none px-5 pt-4 pb-3 placeholder:text-muted-foreground/30"
-            style={{ minHeight: "260px", fontFamily: "inherit" }}
           />
         </div>
 
@@ -723,7 +819,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
             onClick={() => setShowMeta(v => !v)}
             className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
           >
-            <Tag className="h-3 w-3" />
+            <Tag className="h-3 w-3 flex-shrink-0" />
             <span className="flex-1 text-left">
               {(type || status || tagInput) ? (
                 <span className="flex items-center gap-2 flex-wrap">
@@ -734,7 +830,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
                     </span>
                   )}
                   {status && (
-                    <span className="flex items-center gap-1" style={{ color: NOTE_STATUSES.find(st => st.value === status)?.color || "#94A3B8" }}>
+                    <span style={{ color: NOTE_STATUSES.find(st => st.value === status)?.color || "#94A3B8" }}>
                       ● {s.statuses[status as keyof typeof s.statuses]}
                     </span>
                   )}
@@ -754,28 +850,14 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
             <div className="px-4 pb-4 space-y-3 border-t border-border/20 pt-3">
               {/* Type */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/60">{s.typeLabel}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/50">{s.typeLabel}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  <button
-                    onClick={() => setType("")}
-                    className="px-2.5 py-1 rounded-full text-[10px] font-medium transition-all"
-                    style={{
-                      background: type === "" ? "rgba(249,109,28,0.1)" : "hsl(var(--secondary))",
-                      color: type === "" ? "#F96D1C" : "hsl(var(--muted-foreground))",
-                      border: `1px solid ${type === "" ? "rgba(249,109,28,0.3)" : "transparent"}`,
-                    }}
-                  >—</button>
+                  <button onClick={() => setType("")} className="px-2.5 py-1 rounded-full text-[10px] font-medium transition-all"
+                    style={{ background: !type ? "rgba(249,109,28,0.1)" : "hsl(var(--secondary))", color: !type ? "#F96D1C" : "hsl(var(--muted-foreground))", border: `1px solid ${!type ? "rgba(249,109,28,0.3)" : "transparent"}` }}>—</button>
                   {NOTE_TYPES.map(t => (
-                    <button
-                      key={t.value}
-                      onClick={() => setType(type === t.value ? "" : t.value)}
+                    <button key={t.value} onClick={() => setType(type === t.value ? "" : t.value)}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all"
-                      style={{
-                        background: type === t.value ? `${t.accent}15` : "hsl(var(--secondary))",
-                        color: type === t.value ? t.accent : "hsl(var(--muted-foreground))",
-                        border: `1px solid ${type === t.value ? `${t.accent}40` : "transparent"}`,
-                      }}
-                    >
+                      style={{ background: type === t.value ? `${t.accent}15` : "hsl(var(--secondary))", color: type === t.value ? t.accent : "hsl(var(--muted-foreground))", border: `1px solid ${type === t.value ? `${t.accent}40` : "transparent"}` }}>
                       <t.icon className="h-2.5 w-2.5" />
                       {s.types[t.value as keyof typeof s.types]}
                     </button>
@@ -785,29 +867,15 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
 
               {/* Status */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/60">{s.statusLabel}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/50">{s.statusLabel}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  <button
-                    onClick={() => setStatus("")}
-                    className="px-2.5 py-1 rounded-full text-[10px] font-medium transition-all"
-                    style={{
-                      background: status === "" ? "rgba(249,109,28,0.1)" : "hsl(var(--secondary))",
-                      color: status === "" ? "#F96D1C" : "hsl(var(--muted-foreground))",
-                      border: `1px solid ${status === "" ? "rgba(249,109,28,0.3)" : "transparent"}`,
-                    }}
-                  >—</button>
+                  <button onClick={() => setStatus("")} className="px-2.5 py-1 rounded-full text-[10px] font-medium transition-all"
+                    style={{ background: !status ? "rgba(249,109,28,0.1)" : "hsl(var(--secondary))", color: !status ? "#F96D1C" : "hsl(var(--muted-foreground))", border: `1px solid ${!status ? "rgba(249,109,28,0.3)" : "transparent"}` }}>—</button>
                   {NOTE_STATUSES.map(st => (
-                    <button
-                      key={st.value}
-                      onClick={() => setStatus(status === st.value ? "" : st.value)}
+                    <button key={st.value} onClick={() => setStatus(status === st.value ? "" : st.value)}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all"
-                      style={{
-                        background: status === st.value ? `${st.color}15` : "hsl(var(--secondary))",
-                        color: status === st.value ? st.color : "hsl(var(--muted-foreground))",
-                        border: `1px solid ${status === st.value ? `${st.color}40` : "transparent"}`,
-                      }}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: status === st.value ? st.color : "hsl(var(--muted-foreground))" }} />
+                      style={{ background: status === st.value ? `${st.color}15` : "hsl(var(--secondary))", color: status === st.value ? st.color : "hsl(var(--muted-foreground))", border: `1px solid ${status === st.value ? `${st.color}40` : "transparent"}` }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: status === st.value ? st.color : "hsl(var(--muted-foreground))" }} />
                       {s.statuses[st.value as keyof typeof s.statuses]}
                     </button>
                   ))}
@@ -816,18 +884,14 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, prefillStatus, 
 
               {/* Hashtags */}
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-muted-foreground/50">
                   {lang === "ru" ? "Хэштеги" : lang === "ua" ? "Хештеги" : lang === "de" ? "Hashtags" : "Hashtags"}
                 </p>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/40 border border-border/40">
                   <Hash className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />
-                  <input
-                    value={tagInput}
-                    onChange={e => setTagInput(e.target.value)}
-                    placeholder={s.tagsPlaceholder}
+                  <input value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder={s.tagsPlaceholder}
                     className="flex-1 bg-transparent outline-none text-xs placeholder:text-muted-foreground/35"
-                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSave(); } }}
-                  />
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSave(); } }} />
                 </div>
               </div>
             </div>
