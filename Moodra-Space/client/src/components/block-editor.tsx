@@ -78,6 +78,7 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     spellChecking: "Checking...", spellMode: "Check mode",
     autocorrect: "Autocorrect", autocorrectOn: "ON", autocorrectOff: "OFF",
     autocorrectToast: "Autocorrected",
+    autocorrectHint: "T9: space / punctuation \u2192 auto-fix",
   },
   ru: {
     improve: "Улучшить", expand: "Расширить", shorten: "Сократить", rephrase: "Переформулировать", example: "+ Пример", strengthen: "Усилить",
@@ -111,6 +112,7 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     spellChecking: "Проверяю...", spellMode: "Режим проверки",
     autocorrect: "Автокоррекция", autocorrectOn: "ВКЛ", autocorrectOff: "ВЫКЛ",
     autocorrectToast: "Исправлено",
+    autocorrectHint: "T9: пробел / знак \u2192 автозамена",
   },
   ua: {
     improve: "Поліпшити", expand: "Розширити", shorten: "Скоротити", rephrase: "Перефразувати", example: "+ Приклад", strengthen: "Посилити",
@@ -144,6 +146,7 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     spellChecking: "Перевіряю...", spellMode: "Режим перевірки",
     autocorrect: "Автокорекція", autocorrectOn: "УВК", autocorrectOff: "ВИМК",
     autocorrectToast: "Виправлено",
+    autocorrectHint: "T9: пробіл / знак \u2192 автозаміна",
   },
   de: {
     improve: "Verbessern", expand: "Erweitern", shorten: "Kürzen", rephrase: "Umformulieren", example: "+ Beispiel", strengthen: "Verstärken",
@@ -177,6 +180,7 @@ const BLOCK_EDITOR_I18N: Record<string, Record<string, string>> = {
     spellChecking: "Prüfe...", spellMode: "Prüfmodus",
     autocorrect: "Autokorrektur", autocorrectOn: "AN", autocorrectOff: "AUS",
     autocorrectToast: "Korrigiert",
+    autocorrectHint: "T9: Leerzeichen / Satzzeichen \u2192 Auto-Fix",
   },
 };
 
@@ -697,7 +701,7 @@ function SpellCheckWidget({
               </div>
               {mode !== "off" && mode !== "basic" && autocorrect && (
                 <div className="text-[10px] text-muted-foreground/50 mt-1 leading-snug">
-                  T9: space / punctuation → auto-fix
+                  {s.autocorrectHint}
                 </div>
               )}
             </div>
@@ -1624,14 +1628,17 @@ function SortableBlock({
         const lastWordMatch = textBefore.match(/[^\s.,!?;:'"()\[\]{}<>]+$/);
         if (lastWordMatch) {
           const lastWord = lastWordMatch[0];
-          const hit = autocorrectMatches.find(m => {
+          const cursorPos = textBefore.length;
+          const startPos = cursorPos - lastWord.length;
+          // Prefer exact offset+length match so repeated words resolve to the one at the cursor
+          const hit = autocorrectMatches.find(m =>
+            m.offset === startPos && m.length === lastWord.length && m.replacements.length > 0
+          ) ?? autocorrectMatches.find(m => {
             const errText = m.context.text.slice(m.context.offset, m.context.offset + m.context.length);
             return errText === lastWord && m.replacements.length > 0;
           });
           if (hit) {
             const replacement = hit.replacements[0].value;
-            const cursorPos = textBefore.length;
-            const startPos = cursorPos - lastWord.length;
 
             // DOM-safe selection: walk all text nodes to map plain-text offsets to DOM positions
             const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
