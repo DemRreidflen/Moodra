@@ -796,15 +796,16 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
       replaceTextInBlocks: (original: string, replacement: string): boolean => {
         let replaced = false;
         // First try direct DOM update for immediate visual feedback
-        const allEditables = containerRef.current?.querySelectorAll('[contenteditable="true"]');
-        allEditables?.forEach((el) => {
+        // Query all block content elements regardless of contenteditable state
+        const allContentEls = containerRef.current?.querySelectorAll("[data-testid^='block-content-']");
+        allContentEls?.forEach((el) => {
           if (replaced) return;
           const htmlEl = el as HTMLElement;
-          if (htmlEl.innerHTML.includes(original)) {
-            htmlEl.innerHTML = htmlEl.innerHTML.replace(original, replacement);
-            replaced = true;
-          } else if (htmlEl.innerText?.includes(original)) {
+          if (htmlEl.innerText?.includes(original)) {
             htmlEl.innerText = htmlEl.innerText.replace(original, replacement);
+            replaced = true;
+          } else if (htmlEl.innerHTML.includes(original)) {
+            htmlEl.innerHTML = htmlEl.innerHTML.replace(original, replacement);
             replaced = true;
           }
         });

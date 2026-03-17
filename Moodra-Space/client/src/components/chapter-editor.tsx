@@ -491,6 +491,7 @@ export function ChapterEditor({
   const [improvementModal, setImprovementModal] = useState<{
     original: string;
     improved: string;
+    savedRange?: Range | null;
   } | null>(null);
   const [lastMode, setLastMode] = useState<string>("improve");
   const [customInstruction, setCustomInstruction] = useState("");
@@ -806,7 +807,84 @@ export function ChapterEditor({
 
   const handleApplyImprovement = () => {
     if (!improvementModal) return;
-    const { original, improved } = improvementModal;
+    const { original, improved, savedRange } = improvementModal;
+
+    // Helper: find the closest [data-block-id] ancestor
+    const findBlockEl = (node: Node | null): HTMLElement | null => {
+      let cur: Node | null = node;
+      while (cur) {
+        if (cur instanceof HTMLElement && cur.getAttribute("data-block-id")) return cur;
+        cur = cur.parentNode;
+      }
+      return null;
+    };
+
+    // Try cross-block replacement using saved Range
+    if (savedRange) {
+      const startBlockEl = findBlockEl(savedRange.startContainer);
+      const endBlockEl = findBlockEl(savedRange.endContainer);
+
+      if (startBlockEl && endBlockEl && startBlockEl !== endBlockEl) {
+        const startBlockId = startBlockEl.getAttribute("data-block-id")!;
+        const endBlockId = endBlockEl.getAttribute("data-block-id")!;
+
+        // Get text before selection in start block
+        const startContentEl = startBlockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
+        const endContentEl = endBlockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
+
+        let prefixText = "";
+        let suffixText = "";
+        try {
+          if (startContentEl) {
+            const prefixRange = document.createRange();
+            prefixRange.setStart(startContentEl, 0);
+            prefixRange.setEnd(savedRange.startContainer, savedRange.startOffset);
+            prefixText = prefixRange.toString();
+          }
+          if (endContentEl) {
+            const suffixRange = document.createRange();
+            suffixRange.setStart(savedRange.endContainer, savedRange.endOffset);
+            suffixRange.setEndAfter(endContentEl.lastChild ?? endContentEl);
+            suffixText = suffixRange.toString();
+          }
+        } catch { /* DOM nodes may have changed, fall through */ }
+
+        const genId = () => Math.random().toString(36).substring(2, 11);
+        const improvedParagraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        if (!improvedParagraphs.length) improvedParagraphs.push(improved.trim() || " ");
+
+        setBlocks(prev => {
+          const startIdx = prev.findIndex(b => b.id === startBlockId);
+          const endIdx = prev.findIndex(b => b.id === endBlockId);
+          if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return prev;
+
+          const startBlock = prev[startIdx];
+          const blockType = startBlock?.type || "paragraph";
+
+          const newBlocks: typeof prev = [];
+          if (improvedParagraphs.length === 1) {
+            const combined = [prefixText, improvedParagraphs[0], suffixText].filter(Boolean).join(" ");
+            newBlocks.push({ ...startBlock, content: combined });
+          } else {
+            newBlocks.push({ ...startBlock, content: [prefixText, improvedParagraphs[0]].filter(Boolean).join(" ") });
+            for (let i = 1; i < improvedParagraphs.length - 1; i++) {
+              newBlocks.push({ id: genId(), type: blockType as any, content: improvedParagraphs[i] });
+            }
+            const lastChunk = improvedParagraphs[improvedParagraphs.length - 1];
+            newBlocks.push({ id: genId(), type: blockType as any, content: [lastChunk, suffixText].filter(Boolean).join(" ") });
+          }
+
+          const updated = [...prev.slice(0, startIdx), ...newBlocks, ...prev.slice(endIdx + 1)];
+          return updated;
+        });
+        setIsDirty(true);
+        setImprovementModal(null);
+        setCustomInstruction("");
+        return;
+      }
+    }
+
+    // Single-block or fallback
     if (blockEditorApiRef.current) {
       blockEditorApiRef.current.replaceTextInBlocks(original, improved);
     } else {
@@ -879,9 +957,9 @@ export function ChapterEditor({
     }
   };
 
-  const handleSelectionResult = useCallback((original: string, improved: string, mode: string) => {
+  const handleSelectionResult = useCallback((original: string, improved: string, mode: string, savedRange: Range | null) => {
     setLastMode(mode);
-    setImprovementModal({ original, improved });
+    setImprovementModal({ original, improved, savedRange });
   }, []);
 
   const handleAdaptLanguage = async (workflowOverride?: "new" | "existing") => {

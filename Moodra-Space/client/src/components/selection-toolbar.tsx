@@ -89,7 +89,7 @@ interface Props {
   containerRef: React.RefObject<HTMLElement>;
   bookTitle?: string;
   bookMode?: string;
-  onResult: (original: string, improved: string, mode: string) => void;
+  onResult: (original: string, improved: string, mode: string, savedRange: Range | null) => void;
 }
 
 export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }: Props) {
@@ -109,6 +109,7 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
   const toolbarRef = useRef<HTMLDivElement>(null);
   // Always-current copies (avoid stale closures)
   const selectedTextRef = useRef("");
+  const savedRangeRef = useRef<Range | null>(null);
   const isMouseDownOnToolbar = useRef(false);
 
   const ACTIONS = [
@@ -153,6 +154,7 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
     }
 
     selectedTextRef.current = text;
+    savedRangeRef.current = range.cloneRange();
     const toolbarWidth = 500;
     let left = rangeRect.left + rangeRect.width / 2 - toolbarWidth / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - toolbarWidth - 8));
@@ -211,7 +213,7 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "error");
-      onResult(text, data.improved || "", mode);
+      onResult(text, data.improved || "", mode, savedRangeRef.current);
       setVisible(false);
     } catch {
     } finally {
