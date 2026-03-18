@@ -221,29 +221,6 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
   const runAction = useCallback(async (mode: string, extraParams?: Record<string, string>) => {
     const text = selectedTextRef.current;
     if (!text || loading) return;
-
-    // fix-grammar is free — handled by LanguageTool, no API key needed
-    if (mode === "fix-grammar") {
-      setLoading(mode);
-      setShowTranslatePicker(false);
-      setShowToneInput(false);
-      try {
-        const resp = await fetch("/api/grammar/fix", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || "error");
-        onResult(text, data.improved || text, mode, savedRangeRef.current);
-        setVisible(false);
-      } catch {
-      } finally {
-        setLoading(null);
-      }
-      return;
-    }
-
     if (isFreeMode) { setShowNoApi(true); return; }
     setLoading(mode);
     setShowTranslatePicker(false);
@@ -272,11 +249,6 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
   }, [loading, isFreeMode, bookTitle, bookMode, onResult]);
 
   const handleActionClick = useCallback((mode: string) => {
-    // fix-grammar is always free — don't gate on isFreeMode
-    if (mode === "fix-grammar") {
-      runAction(mode);
-      return;
-    }
     if (isFreeMode) {
       setShowNoApi(true);
       setShowTranslatePicker(false);
@@ -311,29 +283,25 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
         className="flex items-center gap-0.5 rounded-xl px-1 py-1 shadow-xl border border-white/10"
         style={{ background: "rgba(18,18,28,0.97)", backdropFilter: "blur(12px)" }}
       >
-        {ACTIONS.map(({ mode, label, icon: Icon, color }) => {
-          const isFree = mode === "fix-grammar";
-          const dimmed = isFreeMode && !isFree;
-          return (
-            <button
-              key={mode}
-              disabled={!!loading}
-              onClick={() => handleActionClick(mode)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:bg-white/10 disabled:opacity-40"
-              style={{ color: loading === mode ? color : (dimmed ? "#64748B" : "#CBD5E1") }}
-              title={label}
-            >
-              {loading === mode
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color }} />
-                : <Icon className="w-3.5 h-3.5" style={{ color: dimmed ? "#475569" : color }} />
-              }
-              <span>{label}</span>
-              {(mode === "translate" || mode === "adapt-tone") && (
-                <ChevronDown className="w-3 h-3 opacity-50" />
-              )}
-            </button>
-          );
-        })}
+        {ACTIONS.map(({ mode, label, icon: Icon, color }) => (
+          <button
+            key={mode}
+            disabled={!!loading}
+            onClick={() => handleActionClick(mode)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:bg-white/10 disabled:opacity-40"
+            style={{ color: loading === mode ? color : (isFreeMode ? "#64748B" : "#CBD5E1") }}
+            title={label}
+          >
+            {loading === mode
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color }} />
+              : <Icon className="w-3.5 h-3.5" style={{ color: isFreeMode ? "#475569" : color }} />
+            }
+            <span>{label}</span>
+            {(mode === "translate" || mode === "adapt-tone") && (
+              <ChevronDown className="w-3 h-3 opacity-50" />
+            )}
+          </button>
+        ))}
 
         {isFreeMode && (
           <div className="w-px h-5 mx-1 flex-shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
