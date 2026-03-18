@@ -850,6 +850,17 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
         });
       },
       spliceBlocks: (startId: string, endId: string, newBlocks: Block[]): void => {
+        // Direct DOM update for the first block (same technique as replaceTextInBlocks).
+        // SortableBlock's useLayoutEffect only syncs innerHTML on mount, so React won't
+        // update the existing contentEditable when the same block ID gets new content.
+        if (newBlocks.length > 0) {
+          const firstContentEl = containerRef.current?.querySelector(
+            `[data-block-id="${startId}"] [data-testid^="block-content-"]`
+          ) as HTMLElement | null;
+          if (firstContentEl) {
+            firstContentEl.innerText = newBlocks[0].content || "";
+          }
+        }
         setBlocks(prev => {
           const startIdx = prev.findIndex(b => b.id === startId);
           if (startIdx === -1) return prev;
