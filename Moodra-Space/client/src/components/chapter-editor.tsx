@@ -37,10 +37,8 @@ import {
   Zap,
   ChevronUp,
   ChevronsLeftRight,
-  Rows3,
-  AlignJustify,
 } from "lucide-react";
-import { BlockEditor, Block, blocksToPlainText, BlockEditorAPI, FullTextEditor } from "./block-editor";
+import { BlockEditor, Block, blocksToPlainText, BlockEditorAPI } from "./block-editor";
 import { cn } from "@/lib/utils";
 import { useBookSettings } from "@/hooks/use-book-settings";
 import {
@@ -207,8 +205,6 @@ const EDITOR_I18N = {
     editorWider: "Widen editor",
     fontSizeLabel: "Font",
     widthLabel: "Width",
-    viewModeBlocks: "Blocks",
-    viewModeFullText: "Full Text",
   },
   ru: {
     selectChapter: "Выберите главу для редактирования",
@@ -279,8 +275,6 @@ const EDITOR_I18N = {
     editorWider: "Шире",
     fontSizeLabel: "Шрифт",
     widthLabel: "Ширина",
-    viewModeBlocks: "Блоки",
-    viewModeFullText: "Сплошной текст",
   },
   ua: {
     selectChapter: "Оберіть розділ для редагування",
@@ -351,8 +345,6 @@ const EDITOR_I18N = {
     editorWider: "Ширше",
     fontSizeLabel: "Шрифт",
     widthLabel: "Ширина",
-    viewModeBlocks: "Блоки",
-    viewModeFullText: "Суцільний текст",
   },
   de: {
     selectChapter: "Wähle ein Kapitel zur Bearbeitung",
@@ -423,8 +415,6 @@ const EDITOR_I18N = {
     editorWider: "Breiter",
     fontSizeLabel: "Schrift",
     widthLabel: "Breite",
-    viewModeBlocks: "Blöcke",
-    viewModeFullText: "Volltext",
   },
 };
 
@@ -523,10 +513,6 @@ export function ChapterEditor({
   const [, navigate] = useLocation();
 
   const [isReadingMode, setIsReadingMode] = useState(false);
-  const [viewMode, setViewMode] = useState<"blocks" | "fulltext">(() => {
-    try { return localStorage.getItem("moodra_viewMode") === "fulltext" ? "fulltext" : "blocks"; } catch { return "blocks"; }
-  });
-  const [blockEditorMountKey, setBlockEditorMountKey] = useState(0);
   const [freeThinkingIdx, setFreeThinkingIdx] = useState(0);
   const freeThinkingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -770,15 +756,6 @@ export function ChapterEditor({
     },
   });
 
-  const toggleViewMode = useCallback(() => {
-    setBlockEditorMountKey(k => k + 1);
-    setViewMode(prev => {
-      const next = prev === "blocks" ? "fulltext" : "blocks";
-      try { localStorage.setItem("moodra_viewMode", next); } catch {}
-      return next;
-    });
-  }, []);
-
   const save = useCallback(() => {
     if (!chapter || !isDirty) return;
     saveMutation.mutate({ 
@@ -831,97 +808,6 @@ export function ChapterEditor({
   const handleApplyImprovement = () => {
     if (!improvementModal) return;
     const { original, improved, savedRange } = improvementModal;
-
-    // Fast path for Full Text mode: range-aware replacement preserving prefix/suffix
-    if (viewMode === "fulltext" && savedRange) {
-      const fteEl = editorAreaRef.current?.querySelector('[contenteditable="true"]') as HTMLElement | null;
-      if (fteEl) {
-        try {
-          // Helper: walk up to the direct child block of fteEl
-          const findTopBlock = (node: Node): HTMLElement | null => {
-            let cur: Node | null = node;
-            while (cur && cur.parentNode !== fteEl) cur = cur.parentNode;
-            return cur instanceof HTMLElement ? cur : null;
-          };
-
-          const startTop = findTopBlock(savedRange.startContainer);
-          const endTop = findTopBlock(savedRange.endContainer);
-          if (!startTop || !endTop) throw new Error("no top block");
-
-          // Extract inline HTML before and after the selection within boundary blocks,
-          // so we can stitch them onto the first/last AI paragraphs and avoid content loss.
-          const extractHTML = (range: Range): string => {
-            const tmp = document.createElement("div");
-            tmp.appendChild(range.cloneContents());
-            return tmp.innerHTML;
-          };
-
-          let prefixHTML = "";
-          try {
-            const pr = document.createRange();
-            pr.setStart(startTop, 0);
-            pr.setEnd(savedRange.startContainer, savedRange.startOffset);
-            prefixHTML = extractHTML(pr);
-          } catch { /* ignore */ }
-
-          let suffixHTML = "";
-          try {
-            const sr = document.createRange();
-            sr.setStart(savedRange.endContainer, savedRange.endOffset);
-            sr.setEnd(endTop, endTop.childNodes.length);
-            suffixHTML = extractHTML(sr);
-          } catch { /* ignore */ }
-
-          // Split AI output by double-newlines (or single if no double exists)
-          const rawParas = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-          if (!rawParas.length) rawParas.push(improved.trim() || "\u00a0");
-
-          const makeBlock = (html: string): HTMLElement => {
-            const div = document.createElement("div");
-            div.setAttribute("data-block-type", "paragraph");
-            div.setAttribute("data-block-id", Math.random().toString(36).substring(2, 11));
-            div.className = "fte-block fte-paragraph";
-            div.innerHTML = html || "\u00a0";
-            return div;
-          };
-
-          // Build new elements: first block gets prefix, last block gets suffix
-          const newEls: HTMLElement[] = [];
-          if (rawParas.length === 1) {
-            newEls.push(makeBlock(`${prefixHTML}${rawParas[0]}${suffixHTML}`));
-          } else {
-            newEls.push(makeBlock(`${prefixHTML}${rawParas[0]}`));
-            for (let i = 1; i < rawParas.length - 1; i++) {
-              newEls.push(makeBlock(rawParas[i]));
-            }
-            newEls.push(makeBlock(`${rawParas[rawParas.length - 1]}${suffixHTML}`));
-          }
-
-          // Replace the span of top-level blocks with new elements
-          const allChildren = Array.from(fteEl.children) as HTMLElement[];
-          const si = allChildren.indexOf(startTop);
-          const ei = allChildren.indexOf(endTop);
-          if (si === -1 || ei === -1) throw new Error("block index error");
-          const anchor = allChildren[si];
-          newEls.forEach(el => fteEl.insertBefore(el, anchor));
-          allChildren.slice(si, ei + 1).forEach(el => fteEl.removeChild(el));
-
-          // Place cursor at end of last new element
-          const lastEl = newEls[newEls.length - 1];
-          const r = document.createRange();
-          r.selectNodeContents(lastEl);
-          r.collapse(false);
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(r);
-
-          fteEl.dispatchEvent(new Event("input", { bubbles: true }));
-          setImprovementModal(null);
-          setCustomInstruction("");
-          return;
-        } catch { /* fall through to block-based logic */ }
-      }
-    }
 
     // Helper: find the closest [data-block-id] ancestor
     const findBlockEl = (node: Node | null): HTMLElement | null => {
@@ -1309,36 +1195,6 @@ export function ChapterEditor({
             <Keyboard className="h-3.5 w-3.5" />
           </Button>
 
-          {/* Block / Full Text mode toggle */}
-          <div className="flex items-center rounded-lg border border-border/60 overflow-hidden h-7">
-            <button
-              onClick={() => viewMode !== "blocks" && toggleViewMode()}
-              className={cn(
-                "px-2 h-full text-[11px] font-medium flex items-center gap-1 transition-colors",
-                viewMode === "blocks"
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-              )}
-              title={s.viewModeBlocks}
-            >
-              <Rows3 className="h-3 w-3" />
-              <span className="hidden sm:inline">{s.viewModeBlocks}</span>
-            </button>
-            <button
-              onClick={() => viewMode !== "fulltext" && toggleViewMode()}
-              className={cn(
-                "px-2 h-full text-[11px] font-medium flex items-center gap-1 transition-colors border-l border-border/60",
-                viewMode === "fulltext"
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-              )}
-              title={s.viewModeFullText}
-            >
-              <AlignJustify className="h-3 w-3" />
-              <span className="hidden sm:inline">{s.viewModeFullText}</span>
-            </button>
-          </div>
-
           {/* Sprint */}
           <div className="relative">
             <Button
@@ -1539,32 +1395,19 @@ export function ChapterEditor({
               textAlign: bookId ? (bookSettings.textAlign as any) : undefined,
             }}
           >
-            {viewMode === "fulltext" && !isReadingMode ? (
-              <FullTextEditor
-                key={`fte-${chapter.id}`}
-                blocks={blocks}
-                onChange={(newBlocks) => {
-                  setBlocks(newBlocks);
-                  setIsDirty(true);
-                }}
-                lineSpacing={bookId ? String(bookSettings.lineHeight ?? "1.7") : "1.7"}
-                firstLineIndent={bookSettings.firstLineIndent ?? 1.2}
-              />
-            ) : (
-              <BlockEditor
-                key={`${chapter.id}-${blockEditorMountKey}`}
-                initialContent={blocks.length ? JSON.stringify(blocks) : (chapter.content || "")}
-                onMounted={(api) => { blockEditorApiRef.current = api; }}
-                onChange={(newBlocks) => {
-                  setBlocks(newBlocks);
-                  setIsDirty(true);
-                }}
-                hideControls={isReadingMode}
-                bookTitle={bookTitle}
-                bookMode={bookMode}
-                firstLineIndent={bookSettings.firstLineIndent ?? 1.2}
-              />
-            )}
+            <BlockEditor
+              key={chapter.id}
+              initialContent={chapter.content || ""}
+              onMounted={(api) => { blockEditorApiRef.current = api; }}
+              onChange={(newBlocks) => {
+                setBlocks(newBlocks);
+                setIsDirty(true);
+              }}
+              hideControls={isReadingMode}
+              bookTitle={bookTitle}
+              bookMode={bookMode}
+              firstLineIndent={bookSettings.firstLineIndent ?? 1.2}
+            />
           </div>
         </div>
 
