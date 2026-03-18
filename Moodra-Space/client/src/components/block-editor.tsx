@@ -2269,6 +2269,18 @@ export function FullTextEditor({ blocks, onChange, lineSpacing: lineSpacingProp 
 
   const handleInput = useCallback(() => {
     if (!editorRef.current) return;
+    // Lift any nested [data-block-type] elements to the top level before parsing
+    let stabilized = false;
+    while (!stabilized) {
+      const nested = editorRef.current.querySelectorAll("[data-block-type] [data-block-type]");
+      if (nested.length === 0) { stabilized = true; break; }
+      nested.forEach(inner => {
+        const parent = inner.parentElement;
+        if (parent && parent !== editorRef.current && parent.hasAttribute("data-block-type")) {
+          parent.insertAdjacentElement("afterend", inner as HTMLElement);
+        }
+      });
+    }
     const newBlocks = parseHTMLContainer(editorRef.current);
     onChangeRef.current(newBlocks);
   }, []);

@@ -832,35 +832,60 @@ export function ChapterEditor({
     if (!improvementModal) return;
     const { original, improved, savedRange } = improvementModal;
 
-    // Fast path for Full Text mode: directly replace the selected range in the contenteditable
+    // Fast path for Full Text mode: replace selected top-level blocks with AI output
     if (viewMode === "fulltext" && savedRange) {
-      try {
-        savedRange.deleteContents();
-        const paragraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-        if (!paragraphs.length) paragraphs.push(improved.trim() || " ");
-        const frag = document.createDocumentFragment();
-        paragraphs.forEach((para, idx) => {
-          if (idx > 0) {
+      const fteEl = editorAreaRef.current?.querySelector('[contenteditable="true"]') as HTMLElement | null;
+      if (fteEl) {
+        try {
+          // Find the top-level block (direct child of fteEl) that owns a given node
+          const findTopBlock = (node: Node): HTMLElement | null => {
+            let cur: Node | null = node;
+            while (cur && cur.parentNode !== fteEl) cur = cur.parentNode;
+            return cur instanceof HTMLElement ? cur : null;
+          };
+
+          const startTop = findTopBlock(savedRange.startContainer);
+          const endTop = findTopBlock(savedRange.endContainer);
+          if (!startTop || !endTop) throw new Error("no top block");
+
+          // Build replacement elements from AI improved text
+          const paragraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+          if (!paragraphs.length) paragraphs.push(improved.trim() || " ");
+          const newEls = paragraphs.map(para => {
             const div = document.createElement("div");
             div.setAttribute("data-block-type", "paragraph");
             div.setAttribute("data-block-id", Math.random().toString(36).substring(2, 11));
             div.className = "fte-block fte-paragraph";
             div.textContent = para;
-            frag.appendChild(div);
-          } else {
-            frag.appendChild(document.createTextNode(para));
-          }
-        });
-        savedRange.insertNode(frag);
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(savedRange);
-        const fteEl = editorAreaRef.current?.querySelector('[contenteditable="true"]') as HTMLElement | null;
-        if (fteEl) fteEl.dispatchEvent(new Event("input", { bubbles: true }));
-        setImprovementModal(null);
-        setCustomInstruction("");
-        return;
-      } catch { /* fall through to block-based logic */ }
+            return div;
+          });
+
+          // Collect all top-level blocks from startTop to endTop inclusive
+          const allChildren = Array.from(fteEl.children) as HTMLElement[];
+          const si = allChildren.indexOf(startTop);
+          const ei = allChildren.indexOf(endTop);
+          if (si === -1 || ei === -1) throw new Error("block index error");
+
+          // Insert new blocks before the first replaced block, then remove old ones
+          const anchor = allChildren[si];
+          newEls.forEach(el => fteEl.insertBefore(el, anchor));
+          allChildren.slice(si, ei + 1).forEach(el => fteEl.removeChild(el));
+
+          // Place cursor at end of last new element
+          const lastEl = newEls[newEls.length - 1];
+          const r = document.createRange();
+          r.selectNodeContents(lastEl);
+          r.collapse(false);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(r);
+
+          fteEl.dispatchEvent(new Event("input", { bubbles: true }));
+          setImprovementModal(null);
+          setCustomInstruction("");
+          return;
+        } catch { /* fall through to block-based logic */ }
+      }
     }
 
     // Helper: find the closest [data-block-id] ancestor
