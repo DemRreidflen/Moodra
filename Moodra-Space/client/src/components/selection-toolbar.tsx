@@ -121,6 +121,32 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
     { mode: "fix-grammar",label: s.fixGrammar, icon: SpellCheck,  color: "#6EE7B7" },
   ];
 
+  // Compute toolbar position from the current selection range
+  const computePosition = useCallback((range: Range) => {
+    const container = containerRef.current;
+    if (!container) return null;
+    const containerRect = container.getBoundingClientRect();
+
+    // Use the first client rect (start of selection) for stable positioning
+    const clientRects = range.getClientRects();
+    const firstRect = clientRects[0];
+    if (!firstRect || !firstRect.width) return null;
+
+    // Verify the selection START is within the container (lenient horizontal check only)
+    if (
+      firstRect.left < containerRect.left - 20 ||
+      firstRect.right > containerRect.right + 20
+    ) return null;
+
+    const toolbarWidth = 500;
+    // Center toolbar over the first line of the selection
+    let left = firstRect.left + firstRect.width / 2 - toolbarWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - toolbarWidth - 8));
+    // Show above the first line, clamped so it doesn't go off-screen top
+    const top = Math.max(8, firstRect.top - 54);
+    return { top, left };
+  }, [containerRef]);
+
   const handleSelectionChange = useCallback(() => {
     // Don't react to selection changes while we're clicking inside the toolbar
     if (isMouseDownOnToolbar.current) return;
@@ -136,38 +162,39 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
     const text = sel.toString().trim();
     if (text.length < 5) { setVisible(false); return; }
 
-    const container = containerRef.current;
-    if (!container) return;
     const range = sel.getRangeAt(0);
-    const rangeRect = range.getBoundingClientRect();
-    if (!rangeRect.width) { setVisible(false); return; }
-
-    const containerRect = container.getBoundingClientRect();
-    if (
-      rangeRect.top < containerRect.top ||
-      rangeRect.bottom > containerRect.bottom + 80 ||
-      rangeRect.left < containerRect.left - 20 ||
-      rangeRect.right > containerRect.right + 20
-    ) {
-      setVisible(false);
-      return;
-    }
+    const pos = computePosition(range);
+    if (!pos) { setVisible(false); return; }
 
     selectedTextRef.current = text;
     savedRangeRef.current = range.cloneRange();
-    const toolbarWidth = 500;
-    let left = rangeRect.left + rangeRect.width / 2 - toolbarWidth / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - toolbarWidth - 8));
-    const top = rangeRect.top - 54;
-    setPosition({ top, left });
+    setPosition(pos);
     setVisible(true);
     setShowNoApi(false);
-  }, [containerRef]);
+  }, [computePosition]);
 
   useEffect(() => {
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
   }, [handleSelectionChange]);
+
+  // Re-position toolbar on scroll so it tracks the selection
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!visible) return;
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) return;
+      const range = sel.getRangeAt(0);
+      const pos = computePosition(range);
+      if (pos) {
+        setPosition(pos);
+      } else {
+        setVisible(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [visible, computePosition]);
 
   // Close sub-panels when clicking outside toolbar
   useEffect(() => {
