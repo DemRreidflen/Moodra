@@ -830,6 +830,18 @@ export function ChapterEditor({
     }
     if (!improvedParagraphs.length) improvedParagraphs.push(improved.trim() || " ");
 
+    // Helper: build a minimal Block object from a DOM block element (avoids relying on chapter-editor's stale blocks state)
+    const blockInfoFromEl = (blockEl: HTMLElement) => {
+      const blockId = blockEl.getAttribute("data-block-id") ?? "";
+      const contentEl = blockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
+      const testId = contentEl?.getAttribute("data-testid") ?? "";
+      // data-testid = "block-content-{type}-{id}" — strip prefix and suffix to get type
+      const typeMatch = testId.match(/^block-content-(.+)-[^-]+$/);
+      const blockType = typeMatch?.[1] ?? "paragraph";
+      const content = contentEl?.innerText ?? "";
+      return { id: blockId, type: blockType as any, content };
+    };
+
     // Helper: get prefix/suffix text around a Range within a block's content element
     const getPrefixSuffix = (range: Range, blockEl: HTMLElement) => {
       const contentEl = blockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
@@ -895,14 +907,12 @@ export function ChapterEditor({
         // "paragraphs" mode: immediately splice into block-editor's own state
         // (so visual update is instant, without needing a page reload)
         if (mode === "paragraphs" && improvedParagraphs.length > 1) {
-          const anchorBlock = blocks.find(b => b.id === startBlockId);
-          if (anchorBlock) {
-            const newBlocksArr = buildNewBlocks(improvedParagraphs, anchorBlock as any, prefixText, suffixText);
-            blockEditorApiRef.current?.spliceBlocks(startBlockId, endBlockId, newBlocksArr);
-            setImprovementModal(null);
-            setCustomInstruction("");
-            return;
-          }
+          const anchorBlock = blockInfoFromEl(startBlockEl);
+          const newBlocksArr = buildNewBlocks(improvedParagraphs, anchorBlock, prefixText, suffixText);
+          blockEditorApiRef.current?.spliceBlocks(startBlockId, endBlockId, newBlocksArr);
+          setImprovementModal(null);
+          setCustomInstruction("");
+          return;
         }
 
         // Other modes: distribute text to preserve original block count
@@ -972,14 +982,12 @@ export function ChapterEditor({
         if (blockEl) {
           const blockId = blockEl.getAttribute("data-block-id")!;
           const { prefix, suffix } = getPrefixSuffix(savedRange, blockEl);
-          const block = blocks.find(b => b.id === blockId);
-          if (block) {
-            const newBlocksArr = buildNewBlocks(improvedParagraphs, block as any, prefix, suffix);
-            blockEditorApiRef.current?.spliceBlocks(blockId, blockId, newBlocksArr);
-            setImprovementModal(null);
-            setCustomInstruction("");
-            return;
-          }
+          const block = blockInfoFromEl(blockEl);
+          const newBlocksArr = buildNewBlocks(improvedParagraphs, block, prefix, suffix);
+          blockEditorApiRef.current?.spliceBlocks(blockId, blockId, newBlocksArr);
+          setImprovementModal(null);
+          setCustomInstruction("");
+          return;
         }
       }
     }
@@ -987,14 +995,26 @@ export function ChapterEditor({
     // ── SINGLE-BLOCK or no savedRange fallback ─────────────────────────────
     // "paragraphs" mode with no savedRange: fall back to text search to find the block
     if (mode === "paragraphs" && improvedParagraphs.length > 1) {
-      const block = blocks.find(b => b.content && stripHtml(b.content).includes(stripHtml(original)));
-      if (block) {
+      // Search by content in the actual DOM (reliable even when chapter-editor blocks state has stale IDs)
+      const strippedOriginal = stripHtml(original);
+      let foundBlockEl: HTMLElement | null = null;
+      for (const el of Array.from(document.querySelectorAll("[data-block-id]"))) {
+        const htmlEl = el as HTMLElement;
+        const contentEl = htmlEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
+        if (contentEl && contentEl.innerText.includes(strippedOriginal)) {
+          foundBlockEl = htmlEl;
+          break;
+        }
+      }
+      if (foundBlockEl) {
+        const blockId = foundBlockEl.getAttribute("data-block-id")!;
+        const block = blockInfoFromEl(foundBlockEl);
         const newBlocksArr = improvedParagraphs.map((para, i) =>
           i === 0
             ? { ...block, content: para }
             : { id: genId(), type: block.type, content: para } as typeof block
         );
-        blockEditorApiRef.current?.spliceBlocks(block.id, block.id, newBlocksArr);
+        blockEditorApiRef.current?.spliceBlocks(blockId, blockId, newBlocksArr);
         setImprovementModal(null);
         setCustomInstruction("");
         return;
