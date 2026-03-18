@@ -2087,3 +2087,221 @@ export function blocksToPlainText(blocks: Block[]): string {
     .map(b => b.content)
     .join("\n\n");
 }
+
+const FULLTEXT_STYLE = `
+.fte-wrapper { counter-reset: numbered-list; }
+.fte-block { min-height: 1.5em; word-break: break-word; }
+.fte-paragraph { font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; margin: 0.4rem 0; line-height: var(--fte-line-height, 1.7); }
+.fte-h1 { font-size: 2.25rem; font-weight: 700; font-family: Georgia,"Times New Roman",serif; margin: 1.5rem 0 0.75rem; line-height: 1.2; }
+.fte-h2 { font-size: 1.5rem; font-weight: 700; font-family: Georgia,"Times New Roman",serif; margin: 1rem 0 0.5rem; line-height: 1.3; }
+.fte-h3 { font-size: 1.25rem; font-weight: 700; font-family: Georgia,"Times New Roman",serif; margin: 0.75rem 0 0.25rem; line-height: 1.4; }
+.fte-quote { border-left: 4px solid rgba(99,102,241,0.3); padding: 0.4rem 0 0.4rem 1rem; font-style: italic; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; color: #6b7280; margin: 0.5rem 0; }
+.fte-ul { list-style: disc; padding-left: 1.6rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; }
+.fte-ol { list-style: decimal; padding-left: 1.6rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; counter-reset: none; }
+.fte-li { line-height: var(--fte-line-height, 1.7); margin: 0.1rem 0; }
+.fte-check_item { font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; padding-left: 1.6rem; position: relative; margin: 0.3rem 0; line-height: var(--fte-line-height, 1.7); }
+.fte-check_item::before { content: "☐"; position: absolute; left: 0; color: #9ca3af; }
+.fte-divider { border: none; border-top: 1px solid #e5e7eb; margin: 1.2rem 0; height: 0; pointer-events: none; min-height: 0; }
+.fte-hypothesis { background: #EEF4FF; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-argument { background: #EFFDF4; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-counterargument { background: #FFF0F0; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-idea { background: #FFFBEB; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-question { background: #F5F3FF; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-example { background: #F0FDFA; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-observation { background: #FFF7ED; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-research { background: #F9FAFB; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.4rem 0; font-size: 1.125rem; font-family: Georgia,"Times New Roman",serif; line-height: var(--fte-line-height, 1.7); }
+.fte-source_ref { color: #6366f1; text-decoration: underline; font-size: 0.9rem; margin: 0.3rem 0; line-height: var(--fte-line-height, 1.7); }
+`;
+
+export function blocksToFullHTML(blocks: Block[]): string {
+  const parts: string[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const block = blocks[i];
+
+    if (block.type === "bullet_item") {
+      const items: Block[] = [];
+      while (i < blocks.length && blocks[i].type === "bullet_item") {
+        items.push(blocks[i++]);
+      }
+      const lis = items.map(b =>
+        `<li data-block-type="bullet_item" data-block-id="${b.id}" class="fte-li">${b.content || "<br>"}</li>`
+      ).join("");
+      parts.push(`<ul class="fte-block fte-ul">${lis}</ul>`);
+      continue;
+    }
+
+    if (block.type === "numbered_item") {
+      const items: Block[] = [];
+      while (i < blocks.length && blocks[i].type === "numbered_item") {
+        items.push(blocks[i++]);
+      }
+      const lis = items.map(b =>
+        `<li data-block-type="numbered_item" data-block-id="${b.id}" class="fte-li">${b.content || "<br>"}</li>`
+      ).join("");
+      parts.push(`<ol class="fte-block fte-ol">${lis}</ol>`);
+      continue;
+    }
+
+    const type = block.type;
+    const id = block.id;
+    const content = type === "divider" ? "" : (block.content || "<br>");
+    const cls = `fte-block fte-${type}`;
+    parts.push(`<div data-block-type="${type}" data-block-id="${id}" class="${cls}">${content}</div>`);
+    i++;
+  }
+  return parts.join("");
+}
+
+function fullHTMLToBlocks(container: HTMLElement): Block[] {
+  const blocks: Block[] = [];
+  const seenIds = new Set<string>();
+
+  function processNode(node: Node) {
+    if (!(node instanceof HTMLElement)) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+        blocks.push({ id: generateId(), type: "paragraph", content: node.textContent });
+      }
+      return;
+    }
+    const tag = node.tagName.toLowerCase();
+
+    if (tag === "ul" || tag === "ol") {
+      const itemType: BlockType = tag === "ul" ? "bullet_item" : "numbered_item";
+      for (const li of Array.from(node.childNodes)) {
+        if (!(li instanceof HTMLElement)) continue;
+        const rawId = li.getAttribute("data-block-id") || "";
+        const id = rawId && !seenIds.has(rawId) ? rawId : generateId();
+        seenIds.add(id);
+        const type = (li.getAttribute("data-block-type") as BlockType) || itemType;
+        const content = li.innerHTML === "<br>" ? "" : li.innerHTML;
+        blocks.push({ id, type, content });
+      }
+      return;
+    }
+
+    const rawId = node.getAttribute("data-block-id") || "";
+    const id = rawId && !seenIds.has(rawId) ? rawId : generateId();
+    seenIds.add(id);
+    const type = (node.getAttribute("data-block-type") as BlockType) || "paragraph";
+
+    if (type === "divider") {
+      blocks.push({ id, type: "divider", content: "" });
+      return;
+    }
+
+    const content = node.innerHTML === "<br>" ? "" : node.innerHTML;
+    blocks.push({ id, type, content });
+  }
+
+  for (const child of Array.from(container.childNodes)) {
+    processNode(child);
+  }
+
+  if (!blocks.length) {
+    blocks.push({ id: generateId(), type: "paragraph", content: "" });
+  }
+  return blocks;
+}
+
+interface FullTextEditorProps {
+  blocks: Block[];
+  onChange: (blocks: Block[]) => void;
+  lineSpacing?: string;
+  firstLineIndent?: number;
+}
+
+export function FullTextEditor({ blocks, onChange, lineSpacing }: FullTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const isInitializedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!editorRef.current || isInitializedRef.current) return;
+    isInitializedRef.current = true;
+    editorRef.current.innerHTML = blocksToFullHTML(blocks);
+  }, []);
+
+  const handleInput = useCallback(() => {
+    if (!editorRef.current) return;
+    const newBlocks = fullHTMLToBlocks(editorRef.current);
+    onChangeRef.current(newBlocks);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+
+    let blockEl: HTMLElement | null = null;
+    let node: Node | null = range.startContainer;
+    while (node && node !== editorRef.current) {
+      if (node instanceof HTMLElement && node.parentNode === editorRef.current) {
+        blockEl = node;
+        break;
+      }
+      node = node.parentNode;
+    }
+
+    if (!blockEl) return;
+    const tag = blockEl.tagName.toLowerCase();
+
+    if (tag === "ul" || tag === "ol") return;
+
+    e.preventDefault();
+
+    if (!range.collapsed) range.deleteContents();
+
+    const afterRange = document.createRange();
+    afterRange.setStart(range.startContainer, range.startOffset);
+    afterRange.setEnd(blockEl, blockEl.childNodes.length);
+    const frag = afterRange.extractContents();
+
+    const newDiv = document.createElement("div");
+    newDiv.setAttribute("data-block-type", "paragraph");
+    newDiv.setAttribute("data-block-id", generateId());
+    newDiv.className = "fte-block fte-paragraph";
+    newDiv.appendChild(frag);
+    if (!newDiv.textContent?.trim() && !newDiv.querySelector("img,br")) {
+      newDiv.innerHTML = "<br>";
+    }
+
+    blockEl.insertAdjacentElement("afterend", newDiv);
+
+    const newRange = document.createRange();
+    const firstChild = newDiv.firstChild;
+    if (firstChild && firstChild.nodeType === Node.TEXT_NODE) {
+      newRange.setStart(firstChild, 0);
+    } else {
+      newRange.setStart(newDiv, 0);
+    }
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+
+    handleInput();
+  }, [handleInput]);
+
+  return (
+    <>
+      <style>{FULLTEXT_STYLE}</style>
+      <div
+        className="fte-wrapper"
+        style={{ "--fte-line-height": lineSpacing || "1.7" } as React.CSSProperties}
+      >
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          className="outline-none"
+          spellCheck={false}
+        />
+      </div>
+    </>
+  );
+}
