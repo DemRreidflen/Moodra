@@ -491,6 +491,7 @@ export function ChapterEditor({
   const [improvementModal, setImprovementModal] = useState<{
     original: string;
     improved: string;
+    mode?: string;
     savedRange?: Range | null;
   } | null>(null);
   const [lastMode, setLastMode] = useState<string>("improve");
@@ -807,9 +808,12 @@ export function ChapterEditor({
 
   const handleApplyImprovement = () => {
     if (!improvementModal) return;
-    const { original, improved, savedRange } = improvementModal;
+    const { original, improved, mode, savedRange } = improvementModal;
 
-    // Helper: find the closest [data-block-id] ancestor
+    // Shared helpers
+    const genId = () => Math.random().toString(36).substring(2, 11);
+    const stripHtml = (html: string) => (html || "").replace(/<[^>]*>/g, "");
+
     const findBlockEl = (node: Node | null): HTMLElement | null => {
       let cur: Node | null = node;
       while (cur) {
@@ -819,93 +823,122 @@ export function ChapterEditor({
       return null;
     };
 
-    // Try cross-block replacement using saved Range
+    // Split AI response into paragraphs (prefer \n\n, fall back to \n)
+    let improvedParagraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+    if (improvedParagraphs.length === 1 && improved.includes("\n")) {
+      improvedParagraphs = improved.split(/\n+/).map(p => p.trim()).filter(Boolean);
+    }
+    if (!improvedParagraphs.length) improvedParagraphs.push(improved.trim() || " ");
+
+    // Helper: get prefix/suffix text around a Range within a block's content element
+    const getPrefixSuffix = (range: Range, blockEl: HTMLElement) => {
+      const contentEl = blockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
+      let prefix = "", suffix = "";
+      try {
+        if (contentEl) {
+          const pr = document.createRange();
+          pr.setStart(contentEl, 0);
+          pr.setEnd(range.startContainer, range.startOffset);
+          prefix = pr.toString();
+          const sr = document.createRange();
+          sr.setStart(range.endContainer, range.endOffset);
+          sr.setEndAfter(contentEl.lastChild ?? contentEl);
+          suffix = sr.toString();
+        }
+      } catch { /* DOM may have changed */ }
+      return { prefix, suffix };
+    };
+
+    // Helper: build N new blocks from paragraph chunks + prefix/suffix
+    const buildNewBlocks = (
+      paras: string[],
+      anchorBlock: { id: string; type: string; content: string; metadata?: any },
+      prefix: string,
+      suffix: string
+    ) => paras.map((para, i) => {
+      let content = para;
+      if (i === 0 && prefix) content = prefix.trimEnd() + " " + content.trimStart();
+      if (i === paras.length - 1 && suffix) content = content.trimEnd() + " " + suffix.trimStart();
+      content = content.trim();
+      return i === 0
+        ? { ...anchorBlock, content }
+        : { id: genId(), type: anchorBlock.type, content } as typeof anchorBlock;
+    });
+
+    // ── CROSS-BLOCK selection ──────────────────────────────────────────────
     if (savedRange) {
       const startBlockEl = findBlockEl(savedRange.startContainer);
-      const endBlockEl = findBlockEl(savedRange.endContainer);
+      const endBlockEl   = findBlockEl(savedRange.endContainer);
 
       if (startBlockEl && endBlockEl && startBlockEl !== endBlockEl) {
         const startBlockId = startBlockEl.getAttribute("data-block-id")!;
-        const endBlockId = endBlockEl.getAttribute("data-block-id")!;
+        const endBlockId   = endBlockEl.getAttribute("data-block-id")!;
 
-        // Get text before selection in start block
         const startContentEl = startBlockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
-        const endContentEl = endBlockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
-
-        let prefixText = "";
-        let suffixText = "";
+        const endContentEl   = endBlockEl.querySelector("[data-testid^='block-content-']") as HTMLElement | null;
+        let prefixText = "", suffixText = "";
         try {
           if (startContentEl) {
-            const prefixRange = document.createRange();
-            prefixRange.setStart(startContentEl, 0);
-            prefixRange.setEnd(savedRange.startContainer, savedRange.startOffset);
-            prefixText = prefixRange.toString();
+            const pr = document.createRange();
+            pr.setStart(startContentEl, 0);
+            pr.setEnd(savedRange.startContainer, savedRange.startOffset);
+            prefixText = pr.toString();
           }
           if (endContentEl) {
-            const suffixRange = document.createRange();
-            suffixRange.setStart(savedRange.endContainer, savedRange.endOffset);
-            suffixRange.setEndAfter(endContentEl.lastChild ?? endContentEl);
-            suffixText = suffixRange.toString();
+            const sr = document.createRange();
+            sr.setStart(savedRange.endContainer, savedRange.endOffset);
+            sr.setEndAfter(endContentEl.lastChild ?? endContentEl);
+            suffixText = sr.toString();
           }
-        } catch { /* DOM nodes may have changed, fall through */ }
-
-        // Helper: distribute text words proportionally to given length hints
-        const distributeTextProportionally = (text: string, lengths: number[]): string[] => {
-          const words = text.trim().split(/\s+/).filter(Boolean);
-          if (!words.length) return lengths.map(() => "");
-          const totalLen = lengths.reduce((s, l) => s + l, 0) || 1;
-          const chunks: string[] = [];
-          let wi = 0;
-          for (let i = 0; i < lengths.length; i++) {
-            if (i === lengths.length - 1) {
-              chunks.push(words.slice(wi).join(" "));
-            } else {
-              const count = Math.max(1, Math.round((lengths[i] / totalLen) * words.length));
-              const safe = Math.min(wi + count, words.length - (lengths.length - i - 1));
-              chunks.push(words.slice(wi, safe).join(" "));
-              wi = safe;
-            }
-          }
-          return chunks;
-        };
-
-        const stripHtml = (html: string) => (html || "").replace(/<[^>]*>/g, "");
-
-        // Split by \n\n (ideal) or fall back to \n (in case AI used single newlines)
-        let improvedParagraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-        if (improvedParagraphs.length === 1 && improved.includes("\n")) {
-          improvedParagraphs = improved.split(/\n+/).map(p => p.trim()).filter(Boolean);
-        }
-        if (!improvedParagraphs.length) improvedParagraphs.push(improved.trim() || " ");
+        } catch {}
 
         setBlocks(prev => {
           const startIdx = prev.findIndex(b => b.id === startBlockId);
-          const endIdx = prev.findIndex(b => b.id === endBlockId);
+          const endIdx   = prev.findIndex(b => b.id === endBlockId);
           if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return prev;
 
           const selectedBlocks = prev.slice(startIdx, endIdx + 1);
           const numBlocks = selectedBlocks.length;
+          const startBlock = selectedBlocks[0];
 
-          // Build text chunks — one per original block
+          // "paragraphs" mode: always create exactly one block per returned paragraph
+          if (mode === "paragraphs" && improvedParagraphs.length > 1) {
+            const newBlocks = buildNewBlocks(improvedParagraphs, startBlock, prefixText, suffixText);
+            return [...prev.slice(0, startIdx), ...newBlocks, ...prev.slice(endIdx + 1)];
+          }
+
+          // Other modes: distribute text to preserve original block count
+          const distributeTextProportionally = (text: string, lengths: number[]): string[] => {
+            const words = text.trim().split(/\s+/).filter(Boolean);
+            if (!words.length) return lengths.map(() => "");
+            const totalLen = lengths.reduce((s, l) => s + l, 0) || 1;
+            const chunks: string[] = [];
+            let wi = 0;
+            for (let i = 0; i < lengths.length; i++) {
+              if (i === lengths.length - 1) {
+                chunks.push(words.slice(wi).join(" "));
+              } else {
+                const count = Math.max(1, Math.round((lengths[i] / totalLen) * words.length));
+                const safe = Math.min(wi + count, words.length - (lengths.length - i - 1));
+                chunks.push(words.slice(wi, safe).join(" "));
+                wi = safe;
+              }
+            }
+            return chunks;
+          };
+
           let chunks: string[];
           if (improvedParagraphs.length >= numBlocks) {
-            // Enough paragraph breaks: map 1:1, merge extras into last
             chunks = [
               ...improvedParagraphs.slice(0, numBlocks - 1),
               improvedParagraphs.slice(numBlocks - 1).join(" "),
             ];
           } else if (improvedParagraphs.length > 1) {
-            // Some breaks but fewer than blocks: distribute paragraphs across blocks
-            const paraLengths = Array.from({ length: numBlocks }, (_, i) =>
-              Math.round((i / numBlocks) * improvedParagraphs.length) !==
-              Math.round(((i + 1) / numBlocks) * improvedParagraphs.length)
-                ? 1 : 0
+            chunks = distributeTextProportionally(
+              improvedParagraphs.join(" "),
+              selectedBlocks.map(b => stripHtml(b.content || "").length || 1)
             );
-            chunks = distributeTextProportionally(improvedParagraphs.join(" "), paraLengths.map((_, i) =>
-              stripHtml(selectedBlocks[i].content || "").length || 1
-            ));
           } else {
-            // Single paragraph: distribute words proportionally across original blocks
             const selectedLengths = selectedBlocks.map((b, i) => {
               const plain = stripHtml(b.content || "");
               if (i === 0) return Math.max(1, plain.length - prefixText.length);
@@ -915,7 +948,6 @@ export function ChapterEditor({
             chunks = distributeTextProportionally(improvedParagraphs[0], selectedLengths);
           }
 
-          // Assemble new blocks preserving original block types
           const newBlocks = selectedBlocks.map((b, i) => {
             let content = chunks[i] || "";
             if (i === 0 && prefixText) content = prefixText.trimEnd() + " " + content.trimStart();
@@ -923,9 +955,51 @@ export function ChapterEditor({
             return { ...b, content: content.trim() };
           });
 
-          const updated = [...prev.slice(0, startIdx), ...newBlocks, ...prev.slice(endIdx + 1)];
-          return updated;
+          return [...prev.slice(0, startIdx), ...newBlocks, ...prev.slice(endIdx + 1)];
         });
+        setIsDirty(true);
+        setImprovementModal(null);
+        setCustomInstruction("");
+        return;
+      }
+
+      // ── SAME-BLOCK "paragraphs": split single block into multiple ─────────
+      if (mode === "paragraphs" && improvedParagraphs.length > 1) {
+        const blockEl = findBlockEl(savedRange.startContainer);
+        if (blockEl) {
+          const blockId = blockEl.getAttribute("data-block-id")!;
+          const { prefix, suffix } = getPrefixSuffix(savedRange, blockEl);
+          setBlocks(prev => {
+            const idx = prev.findIndex(b => b.id === blockId);
+            if (idx === -1) return prev;
+            const newBlocks = buildNewBlocks(improvedParagraphs, prev[idx] as any, prefix, suffix);
+            return [...prev.slice(0, idx), ...newBlocks, ...prev.slice(idx + 1)];
+          });
+          setIsDirty(true);
+          setImprovementModal(null);
+          setCustomInstruction("");
+          return;
+        }
+      }
+    }
+
+    // ── SINGLE-BLOCK or no savedRange fallback ─────────────────────────────
+    // "paragraphs" mode with no savedRange: fall back to text search to find the block
+    if (mode === "paragraphs" && improvedParagraphs.length > 1) {
+      let handled = false;
+      setBlocks(prev => {
+        const idx = prev.findIndex(b => b.content && stripHtml(b.content).includes(stripHtml(original)));
+        if (idx === -1) return prev;
+        handled = true;
+        const block = prev[idx];
+        const newBlocks = improvedParagraphs.map((para, i) =>
+          i === 0
+            ? { ...block, content: para }
+            : { id: genId(), type: block.type, content: para } as typeof block
+        );
+        return [...prev.slice(0, idx), ...newBlocks, ...prev.slice(idx + 1)];
+      });
+      if (handled) {
         setIsDirty(true);
         setImprovementModal(null);
         setCustomInstruction("");
@@ -933,7 +1007,6 @@ export function ChapterEditor({
       }
     }
 
-    // Single-block or fallback
     if (blockEditorApiRef.current) {
       blockEditorApiRef.current.replaceTextInBlocks(original, improved);
     } else {
@@ -1008,7 +1081,7 @@ export function ChapterEditor({
 
   const handleSelectionResult = useCallback((original: string, improved: string, mode: string, savedRange: Range | null) => {
     setLastMode(mode);
-    setImprovementModal({ original, improved, savedRange });
+    setImprovementModal({ original, improved, mode, savedRange });
   }, []);
 
   const handleAdaptLanguage = async (workflowOverride?: "new" | "existing") => {
