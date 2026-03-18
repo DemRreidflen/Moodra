@@ -832,12 +832,12 @@ export function ChapterEditor({
     if (!improvementModal) return;
     const { original, improved, savedRange } = improvementModal;
 
-    // Fast path for Full Text mode: replace selected top-level blocks with AI output
+    // Fast path for Full Text mode: range-aware replacement preserving prefix/suffix
     if (viewMode === "fulltext" && savedRange) {
       const fteEl = editorAreaRef.current?.querySelector('[contenteditable="true"]') as HTMLElement | null;
       if (fteEl) {
         try {
-          // Find the top-level block (direct child of fteEl) that owns a given node
+          // Helper: walk up to the direct child block of fteEl
           const findTopBlock = (node: Node): HTMLElement | null => {
             let cur: Node | null = node;
             while (cur && cur.parentNode !== fteEl) cur = cur.parentNode;
@@ -848,25 +848,60 @@ export function ChapterEditor({
           const endTop = findTopBlock(savedRange.endContainer);
           if (!startTop || !endTop) throw new Error("no top block");
 
-          // Build replacement elements from AI improved text
-          const paragraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-          if (!paragraphs.length) paragraphs.push(improved.trim() || " ");
-          const newEls = paragraphs.map(para => {
+          // Extract inline HTML before and after the selection within boundary blocks,
+          // so we can stitch them onto the first/last AI paragraphs and avoid content loss.
+          const extractHTML = (range: Range): string => {
+            const tmp = document.createElement("div");
+            tmp.appendChild(range.cloneContents());
+            return tmp.innerHTML;
+          };
+
+          let prefixHTML = "";
+          try {
+            const pr = document.createRange();
+            pr.setStart(startTop, 0);
+            pr.setEnd(savedRange.startContainer, savedRange.startOffset);
+            prefixHTML = extractHTML(pr);
+          } catch { /* ignore */ }
+
+          let suffixHTML = "";
+          try {
+            const sr = document.createRange();
+            sr.setStart(savedRange.endContainer, savedRange.endOffset);
+            sr.setEnd(endTop, endTop.childNodes.length);
+            suffixHTML = extractHTML(sr);
+          } catch { /* ignore */ }
+
+          // Split AI output by double-newlines (or single if no double exists)
+          const rawParas = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+          if (!rawParas.length) rawParas.push(improved.trim() || "\u00a0");
+
+          const makeBlock = (html: string): HTMLElement => {
             const div = document.createElement("div");
             div.setAttribute("data-block-type", "paragraph");
             div.setAttribute("data-block-id", Math.random().toString(36).substring(2, 11));
             div.className = "fte-block fte-paragraph";
-            div.textContent = para;
+            div.innerHTML = html || "\u00a0";
             return div;
-          });
+          };
 
-          // Collect all top-level blocks from startTop to endTop inclusive
+          // Build new elements: first block gets prefix, last block gets suffix
+          const newEls: HTMLElement[] = [];
+          if (rawParas.length === 1) {
+            newEls.push(makeBlock(`${prefixHTML}${rawParas[0]}${suffixHTML}`));
+          } else {
+            newEls.push(makeBlock(`${prefixHTML}${rawParas[0]}`));
+            for (let i = 1; i < rawParas.length - 1; i++) {
+              newEls.push(makeBlock(rawParas[i]));
+            }
+            newEls.push(makeBlock(`${rawParas[rawParas.length - 1]}${suffixHTML}`));
+          }
+
+          // Replace the span of top-level blocks with new elements
           const allChildren = Array.from(fteEl.children) as HTMLElement[];
           const si = allChildren.indexOf(startTop);
           const ei = allChildren.indexOf(endTop);
           if (si === -1 || ei === -1) throw new Error("block index error");
-
-          // Insert new blocks before the first replaced block, then remove old ones
           const anchor = allChildren[si];
           newEls.forEach(el => fteEl.insertBefore(el, anchor));
           allChildren.slice(si, ei + 1).forEach(el => fteEl.removeChild(el));

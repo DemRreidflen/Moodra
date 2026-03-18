@@ -2260,12 +2260,24 @@ export function FullTextEditor({ blocks, onChange, lineSpacing: lineSpacingProp 
   onChangeRef.current = onChange;
   const isInitializedRef = useRef(false);
   const [lineSpacing, setLineSpacing] = useState(lineSpacingProp || "1.7");
+  // Track last blocks we produced so we can detect external (non-typing) changes
+  const lastBlocksRef = useRef<Block[]>(blocks);
 
   useLayoutEffect(() => {
     if (!editorRef.current || isInitializedRef.current) return;
     isInitializedRef.current = true;
+    lastBlocksRef.current = blocks;
     editorRef.current.innerHTML = blocksToFullHTML(blocks);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync DOM when blocks prop changes externally (e.g. AI apply fallback path)
+  useEffect(() => {
+    if (!editorRef.current || !isInitializedRef.current) return;
+    if (JSON.stringify(blocks) === JSON.stringify(lastBlocksRef.current)) return;
+    // External update — re-render DOM without touching cursor
+    lastBlocksRef.current = blocks;
+    editorRef.current.innerHTML = blocksToFullHTML(blocks);
+  }, [blocks]);
 
   const handleInput = useCallback(() => {
     if (!editorRef.current) return;
@@ -2282,6 +2294,7 @@ export function FullTextEditor({ blocks, onChange, lineSpacing: lineSpacingProp 
       });
     }
     const newBlocks = parseHTMLContainer(editorRef.current);
+    lastBlocksRef.current = newBlocks; // mark as our own update so effect won't re-render
     onChangeRef.current(newBlocks);
   }, []);
 
