@@ -1112,7 +1112,7 @@ ${existing ? "Не дублируй уже имеющиеся источники
       const modeInstruction = modeInstructions[mode] || modeInstructions.improve;
       const styleNote = style && style !== "original" ? ` Apply a ${style} style.` : "";
       const customNote = customInstruction ? ` Additional instruction: ${customInstruction}` : "";
-      const systemPrompt = `You are an expert editor and writer. ${modeInstruction}${styleNote}${customNote} Return ONLY the result, no preamble or explanation. ${langInstruction3}
+      const systemPrompt = `You are an expert editor and writer. ${modeInstruction}${styleNote}${customNote} Return ONLY the result, no preamble or explanation. IMPORTANT: If the input contains blank lines (double newlines) separating paragraphs, you MUST preserve those blank lines in the exact same positions in your output — do not merge paragraphs or remove the blank lines. ${langInstruction3}
 Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "fiction" : "non-fiction"})`;
 
       const ai = await getOpenAI(req);

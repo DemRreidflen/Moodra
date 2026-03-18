@@ -162,8 +162,11 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, onResult }
       setShowNoApi(false);
       return;
     }
-    const text = sel.toString().trim();
-    if (text.length < 5) { setVisible(false); return; }
+    const raw = sel.toString().trim();
+    if (raw.length < 5) { setVisible(false); return; }
+    // Normalise block boundaries: browser puts single \n between block elements,
+    // replace with \n\n so the AI sees proper paragraph breaks and preserves them.
+    const text = raw.replace(/\n+/g, "\n\n");
 
     const range = sel.getRangeAt(0);
     const pos = computePosition(range);

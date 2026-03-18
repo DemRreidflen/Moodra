@@ -871,7 +871,11 @@ export function ChapterEditor({
 
         const stripHtml = (html: string) => (html || "").replace(/<[^>]*>/g, "");
 
-        const improvedParagraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        // Split by \n\n (ideal) or fall back to \n (in case AI used single newlines)
+        let improvedParagraphs = improved.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+        if (improvedParagraphs.length === 1 && improved.includes("\n")) {
+          improvedParagraphs = improved.split(/\n+/).map(p => p.trim()).filter(Boolean);
+        }
         if (!improvedParagraphs.length) improvedParagraphs.push(improved.trim() || " ");
 
         setBlocks(prev => {
