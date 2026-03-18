@@ -2113,49 +2113,83 @@ const FULLTEXT_STYLE = `
 .fte-source_ref { color: #6366f1; text-decoration: underline; font-size: 0.9rem; margin: 0.3rem 0; line-height: var(--fte-line-height, 1.7); }
 `;
 
+function serializeBlockAttrs(block: Block): string {
+  const attrs: string[] = [
+    `data-block-type="${block.type}"`,
+    `data-block-id="${block.id}"`,
+  ];
+  const meta = block.metadata;
+  if (meta) {
+    if (typeof meta.indentLevel === "number" && meta.indentLevel > 0) {
+      attrs.push(`data-block-indent="${meta.indentLevel}"`);
+    }
+    if (meta.checked === true) {
+      attrs.push(`data-block-checked="true"`);
+    }
+    if (meta.indent === true) {
+      attrs.push(`data-block-heading-indent="true"`);
+    } else if (meta.indent === false) {
+      attrs.push(`data-block-heading-indent="false"`);
+    }
+  }
+  return attrs.join(" ");
+}
+
+function deserializeBlockMeta(el: HTMLElement): Record<string, any> | undefined {
+  const indentLevel = parseInt(el.getAttribute("data-block-indent") || "0", 10);
+  const checked = el.getAttribute("data-block-checked") === "true";
+  const headingIndentAttr = el.getAttribute("data-block-heading-indent");
+  const headingIndent = headingIndentAttr === "true" ? true : headingIndentAttr === "false" ? false : undefined;
+
+  const meta: Record<string, any> = {};
+  if (indentLevel > 0) meta.indentLevel = indentLevel;
+  if (checked) meta.checked = true;
+  if (headingIndent !== undefined) meta.indent = headingIndent;
+  return Object.keys(meta).length > 0 ? meta : undefined;
+}
+
 export function blocksToFullHTML(blocks: Block[]): string {
   const parts: string[] = [];
   let i = 0;
   while (i < blocks.length) {
     const block = blocks[i];
 
-    if (block.type === "bullet_item") {
+    if (block.type === "bullet_item" || block.type === "numbered_item") {
+      const listType = block.type;
+      const tag = listType === "bullet_item" ? "ul" : "ol";
+      const cls = listType === "bullet_item" ? "fte-ul" : "fte-ol";
       const items: Block[] = [];
-      while (i < blocks.length && blocks[i].type === "bullet_item") {
+      while (i < blocks.length && blocks[i].type === listType) {
         items.push(blocks[i++]);
       }
-      const lis = items.map(b =>
-        `<li data-block-type="bullet_item" data-block-id="${b.id}" class="fte-li">${b.content || "<br>"}</li>`
-      ).join("");
-      parts.push(`<ul class="fte-block fte-ul">${lis}</ul>`);
-      continue;
-    }
-
-    if (block.type === "numbered_item") {
-      const items: Block[] = [];
-      while (i < blocks.length && blocks[i].type === "numbered_item") {
-        items.push(blocks[i++]);
-      }
-      const lis = items.map(b =>
-        `<li data-block-type="numbered_item" data-block-id="${b.id}" class="fte-li">${b.content || "<br>"}</li>`
-      ).join("");
-      parts.push(`<ol class="fte-block fte-ol">${lis}</ol>`);
+      const lis = items.map(b => {
+        const indentLevel = b.metadata?.indentLevel ?? 0;
+        const indentStyle = indentLevel > 0 ? ` style="padding-left:${1.6 + indentLevel * 1.2}rem"` : "";
+        return `<li ${serializeBlockAttrs(b)} class="fte-li"${indentStyle}>${b.content || "<br>"}</li>`;
+      }).join("");
+      parts.push(`<${tag} class="fte-block ${cls}">${lis}</${tag}>`);
       continue;
     }
 
     const type = block.type;
-    const id = block.id;
     const content = type === "divider" ? "" : (block.content || "<br>");
     const cls = `fte-block fte-${type}`;
-    parts.push(`<div data-block-type="${type}" data-block-id="${id}" class="${cls}">${content}</div>`);
+    parts.push(`<div ${serializeBlockAttrs(block)} class="${cls}">${content}</div>`);
     i++;
   }
   return parts.join("");
 }
 
-function fullHTMLToBlocks(container: HTMLElement): Block[] {
+function parseHTMLContainer(container: HTMLElement): Block[] {
   const blocks: Block[] = [];
   const seenIds = new Set<string>();
+
+  function uniqueId(el: HTMLElement): string {
+    const raw = el.getAttribute("data-block-id") || "";
+    const id = raw && !seenIds.has(raw) ? raw : generateId();
+    seenIds.add(id);
+    return id;
+  }
 
   function processNode(node: Node) {
     if (!(node instanceof HTMLElement)) {
@@ -2170,19 +2204,16 @@ function fullHTMLToBlocks(container: HTMLElement): Block[] {
       const itemType: BlockType = tag === "ul" ? "bullet_item" : "numbered_item";
       for (const li of Array.from(node.childNodes)) {
         if (!(li instanceof HTMLElement)) continue;
-        const rawId = li.getAttribute("data-block-id") || "";
-        const id = rawId && !seenIds.has(rawId) ? rawId : generateId();
-        seenIds.add(id);
+        const id = uniqueId(li);
         const type = (li.getAttribute("data-block-type") as BlockType) || itemType;
         const content = li.innerHTML === "<br>" ? "" : li.innerHTML;
-        blocks.push({ id, type, content });
+        const meta = deserializeBlockMeta(li);
+        blocks.push({ id, type, content, ...(meta ? { metadata: meta } : {}) });
       }
       return;
     }
 
-    const rawId = node.getAttribute("data-block-id") || "";
-    const id = rawId && !seenIds.has(rawId) ? rawId : generateId();
-    seenIds.add(id);
+    const id = uniqueId(node);
     const type = (node.getAttribute("data-block-type") as BlockType) || "paragraph";
 
     if (type === "divider") {
@@ -2191,7 +2222,8 @@ function fullHTMLToBlocks(container: HTMLElement): Block[] {
     }
 
     const content = node.innerHTML === "<br>" ? "" : node.innerHTML;
-    blocks.push({ id, type, content });
+    const meta = deserializeBlockMeta(node);
+    blocks.push({ id, type, content, ...(meta ? { metadata: meta } : {}) });
   }
 
   for (const child of Array.from(container.childNodes)) {
@@ -2202,6 +2234,12 @@ function fullHTMLToBlocks(container: HTMLElement): Block[] {
     blocks.push({ id: generateId(), type: "paragraph", content: "" });
   }
   return blocks;
+}
+
+export function fullHTMLToBlocks(html: string): Block[] {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  return parseHTMLContainer(container);
 }
 
 interface FullTextEditorProps {
@@ -2225,7 +2263,7 @@ export function FullTextEditor({ blocks, onChange, lineSpacing }: FullTextEditor
 
   const handleInput = useCallback(() => {
     if (!editorRef.current) return;
-    const newBlocks = fullHTMLToBlocks(editorRef.current);
+    const newBlocks = parseHTMLContainer(editorRef.current);
     onChangeRef.current(newBlocks);
   }, []);
 
