@@ -712,6 +712,7 @@ interface BlockEditorProps {
 export type BlockEditorAPI = {
   replaceTextInBlocks: (original: string, replacement: string) => boolean;
   appendBlock: (content: string, type?: string) => void;
+  spliceBlocks: (startId: string, endId: string, newBlocks: Block[]) => void;
 };
 
 const LAYOUT_BLOCK_TYPES: { type: BlockType; icon: any }[] = [
@@ -839,6 +840,17 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
           const appended = [...prev, newBlock];
           onChange(appended);
           return appended;
+        });
+      },
+      spliceBlocks: (startId: string, endId: string, newBlocks: Block[]): void => {
+        setBlocks(prev => {
+          const startIdx = prev.findIndex(b => b.id === startId);
+          if (startIdx === -1) return prev;
+          const endIdx = endId !== startId ? prev.findIndex(b => b.id === endId) : startIdx;
+          const actualEnd = endIdx === -1 ? startIdx : endIdx;
+          const updated = [...prev.slice(0, startIdx), ...newBlocks, ...prev.slice(actualEnd + 1)];
+          onChange(updated);
+          return updated;
         });
       },
     };
