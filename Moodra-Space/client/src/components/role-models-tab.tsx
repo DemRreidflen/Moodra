@@ -9,8 +9,11 @@ import {
   Plus, Trash2, ChevronLeft, Loader2, Sparkles, Upload,
   Brain, AlignLeft, Layers, Music2, Hash, Target, Heart,
   Wrench, Pencil, Check, X, RefreshCw, BookOpen, User,
-  Feather, Eye, Zap, ChevronDown, ChevronUp, Key,
+  Feather, Eye, Zap, ChevronDown, ChevronUp, Key, AlertTriangle,
 } from "lucide-react";
+
+const MIN_CHARS_FOR_ANALYSIS = 500;
+const WARN_CHARS_FOR_ANALYSIS = 1500;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -105,10 +108,13 @@ export function RoleModelsTab({ bookId, book }: { bookId: number; book: Book }) 
   const [formColor, setFormColor] = useState(AVATAR_COLORS[0]);
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState("");
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [sectionDraft, setSectionDraft] = useState("");
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const detailFileRef = useRef<HTMLInputElement>(null);
 
   const { data: models = [], isLoading } = useQuery<AuthorRoleModel[]>({
     queryKey: ["/api/books", bookId, "role-models"],
@@ -172,17 +178,51 @@ export function RoleModelsTab({ bookId, book }: { bookId: number; book: Book }) 
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Shared file upload handler — used by both the create form and the detail view.
+  // Calls the server-side /api/extract-file-text which supports EPUB, FB2, TXT, MD
+  // and returns up to 80 000 characters. Falls back to FileReader for plain text if the
+  // server call fails (e.g. unauthenticated or unsupported type).
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    onText?: (text: string) => void,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = "";
+
+    setUploading(true);
+    setUploadedFileName(file.name);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/extract-file-text", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const { text } = await res.json();
+        const setter = onText ?? setFormRawText;
+        setter(text);
+        if (!formName && file.name) setFormName(file.name.replace(/\.[^.]+$/, ""));
+        return;
+      }
+    } catch {
+      // fall through to FileReader fallback
+    }
+
+    // Fallback: read as plain text in the browser (no size limit applied here)
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      setFormRawText(text.slice(0, 12000));
+      const text = (ev.target?.result as string) || "";
+      const setter = onText ?? setFormRawText;
+      setter(text);
       if (!formName && file.name) setFormName(file.name.replace(/\.[^.]+$/, ""));
     };
     reader.readAsText(file);
-    e.target.value = "";
+    setUploading(false);
   };
 
   const handleAnalyze = async () => {
@@ -193,12 +233,13 @@ export function RoleModelsTab({ bookId, book }: { bookId: number; book: Book }) 
     }
     setAnalyzing(true);
     try {
-      const res = await apiRequest("POST", `/api/role-models/${editModel.id}/deep-analyze`, {
+      // apiRequest already parses JSON and returns the data object directly —
+      // do NOT call .json() again on the result.
+      const data = await apiRequest("POST", `/api/role-models/${editModel.id}/deep-analyze`, {
         rawSourceText: sourceText,
         lang: book.language || "en",
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.message || data.error);
+      if (data?.error) throw new Error(data.message || data.error);
       setEditModel(data.model);
       queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "role-models"] });
       toast({ title: "Analysis complete", description: "Creative model reconstructed" });
@@ -414,23 +455,62 @@ export function RoleModelsTab({ bookId, book }: { bookId: number; book: Book }) 
               <label className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Source material</label>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="flex items-center gap-1 text-[10px] text-violet-500 hover:text-violet-700 transition-colors"
+                disabled={uploading}
+                className="flex items-center gap-1 text-[10px] text-violet-500 hover:text-violet-700 transition-colors disabled:opacity-50"
               >
-                <Upload className="h-3 w-3" />
-                Upload .txt
+                {uploading
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <Upload className="h-3 w-3" />}
+                {uploading ? "Extracting…" : "Upload file"}
               </button>
             </div>
-            <input ref={fileRef} type="file" accept=".txt,.md" className="hidden" onChange={handleFileUpload} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,.md,.text,.epub,.fb2"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
             <textarea
               value={formRawText}
-              onChange={e => setFormRawText(e.target.value)}
+              onChange={e => { setFormRawText(e.target.value); setUploadedFileName(""); }}
               placeholder="Paste an excerpt, article, book chapter, or essay by the author you want to analyze…"
               rows={10}
               className="w-full px-3 py-2 rounded-lg border border-border/50 bg-background text-xs leading-relaxed outline-none focus:border-violet-400/60 placeholder:text-muted-foreground/30 resize-none"
             />
-            <p className="text-[9px] text-muted-foreground/40 mt-1">
-              {formRawText.length > 0 ? `${formRawText.length.toLocaleString()} chars` : "Paste 500–6000 characters for best results"}
-            </p>
+            {/* Status line */}
+            {formRawText.length > 0 ? (
+              <div className="mt-1 space-y-1">
+                {uploadedFileName && (
+                  <p className="text-[9px] text-muted-foreground/50 truncate">
+                    📄 {uploadedFileName}
+                  </p>
+                )}
+                <div className="flex items-center gap-1.5">
+                  {formRawText.length < MIN_CHARS_FOR_ANALYSIS ? (
+                    <AlertTriangle className="h-2.5 w-2.5 text-amber-500 flex-shrink-0" />
+                  ) : null}
+                  <p className={`text-[9px] ${
+                    formRawText.length < MIN_CHARS_FOR_ANALYSIS
+                      ? "text-amber-500"
+                      : formRawText.length < WARN_CHARS_FOR_ANALYSIS
+                        ? "text-muted-foreground/60"
+                        : "text-emerald-600"
+                  }`}>
+                    {formRawText.length.toLocaleString()} chars
+                    {formRawText.length < MIN_CHARS_FOR_ANALYSIS
+                      ? " — too short for reliable analysis (add more text)"
+                      : formRawText.length < WARN_CHARS_FOR_ANALYSIS
+                        ? " — usable, more text improves accuracy"
+                        : " — good length for analysis"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[9px] text-muted-foreground/40 mt-1">
+                Paste text or upload .txt / .md / .epub / .fb2 — supports up to 80 000 chars
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -527,36 +607,70 @@ export function RoleModelsTab({ bookId, book }: { bookId: number; book: Book }) 
                     </div>
                   )}
                   {hasSource ? (
-                    <p className="text-[10px] text-muted-foreground/50 italic line-clamp-4 leading-relaxed">
-                      {editModel.rawSourceText?.slice(0, 400)}…
-                    </p>
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-muted-foreground/50 italic line-clamp-4 leading-relaxed">
+                        {editModel.rawSourceText?.slice(0, 400)}…
+                      </p>
+                      <p className="text-[9px] text-muted-foreground/40">
+                        {editModel.rawSourceText?.length?.toLocaleString()} chars stored
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-[10px] text-muted-foreground/50 italic">No source material yet. Paste below to enable analysis.</p>
+                      <p className="text-[10px] text-muted-foreground/50 italic">No source material yet. Paste below or upload a file to enable analysis.</p>
                       <textarea
                         placeholder="Paste source text here…"
                         rows={6}
                         className="w-full text-xs bg-background border border-border/40 rounded px-2 py-1.5 outline-none resize-none placeholder:text-muted-foreground/30"
-                        onChange={e => setFormRawText(e.target.value)}
+                        onChange={e => { setFormRawText(e.target.value); setUploadedFileName(""); }}
                         value={formRawText}
                       />
-                      <div className="flex gap-2">
+                      {/* Status line for detail view */}
+                      {formRawText.length > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          {formRawText.length < MIN_CHARS_FOR_ANALYSIS && (
+                            <AlertTriangle className="h-2.5 w-2.5 text-amber-500 flex-shrink-0" />
+                          )}
+                          <p className={`text-[9px] ${
+                            formRawText.length < MIN_CHARS_FOR_ANALYSIS
+                              ? "text-amber-500"
+                              : formRawText.length < WARN_CHARS_FOR_ANALYSIS
+                                ? "text-muted-foreground/60"
+                                : "text-emerald-600"
+                          }`}>
+                            {uploadedFileName && `${uploadedFileName} · `}
+                            {formRawText.length.toLocaleString()} chars
+                            {formRawText.length < MIN_CHARS_FOR_ANALYSIS
+                              ? " — too short"
+                              : formRawText.length < WARN_CHARS_FOR_ANALYSIS
+                                ? " — usable"
+                                : " — good"}
+                          </p>
+                        </div>
+                      )}
+                      <div className="flex gap-2 items-center flex-wrap">
                         <button
-                          onClick={() => fileRef.current?.click()}
-                          className="flex items-center gap-1 text-[10px] text-violet-500 hover:text-violet-700"
+                          onClick={() => detailFileRef.current?.click()}
+                          disabled={uploading}
+                          className="flex items-center gap-1 text-[10px] text-violet-500 hover:text-violet-700 disabled:opacity-50"
                         >
-                          <Upload className="h-3 w-3" /> Upload .txt
+                          {uploading
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <Upload className="h-3 w-3" />}
+                          {uploading ? "Extracting…" : "Upload file"}
                         </button>
-                        <input ref={fileRef} type="file" accept=".txt,.md" className="hidden" onChange={e => {
-                          const file = e.target.files?.[0]; if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = ev => setFormRawText((ev.target?.result as string || "").slice(0, 12000));
-                          reader.readAsText(file); e.target.value = "";
-                        }} />
+                        <input
+                          ref={detailFileRef}
+                          type="file"
+                          accept=".txt,.md,.text,.epub,.fb2"
+                          className="hidden"
+                          onChange={e => handleFileUpload(e, setFormRawText)}
+                        />
+                        <span className="text-[9px] text-muted-foreground/35">.txt · .md · .epub · .fb2</span>
                         {formRawText && (
                           <button
                             onClick={() => updateMutation.mutate({ id: editModel.id, data: { rawSourceText: formRawText } })}
-                            className="flex items-center gap-1 text-[10px] text-emerald-600"
+                            className="flex items-center gap-1 text-[10px] text-emerald-600 ml-auto"
                           >
                             <Check className="h-3 w-3" /> Save text
                           </button>
