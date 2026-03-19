@@ -1164,7 +1164,7 @@ export function ChapterEditor({
             style={{ background: "rgba(249,109,28,0.10)", border: "1.5px solid rgba(249,109,28,0.20)" }}>
             <BookOpen className="h-8 w-8" style={{ color: "#F96D1C" }} />
           </div>
-          <p className="text-muted-foreground mb-2">{s.selectChapter}</p>
+          <p className="text-muted-foreground mb-0.5">{s.selectChapter}</p>
           <p className="text-xs text-muted-foreground/60">{s.selectChapterHint}</p>
         </div>
       </div>
