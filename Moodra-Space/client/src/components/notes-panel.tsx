@@ -255,9 +255,10 @@ async function compressImage(file: File, maxSizePx = 1200, quality = 0.75): Prom
 }
 
 // ─── Note Card ──────────────────────────────────────────────────────────
-function NoteCard({ note, onEdit, onTrash, onPin, chains }: {
+function NoteCard({ note, onEdit, onTrash, onPin, chains, collections, onCollectionChange }: {
   note: Note; onEdit: (n: Note) => void; onTrash: (id: number) => void;
   onPin: (n: Note) => void; chains: NoteChain[];
+  collections: string[]; onCollectionChange: (note: Note, collection: string) => void;
 }) {
   const { lang } = useLang();
   const s = NOTES_I18N[lang];
@@ -267,9 +268,21 @@ function NoteCard({ note, onEdit, onTrash, onPin, chains }: {
   const importance = (note as any).importance;
   const noteStatus = getStatus((note as any).status);
   const noteChains = chains.filter(c => c.noteIds.includes(note.id));
+  const currentCollection = (note as any).collection as string | undefined;
+  const [showColPicker, setShowColPicker] = useState(false);
+  const colBtnRef = useRef<HTMLButtonElement>(null);
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: note.id });
   const dragStyle = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+
+  const openColPicker = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!colBtnRef.current) return;
+    const rect = colBtnRef.current.getBoundingClientRect();
+    setPickerPos({ top: rect.bottom + 4, left: rect.left });
+    setShowColPicker(true);
+  };
 
   return (
     <div
@@ -354,9 +367,26 @@ function NoteCard({ note, onEdit, onTrash, onPin, chains }: {
         ))}
       </div>
 
+      {/* Current collection badge */}
+      {currentCollection && (
+        <div className="flex items-center gap-0.5 mt-1 flex-shrink-0">
+          <span className="flex items-center gap-0.5 text-[8px] font-medium px-1.5 py-0.5 rounded-full truncate max-w-full"
+            style={{ background: `${col.clip}12`, color: col.clip }}>
+            <FolderOpen className="h-2 w-2 flex-shrink-0" />
+            <span className="truncate">{currentCollection}</span>
+          </span>
+        </div>
+      )}
+
       {/* Hover actions */}
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-2 right-2"
         onClick={e => e.stopPropagation()}>
+        <button ref={colBtnRef} onClick={openColPicker}
+          className="w-5 h-5 flex items-center justify-center rounded-md transition-colors hover:bg-black/10"
+          style={{ color: currentCollection ? col.clip : `${col.text}50` }}
+          title={currentCollection || "Add to collection"}>
+          <FolderOpen className="h-2.5 w-2.5" />
+        </button>
         <button onClick={e => { e.stopPropagation(); onPin(note); }}
           className="w-5 h-5 flex items-center justify-center rounded-md transition-colors hover:bg-black/10"
           style={{ color: isPinned ? col.clip : `${col.text}50` }}>
@@ -368,6 +398,41 @@ function NoteCard({ note, onEdit, onTrash, onPin, chains }: {
           <Trash2 className="h-2.5 w-2.5" />
         </button>
       </div>
+
+      {/* Collection picker dropdown (portal) */}
+      {showColPicker && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9999]" onClick={() => setShowColPicker(false)} />
+          <div className="fixed z-[10000] bg-card border border-border rounded-xl shadow-xl py-1 min-w-[160px] max-w-[220px]"
+            style={{ top: pickerPos.top, left: pickerPos.left }}
+            onClick={e => e.stopPropagation()}>
+            {collections.length === 0 && (
+              <p className="px-3 py-2 text-xs text-muted-foreground">{s.noCollection}</p>
+            )}
+            {collections.map(c => (
+              <button key={c} onClick={() => { onCollectionChange(note, currentCollection === c ? "" : c); setShowColPicker(false); }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors text-left">
+                <div className="w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0"
+                  style={{ borderColor: currentCollection === c ? "hsl(var(--primary))" : "hsl(var(--border))", background: currentCollection === c ? "hsl(var(--primary))" : "transparent" }}>
+                  {currentCollection === c && <Check className="h-2 w-2 text-white" />}
+                </div>
+                <span className="truncate font-medium">{c}</span>
+              </button>
+            ))}
+            {currentCollection && (
+              <>
+                <div className="border-t border-border/60 my-1" />
+                <button onClick={() => { onCollectionChange(note, ""); setShowColPicker(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-red-50 text-red-500 transition-colors text-left">
+                  <X className="h-3 w-3 flex-shrink-0" />
+                  {s.noCollection}
+                </button>
+              </>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
@@ -1425,6 +1490,11 @@ export function NotesPanel({ bookId, aiPanelOpen, bookTitle }: { bookId: number;
     onSuccess: (_, vars) => { queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "notes"] }); toast({ title: vars.isPinned === "true" ? s.toastPinned : s.toastUnpinned }); },
   });
 
+  const collectionMutation = useMutation({
+    mutationFn: ({ id, collection }: { id: number; collection: string }) => apiRequest("PATCH", `/api/notes/${id}`, { collection }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "notes"] }); },
+  });
+
   const [captureText, setCaptureText] = useState("");
   const captureMutation = useMutation({
     mutationFn: (title: string) => apiRequest("POST", `/api/books/${bookId}/notes`, { title, content: "", type: "note", bookId }),
@@ -1801,9 +1871,11 @@ export function NotesPanel({ bookId, aiPanelOpen, bookTitle }: { bookId: number;
                       <div className={`grid ${gridCols} gap-2`}>
                         {sorted.map(note => (
                           <NoteCard key={note.id} note={note} chains={chains}
+                            collections={collections}
                             onEdit={n => { setEditNote(n); setDialogPrefill(""); setShowDialog(true); }}
                             onTrash={id => trashMutation.mutate(id)}
-                            onPin={n => pinMutation.mutate({ id: n.id, isPinned: (n as any).isPinned === "true" ? "false" : "true" })} />
+                            onPin={n => pinMutation.mutate({ id: n.id, isPinned: (n as any).isPinned === "true" ? "false" : "true" })}
+                            onCollectionChange={(n, collection) => collectionMutation.mutate({ id: n.id, collection })} />
                         ))}
                       </div>
                     </SortableContext>
