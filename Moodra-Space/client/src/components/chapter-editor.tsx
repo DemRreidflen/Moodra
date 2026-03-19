@@ -1160,8 +1160,9 @@ export function ChapterEditor({
     return (
       <div className="flex-1 flex items-center justify-center text-center p-8">
         <div>
-          <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-            <BookOpen className="h-8 w-8 text-muted-foreground/50" />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: "rgba(249,109,28,0.10)", border: "1.5px solid rgba(249,109,28,0.20)" }}>
+            <BookOpen className="h-8 w-8" style={{ color: "#F96D1C" }} />
           </div>
           <p className="text-muted-foreground mb-2">{s.selectChapter}</p>
           <p className="text-xs text-muted-foreground/60">{s.selectChapterHint}</p>

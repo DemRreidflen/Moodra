@@ -272,7 +272,6 @@ export function BookSidebar({ bookId, bookMode, chapters, selectedId, onSelect }
     >
       <div className="px-3 py-3 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-1.5 min-w-0">
-          <BookMarked className="h-3.5 w-3.5 text-muted-foreground/70 flex-shrink-0" />
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
             {s.contents}
           </span>
