@@ -560,22 +560,31 @@ function DraftsSection({ bookId, book, onOpenDraft }: {
       />
 
       {activeDrafts.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-10 text-center">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "rgba(249,109,28,0.1)" }}>
-            <FileEdit className="h-6 w-6" style={{ color: "#F96D1C" }} />
+        <div className="flex flex-col items-center gap-5 py-10 text-center">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-3xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(249,109,28,0.12), rgba(251,146,60,0.08))" }}>
+              <FileEdit className="h-10 w-10" style={{ color: "#F96D1C" }} />
+            </div>
+            <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-3 w-3 text-primary" />
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">{t.noDrafts}</p>
+          <div className="space-y-1.5 max-w-[220px]">
+            <p className="text-sm font-semibold">{t.noDrafts}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">{t.draftsDesc}</p>
+          </div>
           <button
             onClick={() => createMutation.mutate({ title: t.newDraftTitle, content: "" })}
             disabled={createMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:opacity-90 transition-opacity"
             style={{ background: "linear-gradient(135deg, #F96D1C, #FB923C)" }}>
-            <Plus className="h-4 w-4" /> {t.createDraft}
+            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {t.createDraft}
           </button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {activeDrafts.slice(0, 5).map(d => (
+        <div className="space-y-2 max-h-[420px] overflow-y-auto pr-0.5">
+          {activeDrafts.map(d => (
             <DraftCard
               key={d.id}
               draft={d}
@@ -584,11 +593,6 @@ function DraftsSection({ bookId, book, onOpenDraft }: {
               onDelete={() => deleteMutation.mutate(d.id)}
             />
           ))}
-          {activeDrafts.length > 5 && (
-            <button className="w-full py-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground border border-dashed border-border/40 hover:border-border transition-colors">
-              {t.moreDrafts(activeDrafts.length - 5)}
-            </button>
-          )}
         </div>
       )}
     </div>

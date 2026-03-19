@@ -127,7 +127,7 @@ export default function BookEditor() {
     { id: "editor" as EditorTab, icon: BookOpen, label: "Редактор" },
     ...(book.mode === "fiction" ? [{ id: "characters" as EditorTab, icon: Users, label: "Персонажи" }] : []),
     { id: "notes" as EditorTab, icon: FileText, label: "Заметки" },
-    { id: "research" as EditorTab, icon: PenLine, label: "Черновики и ролевые модели" },
+    { id: "research" as EditorTab, icon: PenLine, label: "Черновики" },
     { id: "board" as EditorTab, icon: Brain, label: "Доска идей" },
     { id: "layout" as EditorTab, icon: Columns2, label: "Верстка" },
     { id: "settings" as EditorTab, icon: Settings, label: "Настройки" },
