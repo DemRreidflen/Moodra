@@ -38,7 +38,7 @@ const RESEARCH_I18N = {
   ru: {
     cancelBtn: "Отмена", aiError: "Ошибка AI",
     draftsTitle: "Черновики", draftsDesc: "Пишите свободно — без вёрстки. Готовый текст переносится в книгу одной кнопкой",
-    newDraft: "Новый", createDraft: "Создать черновик", noDrafts: "Создайте первый черновик для свободного письма",
+    newDraft: "Новый", createDraft: "Создать черновик", noDrafts: "Создайте первый черновик",
     draftDeleted: "Черновик удалён",
     draftsBack: "Черновики", titlePlaceholder: "Название черновика…",
     words: (n: number) => `${n} сл.`, wordsTotal: (n: number) => `${n} слов`,
@@ -72,7 +72,7 @@ const RESEARCH_I18N = {
   en: {
     cancelBtn: "Cancel", aiError: "AI error",
     draftsTitle: "Drafts", draftsDesc: "Write freely — without layout. Move finished text to the book in one click",
-    newDraft: "New", createDraft: "Create draft", noDrafts: "Create your first draft for free writing",
+    newDraft: "New", createDraft: "Create draft", noDrafts: "Create your first draft",
     draftDeleted: "Draft deleted",
     draftsBack: "Drafts", titlePlaceholder: "Draft title…",
     words: (n: number) => `${n} w.`, wordsTotal: (n: number) => `${n} words`,
@@ -106,7 +106,7 @@ const RESEARCH_I18N = {
   ua: {
     cancelBtn: "Скасувати", aiError: "Помилка ШІ",
     draftsTitle: "Чернетки", draftsDesc: "Пишіть вільно — без верстки. Готовий текст переноситься в книгу одним натисканням",
-    newDraft: "Нова", createDraft: "Створити чернетку", noDrafts: "Створіть першу чернетку для вільного письма",
+    newDraft: "Нова", createDraft: "Створити чернетку", noDrafts: "Створіть першу чернетку",
     draftDeleted: "Чернетку видалено",
     draftsBack: "Чернетки", titlePlaceholder: "Назва чернетки…",
     words: (n: number) => `${n} сл.`, wordsTotal: (n: number) => `${n} слів`,
@@ -140,7 +140,7 @@ const RESEARCH_I18N = {
   de: {
     cancelBtn: "Abbrechen", aiError: "KI-Fehler",
     draftsTitle: "Entwürfe", draftsDesc: "Schreiben Sie frei — ohne Layout. Per Klick in das Buch übertragen",
-    newDraft: "Neu", createDraft: "Entwurf erstellen", noDrafts: "Ersten Entwurf zum freien Schreiben erstellen",
+    newDraft: "Neu", createDraft: "Entwurf erstellen", noDrafts: "Ersten Entwurf erstellen",
     draftDeleted: "Entwurf gelöscht",
     draftsBack: "Entwürfe", titlePlaceholder: "Entwurfstitel…",
     words: (n: number) => `${n} W.`, wordsTotal: (n: number) => `${n} Wörter`,
