@@ -1862,9 +1862,15 @@ export function NotesPanel({ bookId, aiPanelOpen, bookTitle }: { bookId: number;
                   </div>
                 ) : isEmptyView ? (
                   <div className="flex flex-col items-center justify-center h-full min-h-[220px] py-8 px-4">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                      style={{ background: "linear-gradient(135deg, rgba(249,109,28,0.12), rgba(251,146,60,0.06))", border: "1px solid rgba(249,109,28,0.15)" }}>
-                      <StickyNote className="h-7 w-7" style={{ color: "#F96D1C" }} />
+                    <div className="relative mb-1">
+                      <div className="w-24 h-24 rounded-[28px] flex items-center justify-center"
+                        style={{ background: "rgba(249,109,28,0.07)" }}>
+                        <StickyNote className="h-11 w-11" style={{ color: "#F96D1C", strokeWidth: 1.5 }} />
+                      </div>
+                      <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-sm"
+                        style={{ background: "#FDF0E8", border: "1.5px solid rgba(249,109,28,0.18)" }}>
+                        <Sparkles className="h-3.5 w-3.5" style={{ color: "#F96D1C", strokeWidth: 1.5 }} />
+                      </div>
                     </div>
                     <h3 className="font-semibold text-sm mb-1.5 text-center">{s.emptyTitle}</h3>
                     <p className="text-muted-foreground text-xs max-w-[180px] text-center leading-relaxed mb-4">{s.emptyDesc}</p>

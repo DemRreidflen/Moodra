@@ -1159,13 +1159,19 @@ export function ChapterEditor({
   if (!chapter) {
     return (
       <div className="flex-1 flex items-center justify-center text-center p-8">
-        <div>
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: "rgba(249,109,28,0.10)", border: "1.5px solid rgba(249,109,28,0.20)" }}>
-            <BookOpen className="h-8 w-8" style={{ color: "#F96D1C" }} />
+        <div className="flex flex-col items-center">
+          <div className="relative mb-5">
+            <div className="w-24 h-24 rounded-[28px] flex items-center justify-center"
+              style={{ background: "rgba(249,109,28,0.07)" }}>
+              <BookOpen className="h-11 w-11" style={{ color: "#F96D1C", strokeWidth: 1.5 }} />
+            </div>
+            <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-sm"
+              style={{ background: "#FDF0E8", border: "1.5px solid rgba(249,109,28,0.18)" }}>
+              <Sparkles className="h-3.5 w-3.5" style={{ color: "#F96D1C", strokeWidth: 1.5 }} />
+            </div>
           </div>
-          <p className="text-muted-foreground mb-0.5">{s.selectChapter}</p>
-          <p className="text-xs text-muted-foreground/60">{s.selectChapterHint}</p>
+          <p className="text-muted-foreground text-sm font-medium mb-0.5">{s.selectChapter}</p>
+          <p className="text-xs text-muted-foreground/50">{s.selectChapterHint}</p>
         </div>
       </div>
     );
