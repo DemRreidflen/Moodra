@@ -1156,6 +1156,56 @@ ${existing ? "Не дублируй уже имеющиеся источники
     }
   });
 
+  // ---- AI Draft Assistant ----
+  // Generates a draft sketch from a plan/outline, or expands bullet-point theses.
+  app.post("/api/ai/draft-assist", async (req: Request, res: Response) => {
+    try {
+      const { mode, input, bookTitle, bookMode } = req.body;
+      if (!input?.trim()) return res.status(400).json({ error: "input required" });
+
+      const langInstruction = getLangInstruction(req);
+      const ai = await getOpenAI(req);
+      const aiModel = await getUserModel(req);
+
+      const prompts: Record<string, string> = {
+        sketch:
+          `You are a creative writing assistant. The user provides a brief plan or outline. ` +
+          `Transform it into a flowing draft text — full sentences, natural paragraphs, vivid language. ` +
+          `Preserve all ideas from the plan. Do not add a title. Return ONLY the draft text. ${langInstruction}`,
+        expand:
+          `You are a creative writing assistant. The user provides a list of bullet-point theses or short ideas. ` +
+          `Expand each one into a rich, developed paragraph. Use concrete details, examples, and smooth transitions. ` +
+          `Return ONLY the expanded text as flowing prose. ${langInstruction}`,
+        continue:
+          `You are a creative writing assistant. Continue the given text naturally for one or two more paragraphs. ` +
+          `Match the existing style, tone and pace. Do not repeat what was written. Return ONLY the continuation. ${langInstruction}`,
+        ideas:
+          `You are a creative writing assistant. Based on the given draft text or outline, ` +
+          `generate 5 concrete development ideas — directions the text could grow: new angles, scenes, arguments, or details. ` +
+          `Format as a short numbered list. Return ONLY the list. ${langInstruction}`,
+      };
+
+      const systemPrompt = (prompts[mode] || prompts.sketch) +
+        `\nContext: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "fiction" : "non-fiction"})`;
+
+      const completion = await ai.chat.completions.create({
+        model: aiModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: input },
+        ],
+        temperature: 0.8,
+        max_tokens: 2000,
+      });
+      trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
+      const result = completion.choices[0].message.content?.trim() || "";
+      res.json({ result });
+    } catch (e: any) {
+      const { status, message } = openAIErrorMessage(e);
+      res.status(status).json({ error: message });
+    }
+  });
+
   // ---- AI Improve ----
   app.post("/api/ai/improve", async (req: Request, res: Response) => {
     try {
