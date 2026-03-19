@@ -11,74 +11,68 @@ export default function LoginPage() {
   const featureKeys = ["editor", "ai", "research", "ideas"] as const;
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#0f0a06" }}>
+    <div className="min-h-screen flex">
 
       {/* ── Left branding panel ── */}
       <div
         className="hidden lg:flex flex-col w-[58%] relative overflow-hidden"
-        style={{ background: "#0f0a06" }}
+        style={{ background: "#FFF0E4" }}
       >
         {/* Mesh gradient blobs */}
         <div className="absolute inset-0 pointer-events-none">
-          {/* Main large sphere — top left */}
+          {/* Large sphere top-left — deep orange */}
           <div
             className="absolute"
             style={{
-              top: "-20%",
-              left: "-15%",
-              width: "75%",
-              paddingBottom: "75%",
+              top: "-30%",
+              left: "-20%",
+              width: "80%",
+              paddingBottom: "80%",
               borderRadius: "50%",
-              background: "radial-gradient(circle at 40% 40%, #FF6B00 0%, #FF4500 30%, #C73200 60%, transparent 75%)",
+              background: "radial-gradient(circle at 45% 45%, #FF8C38 0%, #FF6B1C 40%, #F95A00 65%, transparent 80%)",
+              filter: "blur(50px)",
+              opacity: 0.75,
+            }}
+          />
+          {/* Bright peach sphere — bottom right */}
+          <div
+            className="absolute"
+            style={{
+              bottom: "-20%",
+              right: "-15%",
+              width: "65%",
+              paddingBottom: "65%",
+              borderRadius: "50%",
+              background: "radial-gradient(circle at 55% 55%, #FFB87A 0%, #FF9640 45%, transparent 72%)",
               filter: "blur(60px)",
-              opacity: 0.9,
+              opacity: 0.7,
             }}
           />
-          {/* Accent sphere — bottom right */}
+          {/* Warm yellow highlight — top right */}
           <div
             className="absolute"
             style={{
-              bottom: "-25%",
-              right: "-10%",
-              width: "60%",
-              paddingBottom: "60%",
-              borderRadius: "50%",
-              background: "radial-gradient(circle at 60% 60%, #FF9640 0%, #FF6B1C 40%, transparent 70%)",
-              filter: "blur(80px)",
-              opacity: 0.65,
-            }}
-          />
-          {/* Peach highlight — center */}
-          <div
-            className="absolute"
-            style={{
-              top: "35%",
-              left: "30%",
+              top: "-10%",
+              right: "5%",
               width: "45%",
               paddingBottom: "45%",
               borderRadius: "50%",
-              background: "radial-gradient(circle at 50% 50%, #FFD4A0 0%, #FFAA60 35%, transparent 65%)",
-              filter: "blur(90px)",
-              opacity: 0.35,
+              background: "radial-gradient(circle at 50% 40%, #FFE0A0 0%, #FFCA60 40%, transparent 68%)",
+              filter: "blur(70px)",
+              opacity: 0.6,
             }}
           />
-          {/* Rim light — top edge */}
+          {/* Light cream center fill */}
           <div
             className="absolute"
             style={{
-              top: "-5%",
-              left: "10%",
-              width: "55%",
-              height: "30%",
-              background: "radial-gradient(ellipse at 50% 0%, rgba(255, 200, 120, 0.4) 0%, transparent 70%)",
+              top: "25%",
+              left: "20%",
+              width: "60%",
+              paddingBottom: "50%",
+              borderRadius: "50%",
+              background: "radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.7) 0%, transparent 70%)",
               filter: "blur(40px)",
-            }}
-          />
-          {/* Dark vignette overlay for depth */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: "radial-gradient(ellipse at 20% 50%, transparent 0%, rgba(10,5,2,0.5) 80%)",
             }}
           />
         </div>
@@ -96,8 +90,6 @@ export default function LoginPage() {
                 width: "auto",
                 objectFit: "contain",
                 display: "block",
-                filter: "brightness(0) invert(1)",
-                opacity: 0.92,
               }}
             />
           </div>
@@ -108,15 +100,14 @@ export default function LoginPage() {
             <div
               className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-6"
               style={{
-                background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.16)",
-                backdropFilter: "blur(10px)",
+                background: "rgba(249,109,28,0.12)",
+                border: "1px solid rgba(249,109,28,0.25)",
               }}
             >
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#FF9640" }} />
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#F96D1C" }} />
               <span
                 className="text-[10px] font-bold tracking-[0.16em] uppercase"
-                style={{ color: "rgba(255,255,255,0.8)" }}
+                style={{ color: "#C44E00" }}
               >
                 {l.eyebrow}
               </span>
@@ -125,33 +116,23 @@ export default function LoginPage() {
             <h2
               className="font-bold leading-[1.05] mb-5"
               style={{
-                color: "#fff",
-                fontSize: "clamp(2.4rem, 3.6vw, 3.6rem)",
+                color: "#1a0d06",
+                fontSize: "clamp(2.4rem, 3.5vw, 3.5rem)",
                 letterSpacing: "-0.03em",
-                textShadow: "0 4px 40px rgba(0,0,0,0.4)",
               }}
             >
               {l.headline1}<br />
-              <span
-                style={{
-                  background: "linear-gradient(90deg, #FFD4A0 0%, #FF9640 50%, #FF6B1C 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                {l.headline2}
-              </span>
+              <span style={{ color: "#F96D1C" }}>{l.headline2}</span>
             </h2>
             <p
               className="text-[0.93rem] leading-relaxed max-w-[400px]"
-              style={{ color: "rgba(255,255,255,0.55)" }}
+              style={{ color: "#6b4a30" }}
             >
               {l.subheadline}
             </p>
           </div>
 
-          {/* Feature pills row */}
+          {/* Feature pills */}
           <div className="flex flex-wrap gap-2.5 mb-10">
             {featureKeys.map((key, i) => {
               const Icon = featureIcons[i];
@@ -161,18 +142,18 @@ export default function LoginPage() {
                   key={key}
                   className="flex items-center gap-2 rounded-2xl px-3.5 py-2.5"
                   style={{
-                    background: "rgba(255,255,255,0.07)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    backdropFilter: "blur(16px)",
+                    background: "rgba(255,255,255,0.6)",
+                    border: "1px solid rgba(249,109,28,0.18)",
+                    backdropFilter: "blur(12px)",
                   }}
                 >
                   <div
                     className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(255,150,64,0.22)" }}
+                    style={{ background: "rgba(249,109,28,0.14)" }}
                   >
-                    <Icon className="w-3.5 h-3.5" style={{ color: "#FF9640" }} strokeWidth={1.8} />
+                    <Icon className="w-3.5 h-3.5" style={{ color: "#F96D1C" }} strokeWidth={1.8} />
                   </div>
-                  <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.82)" }}>
+                  <span className="text-xs font-medium" style={{ color: "#2a1406" }}>
                     {feat.title}
                   </span>
                 </div>
@@ -181,7 +162,7 @@ export default function LoginPage() {
           </div>
 
           {/* Footer */}
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+          <p className="text-xs" style={{ color: "rgba(100,60,20,0.45)" }}>
             © 2026 Moodra · {l.footer}
           </p>
         </div>
@@ -190,7 +171,7 @@ export default function LoginPage() {
       {/* ── Right sign-in panel ── */}
       <div
         className="flex-1 flex flex-col items-center justify-center px-8 py-16 relative"
-        style={{ background: "hsl(30, 40%, 97%)" }}
+        style={{ background: "#FDFAF7" }}
       >
         <div className="absolute top-5 right-6">
           <LanguagePicker />
