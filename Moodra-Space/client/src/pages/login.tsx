@@ -1,4 +1,4 @@
-import { Feather, FlaskConical, Sparkles, Network, Check, AlertCircle } from "lucide-react";
+import { Feather, FlaskConical, Sparkles, Network, AlertCircle } from "lucide-react";
 import { LanguagePicker } from "@/components/language-picker";
 import { useLang } from "@/contexts/language-context";
 
@@ -11,135 +11,187 @@ export default function LoginPage() {
   const featureKeys = ["editor", "ai", "research", "ideas"] as const;
 
   return (
-    <div
-      className="min-h-screen flex"
-      style={{ background: "hsl(30, 58%, 97%)" }}
-    >
+    <div className="min-h-screen flex" style={{ background: "#0f0a06" }}>
+
       {/* ── Left branding panel ── */}
       <div
-        className="hidden lg:flex flex-col w-[56%] relative overflow-hidden"
-        style={{
-          background: "linear-gradient(150deg, #fff9f4 0%, #ffeedd 55%, #fdd6aa 100%)",
-        }}
+        className="hidden lg:flex flex-col w-[58%] relative overflow-hidden"
+        style={{ background: "#0f0a06" }}
       >
-        {/* Decorative blobs */}
-        <div
-          className="absolute -top-48 -left-48 w-[580px] h-[580px] rounded-full opacity-20 pointer-events-none"
-          style={{ background: "radial-gradient(circle, #F96D1C 0%, transparent 65%)" }}
-        />
-        <div
-          className="absolute -bottom-32 -right-24 w-[420px] h-[420px] rounded-full opacity-12 pointer-events-none"
-          style={{ background: "radial-gradient(circle, #FF9640 0%, transparent 65%)" }}
-        />
-        {/* Subtle grid texture */}
-        <div
-          className="absolute inset-0 opacity-[0.03] pointer-events-none"
-          style={{
-            backgroundImage: "repeating-linear-gradient(0deg, #8B4513 0, #8B4513 1px, transparent 0, transparent 50%), repeating-linear-gradient(90deg, #8B4513 0, #8B4513 1px, transparent 0, transparent 50%)",
-            backgroundSize: "40px 40px",
-          }}
-        />
+        {/* Mesh gradient blobs */}
+        <div className="absolute inset-0 pointer-events-none">
+          {/* Main large sphere — top left */}
+          <div
+            className="absolute"
+            style={{
+              top: "-20%",
+              left: "-15%",
+              width: "75%",
+              paddingBottom: "75%",
+              borderRadius: "50%",
+              background: "radial-gradient(circle at 40% 40%, #FF6B00 0%, #FF4500 30%, #C73200 60%, transparent 75%)",
+              filter: "blur(60px)",
+              opacity: 0.9,
+            }}
+          />
+          {/* Accent sphere — bottom right */}
+          <div
+            className="absolute"
+            style={{
+              bottom: "-25%",
+              right: "-10%",
+              width: "60%",
+              paddingBottom: "60%",
+              borderRadius: "50%",
+              background: "radial-gradient(circle at 60% 60%, #FF9640 0%, #FF6B1C 40%, transparent 70%)",
+              filter: "blur(80px)",
+              opacity: 0.65,
+            }}
+          />
+          {/* Peach highlight — center */}
+          <div
+            className="absolute"
+            style={{
+              top: "35%",
+              left: "30%",
+              width: "45%",
+              paddingBottom: "45%",
+              borderRadius: "50%",
+              background: "radial-gradient(circle at 50% 50%, #FFD4A0 0%, #FFAA60 35%, transparent 65%)",
+              filter: "blur(90px)",
+              opacity: 0.35,
+            }}
+          />
+          {/* Rim light — top edge */}
+          <div
+            className="absolute"
+            style={{
+              top: "-5%",
+              left: "10%",
+              width: "55%",
+              height: "30%",
+              background: "radial-gradient(ellipse at 50% 0%, rgba(255, 200, 120, 0.4) 0%, transparent 70%)",
+              filter: "blur(40px)",
+            }}
+          />
+          {/* Dark vignette overlay for depth */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "radial-gradient(ellipse at 20% 50%, transparent 0%, rgba(10,5,2,0.5) 80%)",
+            }}
+          />
+        </div>
 
-        <div className="relative z-10 flex flex-col h-full px-16 py-14">
+        {/* Content */}
+        <div className="relative z-10 flex flex-col h-full px-14 py-12">
 
           {/* Logo */}
-          <div className="mb-12">
+          <div className="mb-auto">
             <img
               src="/moodra-logo-full.png"
               alt="moodra"
-              style={{ height: "40px", width: "auto", objectFit: "contain", display: "block" }}
+              style={{
+                height: "36px",
+                width: "auto",
+                objectFit: "contain",
+                display: "block",
+                filter: "brightness(0) invert(1)",
+                opacity: 0.92,
+              }}
             />
           </div>
 
-          {/* Eyebrow */}
-          <div className="mb-4 flex items-center gap-2">
-            <div className="h-px w-6" style={{ background: "#F96D1C" }} />
-            <span
-              className="text-[10px] font-bold tracking-[0.18em] uppercase"
-              style={{ color: "#F96D1C" }}
-            >
-              {l.eyebrow}
-            </span>
-          </div>
-
           {/* Hero copy */}
-          <div className="mb-16">
-            <h2
-              className="font-bold leading-[1.1] mb-5"
+          <div className="mb-10 mt-auto">
+            {/* Eyebrow tag */}
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-6"
               style={{
-                color: "#1a0d06",
-                fontFamily: "system-ui, -apple-system, sans-serif",
-                fontSize: "2.9rem",
-                letterSpacing: "-0.02em",
+                background: "rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.16)",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#FF9640" }} />
+              <span
+                className="text-[10px] font-bold tracking-[0.16em] uppercase"
+                style={{ color: "rgba(255,255,255,0.8)" }}
+              >
+                {l.eyebrow}
+              </span>
+            </div>
+
+            <h2
+              className="font-bold leading-[1.05] mb-5"
+              style={{
+                color: "#fff",
+                fontSize: "clamp(2.4rem, 3.6vw, 3.6rem)",
+                letterSpacing: "-0.03em",
+                textShadow: "0 4px 40px rgba(0,0,0,0.4)",
               }}
             >
               {l.headline1}<br />
-              <span style={{ color: "#F96D1C" }}>{l.headline2}</span>
+              <span
+                style={{
+                  background: "linear-gradient(90deg, #FFD4A0 0%, #FF9640 50%, #FF6B1C 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                {l.headline2}
+              </span>
             </h2>
-            <p className="text-[0.96rem] leading-relaxed max-w-[400px]" style={{ color: "#7a5a44" }}>
+            <p
+              className="text-[0.93rem] leading-relaxed max-w-[400px]"
+              style={{ color: "rgba(255,255,255,0.55)" }}
+            >
               {l.subheadline}
             </p>
           </div>
 
-          {/* Feature cards 2×2 */}
-          <div className="grid grid-cols-2 gap-3 mb-10">
+          {/* Feature pills row */}
+          <div className="flex flex-wrap gap-2.5 mb-10">
             {featureKeys.map((key, i) => {
               const Icon = featureIcons[i];
               const feat = l.features[key];
               return (
                 <div
                   key={key}
-                  className="rounded-2xl p-4"
+                  className="flex items-center gap-2 rounded-2xl px-3.5 py-2.5"
                   style={{
-                    background: "rgba(255,255,255,0.6)",
-                    backdropFilter: "blur(20px)",
-                    border: "1px solid rgba(249,109,28,0.14)",
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    backdropFilter: "blur(16px)",
                   }}
                 >
                   <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center mb-3"
-                    style={{ background: "rgba(249,109,28,0.12)" }}
+                    className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(255,150,64,0.22)" }}
                   >
-                    <Icon className="w-4 h-4" style={{ color: "#F96D1C" }} strokeWidth={1.8} />
+                    <Icon className="w-3.5 h-3.5" style={{ color: "#FF9640" }} strokeWidth={1.8} />
                   </div>
-                  <div
-                    className="text-sm font-semibold mb-1 leading-snug"
-                    style={{ color: "#1a0d06", fontFamily: "system-ui, -apple-system, sans-serif" }}
-                  >
+                  <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.82)" }}>
                     {feat.title}
-                  </div>
-                  <div className="text-xs leading-relaxed" style={{ color: "#9a7060" }}>
-                    {feat.desc}
-                  </div>
+                  </span>
                 </div>
               );
             })}
           </div>
 
-          {/* Checkmarks */}
-          <div className="flex flex-col gap-2.5 mb-auto">
-            {l.highlights.map((h: string) => (
-              <div key={h} className="flex items-center gap-2.5">
-                <div
-                  className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(249,109,28,0.16)" }}
-                >
-                  <Check className="w-2.5 h-2.5" style={{ color: "#F96D1C" }} strokeWidth={2.5} />
-                </div>
-                <span className="text-xs" style={{ color: "#7a5a44" }}>{h}</span>
-              </div>
-            ))}
-          </div>
-
           {/* Footer */}
-          <p className="mt-14 text-xs" style={{ color: "#c0a080" }}>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
             © 2026 Moodra · {l.footer}
           </p>
         </div>
       </div>
 
       {/* ── Right sign-in panel ── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 py-16 relative">
+      <div
+        className="flex-1 flex flex-col items-center justify-center px-8 py-16 relative"
+        style={{ background: "hsl(30, 40%, 97%)" }}
+      >
         <div className="absolute top-5 right-6">
           <LanguagePicker />
         </div>
@@ -153,13 +205,13 @@ export default function LoginPage() {
           />
         </div>
 
-        <div className="w-full max-w-[300px] flex flex-col gap-8">
+        <div className="w-full max-w-[300px] flex flex-col gap-7">
 
           {/* Icon accent */}
           <img
             src="/moodra-icon-sketch.png"
             alt="Moodra"
-            className="w-16 h-16 rounded-2xl"
+            className="w-14 h-14 rounded-2xl"
             style={{ objectFit: "cover" }}
           />
 
@@ -168,9 +220,8 @@ export default function LoginPage() {
               className="font-bold mb-2"
               style={{
                 color: "#1a0d06",
-                fontFamily: "system-ui, -apple-system, sans-serif",
-                fontSize: "1.75rem",
-                letterSpacing: "-0.02em",
+                fontSize: "1.7rem",
+                letterSpacing: "-0.025em",
                 lineHeight: 1.2,
               }}
             >
