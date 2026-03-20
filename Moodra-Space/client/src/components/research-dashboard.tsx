@@ -214,7 +214,7 @@ function SectionHeader({
 
 // ─── Draft Stages Section ────────────────────────────────────────────────────
 
-function DraftStagesSection({ bookId, book, drafts }: { bookId: number; book: Book; drafts: Draft[] }) {
+function DraftStagesSection({ bookId, book, drafts, className }: { bookId: number; book: Book; drafts: Draft[]; className?: string }) {
   const { lang } = useLang();
   const { toast } = useToast();
   const t = (RESEARCH_I18N[lang as keyof typeof RESEARCH_I18N] ?? RESEARCH_I18N.ru) as ResearchT;
@@ -253,7 +253,7 @@ function DraftStagesSection({ bookId, book, drafts }: { bookId: number; book: Bo
   const progress = activeDrafts.length > 0 ? Math.round((finalCount / activeDrafts.length) * 100) : 0;
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm">
+    <div className={`rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm${className ? ` ${className}` : ""}`}>
       <SectionHeader
         icon={ListChecks} color="#6366F1"
         title={t.stagesTitle}
@@ -1129,8 +1129,8 @@ export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Stage tracker + AI assistant */}
         <div className="flex-1 overflow-y-auto border-r border-border/30 p-4 flex flex-col gap-4">
-          <DraftStagesSection bookId={bookId} book={book} drafts={drafts} />
-          <DraftAiAssistant book={book} className="flex-1" />
+          <DraftStagesSection bookId={bookId} book={book} drafts={drafts} className="flex-1" />
+          <DraftAiAssistant book={book} />
         </div>
 
         {/* Right: Drafts list */}
