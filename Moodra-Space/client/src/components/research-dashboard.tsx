@@ -332,9 +332,10 @@ const ASSIST_MODES = [
   { id: "ideas",    IconComp: IdeaIcon,         getLabel: (t: ResearchT) => t.aiIdeas,    getDesc: (t: ResearchT) => t.aiIdeasDesc },
 ] as const;
 
-function DraftAiAssistant({ book, onInsert }: {
+function DraftAiAssistant({ book, onInsert, className }: {
   book: Book;
   onInsert?: (text: string) => void;
+  className?: string;
 }) {
   const { lang } = useLang();
   const { isFreeMode } = useFreeMode();
@@ -370,7 +371,7 @@ function DraftAiAssistant({ book, onInsert }: {
   const color = "#F96D1C";
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm space-y-4">
+    <div className={`rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm space-y-4${className ? ` ${className}` : ""}`}>
       <SectionHeader
         icon={Sparkles} color={color}
         title={t.aiAssist}
@@ -1127,9 +1128,9 @@ export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book
       {/* 50 / 50 split — each panel independently scrollable */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Stage tracker + AI assistant */}
-        <div className="flex-1 overflow-y-auto border-r border-border/30 p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto border-r border-border/30 p-4 flex flex-col gap-4">
           <DraftStagesSection bookId={bookId} book={book} drafts={drafts} />
-          <DraftAiAssistant book={book} />
+          <DraftAiAssistant book={book} className="flex-1" />
         </div>
 
         {/* Right: Drafts list */}
