@@ -1016,6 +1016,13 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
               <FileDown className="h-4 w-4" />
               {lp.exportDocx || "Export DOCX"}
             </button>
+            <button
+              onClick={() => anchorDownload(`/api/books/${bookId}/export/epub`, `${book.title.replace(/[^a-zA-Z0-9а-яёА-ЯЁіїєІЇЄ\s]/g, "").trim() || "book"}.epub`)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-secondary hover:bg-secondary/80 transition-all"
+            >
+              <BookOpen className="h-4 w-4" />
+              {lp.exportEpub || "Export EPUB"}
+            </button>
           </div>
         </div>
       </aside>

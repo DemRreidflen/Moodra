@@ -271,7 +271,7 @@ function DraftStagesSection({ bookId, book, drafts }: { bookId: number; book: Bo
         </div>
       )}
       {activeDrafts.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-8 text-center text-muted-foreground/50">
+        <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground/50">
           <ListChecks className="h-8 w-8" />
           <p className="text-sm">{t.noDrafts}</p>
         </div>
