@@ -91,7 +91,7 @@ function ExportModal({
         // PDF: open in new tab — Paged.js auto-triggers the print dialog
         const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
         const coverImageUrl = book.coverImage ? `${window.location.origin}${book.coverImage}` : "";
-        const html = generatePrintHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp, pagedJsUrl });
+        const html = generatePrintHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, pagedJsUrl });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
         const w = window.open(blobUrl, "_blank");
@@ -288,10 +288,36 @@ function SecHead({ label, open, toggle }: { label: string; open: boolean; toggle
   );
 }
 
+// ─── Book-language strings (independent of platform UI language) ─────
+const BOOK_LANG_STRINGS: Record<string, { tocHeading: string; chapterLabel: string; cpEditor: string; cpCoverDesigner: string }> = {
+  en:      { tocHeading: "Table of Contents",    chapterLabel: "Chapter",   cpEditor: "Editor",    cpCoverDesigner: "Cover design" },
+  "en-GB": { tocHeading: "Table of Contents",    chapterLabel: "Chapter",   cpEditor: "Editor",    cpCoverDesigner: "Cover design" },
+  "en-CA": { tocHeading: "Table of Contents",    chapterLabel: "Chapter",   cpEditor: "Editor",    cpCoverDesigner: "Cover design" },
+  ru:      { tocHeading: "Оглавление",            chapterLabel: "Глава",     cpEditor: "Редактор",  cpCoverDesigner: "Дизайн обложки" },
+  ua:      { tocHeading: "Зміст",                 chapterLabel: "Розділ",    cpEditor: "Редактор",  cpCoverDesigner: "Дизайн обкладинки" },
+  de:      { tocHeading: "Inhaltsverzeichnis",    chapterLabel: "Kapitel",   cpEditor: "Lektor",    cpCoverDesigner: "Covergestaltung" },
+  fr:      { tocHeading: "Table des matières",    chapterLabel: "Chapitre",  cpEditor: "Éditeur",   cpCoverDesigner: "Conception de couverture" },
+  es:      { tocHeading: "Índice",                chapterLabel: "Capítulo",  cpEditor: "Editor",    cpCoverDesigner: "Diseño de portada" },
+  it:      { tocHeading: "Indice",                chapterLabel: "Capitolo",  cpEditor: "Editore",   cpCoverDesigner: "Progetto copertina" },
+  zh:      { tocHeading: "目录",                   chapterLabel: "章",        cpEditor: "编辑",      cpCoverDesigner: "封面设计" },
+  ja:      { tocHeading: "目次",                   chapterLabel: "章",        cpEditor: "編集",      cpCoverDesigner: "装丁" },
+  pl:      { tocHeading: "Spis treści",           chapterLabel: "Rozdział",  cpEditor: "Redaktor",  cpCoverDesigner: "Projekt okładki" },
+  cs:      { tocHeading: "Obsah",                 chapterLabel: "Kapitola",  cpEditor: "Redaktor",  cpCoverDesigner: "Návrh obálky" },
+  kk:      { tocHeading: "Мазмұны",               chapterLabel: "Тарау",     cpEditor: "Редактор",  cpCoverDesigner: "Мұқаба дизайны" },
+};
+
+function getBookLangStrings(bookLanguage: string | null | undefined) {
+  const lang = bookLanguage || "ru";
+  return BOOK_LANG_STRINGS[lang]
+    ?? BOOK_LANG_STRINGS[lang.split("-")[0]]
+    ?? BOOK_LANG_STRINGS["en"];
+}
+
 // ─── Main component ──────────────────────────────────────────────────
 export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const { t } = useLang();
   const lp = t.layoutPanel as Record<string, string>;
+  const bookLp = { ...lp, ...getBookLangStrings(book.language) };
 
   const { settings, update } = useBookSettings(bookId);
   const { frontMatter, updateTitlePage, updateCopyrightPage, updateDedicationPage, update: updateFm } = useFrontMatter(bookId);
@@ -380,7 +406,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     if (!book || chapters.length === 0) return;
     const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
     const coverImageUrl = book.coverImage ? `${window.location.origin}${book.coverImage}` : "";
-    const html = generatePagedJsHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp, zoom, pagedJsUrl });
+    const html = generatePagedJsHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, zoom, pagedJsUrl });
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
     setTotalPages(0); // reset while iframe re-renders
