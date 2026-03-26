@@ -161,13 +161,14 @@ function blockToHtml(b: Block, lang: string, s: BookTypographySettings): string 
 // ── CSS generator ─────────────────────────────────────────────────────
 
 interface PagedBookInput {
-  book:        { title: string; language?: string | null };
+  book:        { title: string; language?: string | null; coverImage?: string | null };
   chapters:    { title: string; content: unknown }[];
   settings:    BookTypographySettings;
   frontMatter: FrontMatterSettings;
   lp:          Record<string, string>;
   printMode?:  boolean;
   zoom?:       number;
+  designerPages?: { afterChapterIndex: number; imageUrl: string }[];
 }
 
 function settingsToCss(input: PagedBookInput): string {
@@ -286,6 +287,7 @@ blockquote + p,
 h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
 /* ── Headings ───────────────────────────────────────────────── */
+${s.headingFontFamily ? `.bh1, .bh2, .bh3, .ch-title { font-family: ${s.headingFontFamily}; }` : ""}
 .bh1 {
   font-size: ${s.h1Size}pt;
   font-weight: 700;
@@ -384,6 +386,62 @@ hr.bdiv {
 
 /* After headings: no indent on immediately following paragraph */
 .ch-body > h2 + p, .ch-body > h3 + p, .ch-body > h4 + p { text-indent: 0; }
+
+/* ── Cover page ─────────────────────────────────────────────── */
+@page cover-page {
+  margin: 0;
+  @top-left   { content: none; }
+  @top-center { content: none; }
+  @top-right  { content: none; }
+  @bottom-left   { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right  { content: none; }
+}
+.cover-page {
+  page: cover-page;
+  break-before: page;
+  page-break-before: always;
+  width: ${ps.width}mm;
+  height: ${ps.height}mm;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+}
+.cover-page img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Designer page ──────────────────────────────────────────── */
+@page designer-page {
+  margin: 0;
+  @top-left   { content: none; }
+  @top-center { content: none; }
+  @top-right  { content: none; }
+  @bottom-left   { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right  { content: none; }
+}
+.designer-page {
+  page: designer-page;
+  break-before: page;
+  page-break-before: always;
+  width: ${ps.width}mm;
+  height: ${ps.height}mm;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+}
+.designer-page img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 
 /* ── Front-matter pages ─────────────────────────────────────── */
 .front-matter-page {
@@ -620,7 +678,7 @@ body[data-view="spread"] .pagedjs_page:nth-child(2n) {
 // ── HTML content builder ──────────────────────────────────────────────
 
 function buildFrontMatter(
-  book: { title: string; language?: string | null },
+  book: { title: string; language?: string | null; coverImage?: string | null },
   fm: FrontMatterSettings,
   chapters: { title: string }[],
   lp: Record<string, string>,
@@ -628,6 +686,11 @@ function buildFrontMatter(
 ): string {
   const parts: string[] = [];
   const lang = book.language ?? "ru";
+
+  // Cover image page (always first if available)
+  if (book.coverImage && book.coverImage.startsWith("data:")) {
+    parts.push(`<div class="cover-page"><img src="${book.coverImage}" alt="Cover"/></div>`);
+  }
 
   // Title page
   if (fm.titlePage?.enabled) {
@@ -748,15 +811,25 @@ function buildChapters(
   s: BookTypographySettings,
   lang: string,
   lp: Record<string, string>,
+  designerPages?: { afterChapterIndex: number; imageUrl: string }[],
 ): string {
-  return chapters.map((ch, ci) => {
+  const parts: string[] = [];
+
+  // Designer pages before chapter 0 (afterChapterIndex === -1)
+  (designerPages ?? [])
+    .filter(dp => dp.afterChapterIndex === -1)
+    .forEach(dp => {
+      parts.push(`<div class="designer-page"><img src="${dp.imageUrl}" alt="Design page"/></div>`);
+    });
+
+  chapters.forEach((ch, ci) => {
     const blocks = parseBlocks(ch.content).filter(
       (b) => b.content.trim() || b.type === "divider" || b.type === "pagebreak",
     );
     const rawHtmlParts = blocks.map((b) => blockToHtml(b, lang, s));
     const blocksHtml = wrapListItems(rawHtmlParts, blocks);
 
-    return `
+    parts.push(`
 <section class="chapter" id="chapter-${ci}">
   <div class="ch-header">
     <h1 class="ch-title">${softHyphenateText(esc(ch.title), lang)}</h1>
@@ -764,8 +837,17 @@ function buildChapters(
   <div class="ch-body">
     ${blocksHtml || '<p>—</p>'}
   </div>
-</section>`;
-  }).join("\n");
+</section>`);
+
+    // Designer pages after this chapter
+    (designerPages ?? [])
+      .filter(dp => dp.afterChapterIndex === ci)
+      .forEach(dp => {
+        parts.push(`<div class="designer-page"><img src="${dp.imageUrl}" alt="Design page"/></div>`);
+      });
+  });
+
+  return parts.join("\n");
 }
 
 // ── postMessage bridge script (runs inside the iframe) ────────────────
@@ -860,13 +942,14 @@ const PRINT_BRIDGE_SCRIPT = `
 // ── Public API ────────────────────────────────────────────────────────
 
 export interface PagedBookOptions {
-  book:        { title: string; language?: string | null };
+  book:        { title: string; language?: string | null; coverImage?: string | null };
   chapters:    { title: string; content: unknown }[];
   settings:    BookTypographySettings;
   frontMatter: FrontMatterSettings;
   lp:          Record<string, string>;
   zoom?:       number;
   printMode?:  boolean;
+  designerPages?: { afterChapterIndex: number; imageUrl: string }[];
   /** Absolute URL to paged.polyfill.js (must be absolute — blob:// iframes can't use relative paths). */
   pagedJsUrl:  string;
 }
@@ -882,13 +965,13 @@ export interface PagedBookOptions {
  *   - Includes the postMessage bridge for React ↔ iframe communication
  */
 export function generatePagedJsHtml(opts: PagedBookOptions): string {
-  const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1, printMode = false, pagedJsUrl } = opts;
+  const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1, printMode = false, pagedJsUrl, designerPages } = opts;
   const lang    = book.language ?? "ru";   // internal code — used for Hypher dict lookup
   const htmlLang = toBcp47(lang);           // BCP 47 — used for HTML lang="" and CSS hyphens:auto
   const css  = settingsToCss(opts);
 
   const frontMatterHtml = buildFrontMatter(book, fm, chapters, lp, s);
-  const chaptersHtml    = buildChapters(chapters, s, lang, lp);
+  const chaptersHtml    = buildChapters(chapters, s, lang, lp, designerPages);
 
   // Print mode: hide shadows + background, use PRINT bridge (auto-triggers window.print())
   const printOverrideCss = printMode ? `

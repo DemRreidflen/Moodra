@@ -6,13 +6,13 @@ import {
   Download, ZoomIn, ZoomOut, BookOpen, ChevronRight,
   FileText, Settings2, AlignLeft, AlignJustify, AlignCenter, AlignRight,
   ChevronDown, ChevronUp, Columns2, Square,
-  ChevronLeft, X, FileDown, Printer,
+  ChevronLeft, X, FileDown, Printer, ImagePlus, Trash2, GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/language-context";
 import { MPdf } from "@/components/icons";
-import { useBookSettings, BookTypographySettings, LAYOUT_PRESETS, LayoutPreset } from "@/hooks/use-book-settings";
-import { useFrontMatter, FrontMatterSettings, TITLE_PAGE_PRESETS, TitlePagePreset } from "@/hooks/use-front-matter";
+import { useBookSettings, BookTypographySettings } from "@/hooks/use-book-settings";
+import { useFrontMatter, FrontMatterSettings } from "@/hooks/use-front-matter";
 import { generatePagedJsHtml, generatePrintHtml } from "@/lib/paged-book";
 
 // ─── Page sizes ─────────────────────────────────────────────────────
@@ -67,6 +67,7 @@ function ExportModal({
   chapters,
   settings,
   frontMatter,
+  designerPages,
   onClose,
   lp,
 }: {
@@ -75,10 +76,11 @@ function ExportModal({
   chapters: Chapter[];
   settings: LayoutSettings;
   frontMatter: FrontMatterSettings;
+  designerPages: { id: string; afterChapterIndex: number; imageUrl: string }[];
   onClose: () => void;
   lp: Record<string, string>;
 }) {
-  const [exportFormat, setExportFormat] = useState<"pdf" | "docx" | "epub">("pdf");
+  const [exportFormat, setExportFormat] = useState<"pdf" | "epub">("pdf");
   const [epubAuthor, setEpubAuthor] = useState("");
   const [exporting, setExporting] = useState(false);
 
@@ -90,7 +92,7 @@ function ExportModal({
       if (exportFormat === "pdf") {
         // PDF: open in new tab — Paged.js auto-triggers the print dialog
         const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-        const html = generatePrintHtml({ book, chapters, settings, frontMatter, lp, pagedJsUrl });
+        const html = generatePrintHtml({ book, chapters, settings, frontMatter, lp, pagedJsUrl, designerPages });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
         const w = window.open(blobUrl, "_blank");
@@ -99,9 +101,6 @@ function ExportModal({
         } else {
           setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         }
-      } else if (exportFormat === "docx") {
-        // DOCX: anchor download (reliable, no popup-blocker risk)
-        anchorDownload(`/api/books/${bookId}/export/docx`, `${safeTitle}.docx`);
       } else if (exportFormat === "epub") {
         // EPUB: anchor download with metadata as query params
         const params = new URLSearchParams();
@@ -143,7 +142,7 @@ function ExportModal({
           <div>
             <p className="text-xs text-muted-foreground mb-2 font-medium">{lp.exportFormat || "Format"}</p>
             <div className="flex gap-2">
-              {(["pdf", "docx", "epub"] as const).map(f => (
+              {(["pdf", "epub"] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setExportFormat(f)}
@@ -160,7 +159,7 @@ function ExportModal({
             </div>
           </div>
 
-          {/* Page info (PDF/DOCX) */}
+          {/* Page info (PDF) */}
           {exportFormat !== "epub" && (
             <div className="bg-secondary/60 rounded-xl p-3 space-y-1.5">
               <div className="flex justify-between text-xs">
@@ -227,9 +226,7 @@ function ExportModal({
               ? (lp.exporting || "Preparing…")
               : exportFormat === "pdf"
                 ? (lp.exportPdf || "Export PDF")
-                : exportFormat === "epub"
-                  ? (lp.exportEpub || "Download EPUB")
-                  : (lp.exportDocx || "Export DOCX")}
+                : (lp.exportEpub || "Download EPUB")}
           </button>
         </div>
       </div>
@@ -308,8 +305,13 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [totalPages, setTotalPages] = useState(0);
   const [chapterPages, setChapterPages] = useState<Record<number, number>>({});
   const [activeChapter, setActiveChapter] = useState(0);
-  const [open, setOpen] = useState({ presets: true, page: true, typography: true, headings: false, hf: false, frontmatter: false });
+  const [open, setOpen] = useState({ page: true, typography: true, headings: false, hf: false, frontmatter: false });
   const [showExport, setShowExport] = useState(false);
+  const [designerPages, setDesignerPages] = useState<{ id: string; afterChapterIndex: number; imageUrl: string }[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`moodra_designer_pages_${bookId}`) || "[]"); } catch { return []; }
+  });
+  const designerPageInputRef = useRef<HTMLInputElement>(null);
+  const [pendingDpAfter, setPendingDpAfter] = useState<number>(-1);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: chapters = [] } = useQuery<Chapter[]>({
@@ -373,19 +375,35 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     return tp;
   }, [viewMode]);
 
+  const saveDesignerPages = useCallback((pages: typeof designerPages) => {
+    setDesignerPages(pages);
+    localStorage.setItem(`moodra_designer_pages_${bookId}`, JSON.stringify(pages));
+  }, [bookId]);
+
+  const handleDesignerPageUpload = useCallback((file: File, afterChapterIndex: number) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const imageUrl = e.target?.result as string;
+      if (!imageUrl) return;
+      const newPage = { id: Math.random().toString(36).slice(2), afterChapterIndex, imageUrl };
+      saveDesignerPages([...designerPages, newPage]);
+    };
+    reader.readAsDataURL(file);
+  }, [designerPages, saveDesignerPages]);
+
   // Regenerate Paged.js HTML whenever settings, chapters, or zoom changes.
   // Paged.js runs inside the iframe and will send back "paged-ready" with the page count.
   useEffect(() => {
     if (!book || chapters.length === 0) return;
     const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-    const html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl });
+    const html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl, designerPages });
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
     setTotalPages(0); // reset while iframe re-renders
     setCurrentSpread(0);
     if (iframeRef.current) iframeRef.current.src = url;
     return () => URL.revokeObjectURL(url);
-  }, [book, chapters, settings, zoom, lp, frontMatter]);
+  }, [book, chapters, settings, zoom, lp, frontMatter, designerPages]);
 
   // When viewMode changes, tell the iframe to switch display layout.
   // This is a pure visual change — Paged.js does NOT re-paginate.
@@ -438,10 +456,24 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           chapters={chapters}
           settings={settings}
           frontMatter={frontMatter}
+          designerPages={designerPages}
           onClose={() => setShowExport(false)}
           lp={lp}
         />
       )}
+
+      {/* Hidden file input for designer page upload */}
+      <input
+        ref={designerPageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file) handleDesignerPageUpload(file, pendingDpAfter);
+          e.target.value = "";
+        }}
+      />
 
       {/* ── Left: Structure ──────────────────────────────────────── */}
       <aside className="w-52 flex-shrink-0 border-r border-border/50 bg-background/60 flex flex-col overflow-hidden">
@@ -477,6 +509,29 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
           <div className="mx-3 my-1.5 border-t border-border/30" />
 
+          {/* Designer pages before all chapters (afterChapterIndex = -1) */}
+          {designerPages.filter(dp => dp.afterChapterIndex === -1).map(dp => (
+            <div key={dp.id} className="mx-1 mb-0.5 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
+              <GripVertical className="h-3 w-3 text-amber-400 shrink-0" />
+              <img src={dp.imageUrl} alt="" className="h-6 w-4 object-cover rounded shrink-0" />
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 flex-1 truncate">{lp.designerPage || "Design page"}</span>
+              <button onClick={() => saveDesignerPages(designerPages.filter(p => p.id !== dp.id))}
+                className="shrink-0 text-amber-400 hover:text-red-500 transition-colors">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+
+          {/* Add designer page before chapter 1 */}
+          <button
+            onClick={() => { setPendingDpAfter(-1); designerPageInputRef.current?.click(); }}
+            className="mx-1 mb-1 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] text-muted-foreground/50 hover:text-primary hover:bg-secondary/60 transition-colors"
+            style={{ width: "calc(100% - 8px)" }}
+          >
+            <ImagePlus className="h-2.5 w-2.5" />
+            <span>{lp.addDesignerPage || "+ Design page"}</span>
+          </button>
+
           {/* Chapter list */}
           {chapters.map((ch, idx) => {
             let blocks: any[] = [];
@@ -506,6 +561,29 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                     </span>
                   </div>
                 ))}
+
+                {/* Designer pages after this chapter */}
+                {designerPages.filter(dp => dp.afterChapterIndex === idx).map(dp => (
+                  <div key={dp.id} className="mx-1 mt-0.5 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
+                    <GripVertical className="h-3 w-3 text-amber-400 shrink-0" />
+                    <img src={dp.imageUrl} alt="" className="h-6 w-4 object-cover rounded shrink-0" />
+                    <span className="text-[10px] text-amber-700 dark:text-amber-400 flex-1 truncate">{lp.designerPage || "Design page"}</span>
+                    <button onClick={() => saveDesignerPages(designerPages.filter(p => p.id !== dp.id))}
+                      className="shrink-0 text-amber-400 hover:text-red-500 transition-colors">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Add designer page after this chapter */}
+                <button
+                  onClick={() => { setPendingDpAfter(idx); designerPageInputRef.current?.click(); }}
+                  className="mx-1 my-0.5 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] text-muted-foreground/50 hover:text-primary hover:bg-secondary/60 transition-colors"
+                  style={{ width: "calc(100% - 8px)" }}
+                >
+                  <ImagePlus className="h-2.5 w-2.5" />
+                  <span>{lp.addDesignerPage || "+ Design page"}</span>
+                </button>
               </div>
             );
           })}
@@ -686,6 +764,16 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           <SecHead label={lp.headingsSection} open={open.headings} toggle={() => tog("headings")} />
           {open.headings && (
             <div className="space-y-0.5 pb-3 border-b border-border/30">
+              <Row label={lp.headingFont || "Heading font"}>
+                <select
+                  value={settings.headingFontFamily || ""}
+                  onChange={e => update({ headingFontFamily: e.target.value })}
+                  className="h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none max-w-[138px]"
+                >
+                  <option value="">{lp.sameAsBody || "Same as body"}</option>
+                  {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </Row>
               <Row label={lp.chapter_h1}><NumInput value={settings.h1Size} onChange={v => update({ h1Size: v })} min={10} max={36} unit="pt" /></Row>
               <Row label={lp.section_h2}><NumInput value={settings.h2Size} onChange={v => update({ h2Size: v })} min={10} max={30} unit="pt" /></Row>
               <Row label={lp.subsection_h3}><NumInput value={settings.h3Size} onChange={v => update({ h3Size: v })} min={8} max={24} unit="pt" /></Row>
@@ -807,22 +895,6 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                         <option value="ornament">{lp.fmDecoOrnament || "Ornament ✦"}</option>
                       </select>
                     </Row>
-
-                    {/* Typography Presets */}
-                    <div className="pt-1">
-                      <p className="text-[10px] text-muted-foreground mb-1">{lp.fmTitlePresets || "Typography preset"}</p>
-                      <div className="grid grid-cols-2 gap-1">
-                        {(["classic","minimal","modern","bold"] as TitlePagePreset[]).map(preset => (
-                          <button key={preset} onClick={() => updateTitlePage({ titlePreset: preset, ...TITLE_PAGE_PRESETS[preset] })}
-                            className={cn("h-7 rounded-lg text-[10px] font-medium transition-colors capitalize",
-                              frontMatter.titlePage.titlePreset === preset
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-secondary text-muted-foreground hover:text-foreground")}>
-                            {lp[`fmPreset_${preset}`] || preset}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
 
                     {/* Typography fine-tuning */}
                     <div className="pt-1 space-y-1">

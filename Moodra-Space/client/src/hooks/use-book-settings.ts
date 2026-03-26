@@ -7,6 +7,7 @@ export interface BookTypographySettings {
   marginLeft: number;
   marginRight: number;
   fontFamily: string;
+  headingFontFamily: string;
   fontSize: number;
   lineHeight: number;
   paragraphSpacing: number;
@@ -34,6 +35,7 @@ export const DEFAULT_BOOK_SETTINGS: BookTypographySettings = {
   marginLeft: 20,
   marginRight: 16,
   fontFamily: "Georgia, 'Times New Roman', serif",
+  headingFontFamily: "",
   fontSize: 11,
   lineHeight: 1.6,
   paragraphSpacing: 0.5,

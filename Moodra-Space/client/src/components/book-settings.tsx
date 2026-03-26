@@ -445,25 +445,6 @@ export function BookSettings({ book }: { book: Book }) {
             </Select>
           </div>
 
-          {/* Fonts */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-widest">Шрифты вёрстки</h3>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">{s.headingFontLabel}</Label>
-              <Select value={headingFont || "same"} onValueChange={v => { setHeadingFont(v === "same" ? "" : v); mark(); }}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="same">Как у контента</SelectItem>
-                  <SelectItem value="serif">{s.fontSerifLabel}</SelectItem>
-                  <SelectItem value="sans">{s.fontSansLabel}</SelectItem>
-                  <SelectItem value="mono">{s.fontMonoLabel}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           {/* Cover */}
           <div className="space-y-4">
             <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-widest">{s.coverSection}</h3>
