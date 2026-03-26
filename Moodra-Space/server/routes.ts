@@ -1334,7 +1334,7 @@ ${existing ? "Не дублируй уже имеющиеся источники
 
   app.post("/api/ai/adapt-language", async (req: Request, res: Response) => {
     try {
-      const { text, targetLanguage, bookTitle, bookMode } = req.body;
+      const { text, targetLanguage, bookTitle, bookMode, chapterTitle } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "text and targetLanguage are required" });
 
       const systemPrompt = `You are the Native Translation Agent — a specialist in literary language adaptation.
@@ -1419,7 +1419,26 @@ Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction
 
       trackTokens(getUserId(req), totalTokens);
       const adapted = adaptedChunks.join("\n\n");
-      res.json({ adapted, chunkCount: chunks.length });
+
+      let adaptedTitle = chapterTitle || "";
+      if (chapterTitle && chapterTitle.trim()) {
+        try {
+          const titleCompletion = await ai.chat.completions.create({
+            model: ADAPT_MODEL,
+            messages: [
+              { role: "system", content: `Translate this chapter title into ${targetLanguage}. Return ONLY the translated title, nothing else.` },
+              { role: "user", content: chapterTitle.trim() },
+            ],
+            max_completion_tokens: 200,
+          });
+          trackTokens(getUserId(req), titleCompletion.usage?.total_tokens || 0);
+          adaptedTitle = titleCompletion.choices[0].message.content?.trim() || chapterTitle;
+        } catch {
+          adaptedTitle = chapterTitle;
+        }
+      }
+
+      res.json({ adapted, adaptedTitle, chunkCount: chunks.length });
     } catch (e: any) {
       const { status, message, code } = openAIErrorMessage(e);
       res.status(status).json({ error: message, code });

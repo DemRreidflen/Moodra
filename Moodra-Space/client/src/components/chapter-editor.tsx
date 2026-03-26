@@ -1104,11 +1104,12 @@ export function ChapterEditor({
       const adaptResp = await fetch("/api/ai/adapt-language", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, targetLanguage: adaptLang, bookTitle, bookMode }),
+        body: JSON.stringify({ text, targetLanguage: adaptLang, bookTitle, bookMode, chapterTitle: chapter.title }),
       });
       const adaptData = await adaptResp.json();
       if (!adaptResp.ok) throw new Error(adaptData.error || "Adaptation error");
       const adapted = adaptData.adapted || "";
+      const adaptedTitle: string = adaptData.adaptedTitle || chapter.title;
       const adaptedParagraphs = adapted.split(/\n\n+/).filter((p: string) => p.trim());
       const originalNonDividers = blocks.filter(b => b.type !== "divider");
       const adaptedBlocks = adaptedParagraphs.map((p: string, i: number) => ({
@@ -1140,7 +1141,7 @@ export function ChapterEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: chapter.title,
+          title: adaptedTitle,
           content: JSON.stringify(adaptedBlocks),
           order: workflow === "new" ? 1 : 9999,
         }),
