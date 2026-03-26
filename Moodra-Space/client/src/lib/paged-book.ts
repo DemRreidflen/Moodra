@@ -897,7 +897,13 @@ function makeBridgeScript(zoom: number): string {
   function saveChapterById(chapterId) {
     var bodyHtml = stripSoftHyphens(collectChapterBody(chapterId));
     var titleText = collectChapterTitle(chapterId);
-    if (!bodyHtml && !titleText) return;
+    // Strip tags to check if there's actual text content — avoid saving when
+    // Paged.js page boxes haven't rendered yet (empty / whitespace / <br> only).
+    var bodyText = bodyHtml.replace(/<[^>]*>/g, '').replace(/\s/g, '').replace(/\u00A0/g, '');
+    if (!bodyText && !titleText) return;
+    // Additional guard: if bodyHtml is whitespace/empty, do NOT overwrite content.
+    // This fires when the user blurs while Paged.js source is not yet in page boxes.
+    if (!bodyText) return;
     window.parent.postMessage({
       type: 'chapter-edit-save',
       chapterId: parseInt(chapterId, 10),

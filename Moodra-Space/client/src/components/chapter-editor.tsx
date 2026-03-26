@@ -569,13 +569,18 @@ export function ChapterEditor({
         const c = chapter.content || "";
         if (c.trim().startsWith("[")) {
           const parsed = JSON.parse(c);
-          if (Array.isArray(parsed)) { setBlocks(parsed); } else { setBlocks([]); }
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setBlocks(parsed);
+          } else {
+            // Empty or invalid array — use empty block so editor stays functional
+            setBlocks([{ id: "init-0", type: "paragraph" as const, content: "" }]);
+          }
         } else if (c) {
           setBlocks([{ id: "init-0", type: "paragraph" as const, content: c }]);
         } else {
-          setBlocks([]);
+          setBlocks([{ id: "init-0", type: "paragraph" as const, content: "" }]);
         }
-      } catch { setBlocks([]); }
+      } catch { setBlocks([{ id: "init-0", type: "paragraph" as const, content: "" }]); }
       clearTimeout(saveTimerRef.current);
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: "auto" });
       const stored = localStorage.getItem(`moodra_adaptations_${chapter.id}`);

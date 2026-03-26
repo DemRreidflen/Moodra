@@ -569,10 +569,16 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           titleText: string;
           bodyHtml: string;
         };
+        // Guard: only save if we have actual body HTML — empty bodyHtml means
+        // Paged.js hadn't rendered the page boxes yet (or collect failed) and
+        // we must NOT overwrite real content with an empty blocks array.
+        if (!bodyHtml || !bodyHtml.trim()) return;
         const blocks = htmlToBlocks(bodyHtml);
-        if (blocks.length > 0 || titleText) {
-          saveLayoutChapterMutation.mutate({ chapterId, title: titleText || undefined, blocks });
-        }
+        // Guard: never save an empty blocks array — this would erase the chapter.
+        // An empty result means the HTML parser didn't find recognisable block elements
+        // (e.g. Paged.js artefacts only) — treat it as a no-op.
+        if (blocks.length === 0) return;
+        saveLayoutChapterMutation.mutate({ chapterId, title: titleText || undefined, blocks });
       }
 
     };
