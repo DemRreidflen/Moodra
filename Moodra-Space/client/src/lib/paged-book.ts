@@ -791,12 +791,13 @@ function wrapListItems(rawHtmlParts: string[], blocks: Block[]): string {
 }
 
 function buildChapters(
-  chapters: { title: string; content: unknown }[],
+  chapters: { id?: number | string; title: string; content: unknown }[],
   s: BookTypographySettings,
   lang: string,
   lp: Record<string, string>,
 ): string {
   return chapters.map((ch, ci) => {
+    const chapterId = ch.id ?? ci;
     const blocks = parseBlocks(ch.content).filter(
       (b) => b.content.trim() || b.type === "divider" || b.type === "pagebreak",
     );
@@ -804,7 +805,7 @@ function buildChapters(
     const blocksHtml = wrapListItems(rawHtmlParts, blocks);
 
     return `
-<section class="chapter" id="chapter-${ci}">
+<section class="chapter" id="chapter-${ci}" data-chapter-id="${chapterId}" data-chapter-idx="${ci}">
   <div class="ch-header">
     <h1 class="ch-title">${softHyphenateText(esc(ch.title), lang)}</h1>
   </div>
@@ -822,29 +823,134 @@ function makeBridgeScript(zoom: number): string {
 <script>
 (function() {
   window.PagedConfig = { auto: false };
+  var editMode = false;
+  var activeSectionId = null;
 
   function applyViewMode(mode) {
     document.body.setAttribute('data-view', mode || 'single');
   }
+
+  function stripSoftHyphens(str) {
+    return str ? str.replace(/\u00AD/g, '').replace(/&shy;/g, '') : '';
+  }
+
+  /* ── Edit mode ──────────────────────────────────────────── */
+
+  function enableEditMode() {
+    editMode = true;
+    document.body.setAttribute('data-edit', '1');
+    // Find all ch-body and ch-title in page boxes and make them editable.
+    // We iterate over ALL occurrences — Paged.js may split a chapter across
+    // several pages but each fragment still carries data-chapter-id.
+    document.querySelectorAll('.ch-body').forEach(function(el) {
+      el.setAttribute('contenteditable', 'true');
+      el.setAttribute('spellcheck', 'true');
+    });
+    document.querySelectorAll('.ch-title').forEach(function(el) {
+      el.setAttribute('contenteditable', 'true');
+      el.setAttribute('spellcheck', 'false');
+    });
+  }
+
+  function disableEditMode() {
+    editMode = false;
+    activeSectionId = null;
+    document.body.removeAttribute('data-edit');
+    document.querySelectorAll('[contenteditable]').forEach(function(el) {
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('spellcheck');
+    });
+  }
+
+  /* Collect all body fragments that belong to a chapter and return
+     concatenated clean HTML. Paged.js may have split the .ch-body
+     across multiple page boxes, each fragment with the same
+     data-chapter-id on the ancestor section. */
+  function collectChapterBody(chapterId) {
+    var fragments = [];
+    // querySelectorAll returns elements in DOM order — page 1 first.
+    document.querySelectorAll('section[data-chapter-id="' + chapterId + '"] .ch-body').forEach(function(el) {
+      fragments.push(el.innerHTML);
+    });
+    // Deduplicate: Paged.js sometimes keeps the original hidden source.
+    // We merge unique fragments only.
+    if (fragments.length <= 1) return fragments[0] || '';
+    // Combine without repeating identical leading/trailing paragraphs.
+    return fragments.join('');
+  }
+
+  function collectChapterTitle(chapterId) {
+    var el = document.querySelector('section[data-chapter-id="' + chapterId + '"] .ch-title');
+    return el ? stripSoftHyphens(el.innerText || el.textContent || '') : '';
+  }
+
+  function saveChapterById(chapterId) {
+    var bodyHtml = stripSoftHyphens(collectChapterBody(chapterId));
+    var titleText = collectChapterTitle(chapterId);
+    if (!bodyHtml && !titleText) return;
+    window.parent.postMessage({
+      type: 'chapter-edit-save',
+      chapterId: parseInt(chapterId, 10),
+      titleText: titleText.trim(),
+      bodyHtml: bodyHtml
+    }, '*');
+  }
+
+  /* Track which chapter the user is editing */
+  document.addEventListener('focusin', function(e) {
+    if (!editMode) return;
+    var sec = e.target && e.target.closest && e.target.closest('section[data-chapter-id]');
+    if (sec) activeSectionId = sec.getAttribute('data-chapter-id');
+  }, true);
+
+  /* Auto-save when focus leaves a chapter section */
+  document.addEventListener('focusout', function(e) {
+    if (!editMode) return;
+    var sec = e.target && e.target.closest && e.target.closest('section[data-chapter-id]');
+    if (!sec) return;
+    var id = sec.getAttribute('data-chapter-id');
+    setTimeout(function() {
+      // Only save if focus moved outside this section
+      var focused = document.activeElement;
+      var stillInside = focused && sec.contains(focused);
+      if (!stillInside) saveChapterById(id);
+    }, 150);
+  }, true);
+
+  /* Ctrl+S / Cmd+S — save focused chapter */
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      if (editMode && activeSectionId) saveChapterById(activeSectionId);
+    }
+  }, true);
+
+  /* ── Paged.js init ──────────────────────────────────────── */
 
   window.addEventListener('load', function() {
     var paged = new Paged.Previewer();
     paged.preview().then(function(flow) {
       applyViewMode('single');
 
-      // Apply zoom AFTER Paged.js has finished layout so page-break
-      // calculations happen at 100% scale. Use CSS zoom property (not
-      // transform:scale) so layout dimensions actually shrink, removing
-      // white-gap artifacts.
       var z = ${zoom};
       if (z !== 1) {
         document.documentElement.style.zoom = String(z);
       }
-      // Inject background override after Paged.js renders
-      // in case Paged.js stylesheet overrides our initial CSS.
+
       var bgStyle = document.createElement('style');
       bgStyle.textContent = 'html,body,.pagedjs_pages,.pagedjs_pages_wrapper{background:#cdc7bf!important}';
       document.head.appendChild(bgStyle);
+
+      /* Edit-mode visual styles — injected after Paged.js so they win */
+      var editCss = document.createElement('style');
+      editCss.textContent = [
+        '[data-edit="1"] .ch-body[contenteditable]{cursor:text;outline:none;transition:box-shadow .15s}',
+        '[data-edit="1"] .ch-body[contenteditable]:hover{box-shadow:0 0 0 2px #F96D1C55}',
+        '[data-edit="1"] .ch-body[contenteditable]:focus{box-shadow:0 0 0 2px #F96D1C}',
+        '[data-edit="1"] .ch-title[contenteditable]{cursor:text;outline:none}',
+        '[data-edit="1"] .ch-title[contenteditable]:focus{box-shadow:0 0 0 2px #F96D1C}'
+      ].join('');
+      document.head.appendChild(editCss);
 
       var chapterPages = {};
       var allPages = document.querySelectorAll('.pagedjs_page');
@@ -859,6 +965,8 @@ function makeBridgeScript(zoom: number): string {
       window.parent.postMessage({ type: 'paged-ready', total: flow.total, chapterPages: chapterPages }, '*');
     });
   });
+
+  /* ── Message bridge ─────────────────────────────────────── */
 
   window.addEventListener('message', function(e) {
     if (!e.data || typeof e.data !== 'object') return;
@@ -878,6 +986,12 @@ function makeBridgeScript(zoom: number): string {
       var ci = parseInt(e.data.chapterIdx, 10);
       var el = document.getElementById('chapter-' + ci);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    if (e.data.type === 'enable-edit') enableEditMode();
+    if (e.data.type === 'disable-edit') disableEditMode();
+    if (e.data.type === 'save-chapter' && e.data.chapterId != null) {
+      saveChapterById(String(e.data.chapterId));
     }
   });
 })();
@@ -908,7 +1022,7 @@ const PRINT_BRIDGE_SCRIPT = `
 
 export interface PagedBookOptions {
   book:        { title: string; language?: string | null; coverImageUrl?: string | null };
-  chapters:    { title: string; content: unknown }[];
+  chapters:    { id?: number | string; title: string; content: unknown }[];
   settings:    BookTypographySettings;
   frontMatter: FrontMatterSettings;
   lp:          Record<string, string>;

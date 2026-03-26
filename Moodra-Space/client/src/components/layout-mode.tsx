@@ -6,7 +6,7 @@ import {
   Download, ZoomIn, ZoomOut, BookOpen, ChevronRight,
   FileText, Settings2, AlignLeft, AlignJustify, AlignCenter, AlignRight,
   ChevronDown, ChevronUp, Columns2, Square,
-  ChevronLeft, X, FileDown, Printer,
+  ChevronLeft, X, FileDown, Printer, Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/language-context";
@@ -46,6 +46,51 @@ type ViewMode = "single" | "spread";
 
 // Pagination is now handled by Paged.js — see paged-book.ts
 interface Block { type: string; content: string; }
+
+/** Convert Paged.js ch-body innerHTML back to Block[] for saving */
+function htmlToBlocks(bodyHtml: string): Block[] {
+  const clean = (s: string) => s.replace(/\u00AD/g, "").replace(/&shy;/g, "");
+  const div = document.createElement("div");
+  div.innerHTML = clean(bodyHtml);
+  const blocks: Block[] = [];
+  for (const el of Array.from(div.children)) {
+    const tag = el.tagName.toLowerCase();
+    const cls = el.className || "";
+    const iHtml = clean(el.innerHTML).trim();
+    const iText = clean(el.textContent || "").trim();
+    if (tag === "p") {
+      if (iHtml) blocks.push({ type: "paragraph", content: iHtml });
+    } else if (tag === "h2" && cls.includes("bh1")) {
+      if (iText) blocks.push({ type: "h1", content: iText });
+    } else if (tag === "h3" && cls.includes("bh2")) {
+      if (iText) blocks.push({ type: "h2", content: iText });
+    } else if (tag === "h4" && cls.includes("bh3")) {
+      if (iText) blocks.push({ type: "h3", content: iText });
+    } else if (tag === "blockquote") {
+      if (iHtml) blocks.push({ type: "quote", content: iHtml });
+    } else if (tag === "div" && cls.includes("callout")) {
+      const inner = el.querySelector("div");
+      const content = inner ? clean(inner.innerHTML).trim() : iHtml;
+      if (cls.includes(" ch")) blocks.push({ type: "hypothesis", content });
+      else if (cls.includes(" ca")) blocks.push({ type: "argument", content });
+      else if (cls.includes(" cc")) blocks.push({ type: "counterargument", content });
+      else if (cls.includes(" ci_")) blocks.push({ type: "idea", content });
+      else if (cls.includes(" cq")) blocks.push({ type: "question", content });
+      else blocks.push({ type: "paragraph", content });
+    } else if (tag === "ul" && cls.includes("blist-checklist")) {
+      el.querySelectorAll("li").forEach(li => blocks.push({ type: "check_item", content: clean(li.innerHTML) }));
+    } else if (tag === "ul") {
+      el.querySelectorAll("li").forEach(li => blocks.push({ type: "bullet_item", content: clean(li.innerHTML) }));
+    } else if (tag === "ol") {
+      el.querySelectorAll("li").forEach(li => blocks.push({ type: "numbered_item", content: clean(li.innerHTML) }));
+    } else if (tag === "hr") {
+      blocks.push({ type: "divider", content: "" });
+    } else if (tag === "div" && cls.includes("explicit-pagebreak")) {
+      blocks.push({ type: "pagebreak", content: "" });
+    }
+  }
+  return blocks;
+}
 
 
 
@@ -339,6 +384,8 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [activeChapter, setActiveChapter] = useState(0);
   const [open, setOpen] = useState({ presets: true, page: true, typography: true, headings: false, hf: false, frontmatter: false });
   const [showExport, setShowExport] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [pendingReload, setPendingReload] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: chapters = [] } = useQuery<Chapter[]>({
@@ -349,8 +396,20 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
   const updateBlockMutation = useMutation({
     mutationFn: ({ chapterId, blocks }: { chapterId: number; blocks: Block[] }) =>
-      apiRequest("PATCH", `/api/books/${bookId}/chapters/${chapterId}`, { content: JSON.stringify(blocks) }),
+      apiRequest("PATCH", `/api/chapters/${chapterId}`, { content: JSON.stringify(blocks) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "chapters"] }),
+  });
+
+  const saveLayoutChapterMutation = useMutation({
+    mutationFn: ({ chapterId, title, blocks }: { chapterId: number; title?: string; blocks: Block[] }) =>
+      apiRequest("PATCH", `/api/chapters/${chapterId}`, {
+        content: JSON.stringify(blocks),
+        ...(title !== undefined && { title }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "chapters"] });
+      setPendingReload(true);
+    },
   });
 
   useEffect(() => {
@@ -388,8 +447,20 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
         setTotalPages(total);
         setTotalSpreads(viewMode === "spread" ? 1 + Math.ceil(Math.max(0, total - 1) / 2) : total);
         setChapterPages(e.data.chapterPages ?? {});
-        // Re-apply the current view mode in case the iframe re-rendered
         (e.source as WindowProxy)?.postMessage({ type: "set-view-mode", mode: viewMode }, "*");
+      }
+
+      // Inline layout editing — save chapter content back to DB
+      if (e.data.type === "chapter-edit-save") {
+        const { chapterId, titleText, bodyHtml } = e.data as {
+          chapterId: number;
+          titleText: string;
+          bodyHtml: string;
+        };
+        const blocks = htmlToBlocks(bodyHtml);
+        if (blocks.length > 0 || titleText) {
+          saveLayoutChapterMutation.mutate({ chapterId, title: titleText || undefined, blocks });
+        }
       }
 
     };
@@ -404,8 +475,10 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
   // Regenerate Paged.js HTML whenever settings, chapters, or zoom changes.
   // Paged.js runs inside the iframe and will send back "paged-ready" with the page count.
+  // While edit mode is active we do NOT regenerate — that would wipe the user's edits.
   useEffect(() => {
     if (!book || chapters.length === 0) return;
+    if (editMode) return;
     const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
     const coverImageUrl = book.coverImage
       ? (book.coverImage.startsWith("data:") ? book.coverImage : `${window.location.origin}${book.coverImage}`)
@@ -413,17 +486,25 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     const html = generatePagedJsHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, zoom, pagedJsUrl });
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    setTotalPages(0); // reset while iframe re-renders
+    setTotalPages(0);
     setCurrentSpread(0);
+    setPendingReload(false);
     if (iframeRef.current) iframeRef.current.src = url;
     return () => URL.revokeObjectURL(url);
-  }, [book, chapters, settings, zoom, lp, frontMatter]);
+  }, [book, chapters, settings, zoom, lp, frontMatter, editMode]);
 
   // When viewMode changes, tell the iframe to switch display layout.
   // This is a pure visual change — Paged.js does NOT re-paginate.
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: "set-view-mode", mode: viewMode }, "*");
   }, [viewMode]);
+
+  // Sync edit mode with the iframe
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: editMode ? "enable-edit" : "disable-edit" }, "*"
+    );
+  }, [editMode]);
 
   const prevPage = () => {
     const next = Math.max(0, currentSpread - 1);
@@ -604,6 +685,27 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors">
               <ZoomIn className="h-3.5 w-3.5" />
             </button>
+
+            <div className="w-px h-4 bg-border/50 mx-1" />
+
+            {/* Edit mode toggle */}
+            <button
+              onClick={() => setEditMode(m => !m)}
+              title={editMode ? (lp.editModeOff || "Exit edit mode") : (lp.editModeOn || "Edit layout")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-semibold transition-all",
+                editMode
+                  ? "bg-[#F96D1C] text-white hover:opacity-90"
+                  : "bg-secondary text-foreground hover:bg-secondary/80"
+              )}
+            >
+              <Pencil className="h-3 w-3" />
+              {editMode ? (lp.editModeOff || "Exit editing") : (lp.editModeOn || "Edit")}
+            </button>
+
+            {pendingReload && !editMode && (
+              <span className="text-[10px] text-muted-foreground animate-pulse">{lp.layoutUpdating || "Updating…"}</span>
+            )}
 
             <div className="w-px h-4 bg-border/50 mx-1" />
 
