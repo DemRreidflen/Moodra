@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Chapter, Book } from "@shared/schema";
 import { useLang } from "@/contexts/language-context";
+import { SectionTourModal } from "@/components/section-tour-modal";
 import { useFreeMode } from "@/hooks/use-free-mode";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -1104,7 +1105,7 @@ export function ChapterEditor({
       const adaptResp = await fetch("/api/ai/adapt-language", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, targetLanguage: adaptLang, bookTitle, bookMode }),
+        body: JSON.stringify({ text, targetLanguage: adaptLang, bookTitle, bookMode, chapterTitle: chapter.title }),
       });
       const adaptData = await adaptResp.json();
       if (!adaptResp.ok) throw new Error(adaptData.error || "Adaptation error");
@@ -1140,7 +1141,7 @@ export function ChapterEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: chapter.title,
+          title: adaptData.adaptedTitle || chapter.title,
           content: JSON.stringify(adaptedBlocks),
           order: workflow === "new" ? 1 : 9999,
         }),
@@ -1192,6 +1193,7 @@ export function ChapterEditor({
         ? "fixed inset-0 z-[200] bg-[#FAF2EA]"
         : "flex-1 bg-card"
     )}>
+      <SectionTourModal sectionId="editor" lang={lang as any} />
       {/* Editor toolbar */}
       <div className={cn(
         "px-5 py-3 border-b border-border flex items-center gap-3 flex-shrink-0 transition-opacity duration-500",

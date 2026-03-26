@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLang } from "@/contexts/language-context";
+import { SectionTourModal } from "@/components/section-tour-modal";
 import { useFreeMode } from "@/hooks/use-free-mode";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -1154,6 +1155,7 @@ export function IdeaBoard({ bookId, book }: { bookId: number; book: Book }) {
 
   return (
     <div className="flex-1 flex overflow-hidden bg-[#FAF2EA] relative" style={{ fontFamily: "var(--font-sans)" }}>
+      <SectionTourModal sectionId="ideas" lang={lang as any} />
 
       {/* ── Left Panel ────────────────────────────────────────────────────────── */}
       {showLeftPanel && (

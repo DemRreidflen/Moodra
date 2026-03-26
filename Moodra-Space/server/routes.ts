@@ -21,13 +21,7 @@ const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: uploadsDir,
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, `cover-${Date.now()}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -113,7 +107,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const id = Number(req.params.id);
       if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
-      const coverImage = `/uploads/${req.file.filename}`;
+      const base64 = req.file.buffer.toString("base64");
+      const mimeType = req.file.mimetype || "image/jpeg";
+      const coverImage = `data:${mimeType};base64,${base64}`;
       const book = await storage.updateBook(id, { coverImage });
       if (!book) return res.status(404).json({ error: "Книга не найдена" });
       res.json({ coverImage });
@@ -1334,7 +1330,7 @@ ${existing ? "Не дублируй уже имеющиеся источники
 
   app.post("/api/ai/adapt-language", async (req: Request, res: Response) => {
     try {
-      const { text, targetLanguage, bookTitle, bookMode } = req.body;
+      const { text, targetLanguage, bookTitle, bookMode, chapterTitle } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "text and targetLanguage are required" });
 
       const systemPrompt = `You are the Native Translation Agent — a specialist in literary language adaptation.
@@ -1419,7 +1415,23 @@ Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction
 
       trackTokens(getUserId(req), totalTokens);
       const adapted = adaptedChunks.join("\n\n");
-      res.json({ adapted, chunkCount: chunks.length });
+
+      let adaptedTitle = chapterTitle || "";
+      if (chapterTitle) {
+        try {
+          const titleCompletion = await ai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: `Translate this chapter title to ${targetLanguage}. Return ONLY the translated title, no quotes, no explanation.` },
+              { role: "user", content: chapterTitle },
+            ],
+            max_completion_tokens: 100,
+          });
+          adaptedTitle = titleCompletion.choices[0]?.message?.content?.trim() || chapterTitle;
+        } catch { adaptedTitle = chapterTitle; }
+      }
+
+      res.json({ adapted, adaptedTitle, chunkCount: chunks.length });
     } catch (e: any) {
       const { status, message, code } = openAIErrorMessage(e);
       res.status(status).json({ error: message, code });
@@ -2401,6 +2413,33 @@ New directions the author could explore — what could make this text exceptiona
     const safeTitle = escapeXml(epubTitle);
     const now = new Date().toISOString().split("T")[0];
 
+    // Cover image embedding
+    let coverManifestExtra = "";
+    let coverMetaExtra = "";
+    let coverSpineItem = "";
+    if (book.coverImage && book.coverImage.startsWith("data:")) {
+      const match = book.coverImage.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        const mimeType = match[1];
+        const base64Data = match[2];
+        const ext = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+        const coverFilename = `cover.${ext}`;
+        oebps.file(coverFilename, Buffer.from(base64Data, "base64"));
+        oebps.file("cover.xhtml",
+          `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta charset="UTF-8"/><title>Cover</title>
+<style>body{margin:0;padding:0;}img{width:100%;height:100vh;object-fit:cover;display:block;}</style>
+</head>
+<body><img src="${coverFilename}" alt="Cover"/></body>
+</html>`);
+        coverManifestExtra = `\n    <item id="cover-image" href="${coverFilename}" media-type="${mimeType}" properties="cover-image"/>
+    <item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>`;
+        coverMetaExtra = `\n    <meta name="cover" content="cover-image"/>`;
+        coverSpineItem = `<itemref idref="cover-page" linear="yes"/>`;
+      }
+    }
+
     const manifestItems = chapters.map(ch =>
       `<item id="ch${ch.id}" href="ch${ch.id}.xhtml" media-type="application/xhtml+xml"/>`
     ).join("\n    ");
@@ -2416,14 +2455,15 @@ New directions the author could explore — what could make this text exceptiona
     ${epubAuthor ? `<dc:creator>${escapeXml(epubAuthor)}</dc:creator>` : ""}
     <dc:language>${escapeXml(epubLanguage)}</dc:language>
     <dc:date>${now}</dc:date>
-    <dc:identifier id="uid">moodra-${bookId}-${now}</dc:identifier>
+    <dc:identifier id="uid">moodra-${bookId}-${now}</dc:identifier>${coverMetaExtra}
   </metadata>
   <manifest>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>${coverManifestExtra}
     ${manifestItems}
   </manifest>
   <spine toc="ncx">
+    ${coverSpineItem}
     ${spineItems}
   </spine>
 </package>`);

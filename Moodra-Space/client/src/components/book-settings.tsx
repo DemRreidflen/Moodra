@@ -40,6 +40,11 @@ const BOOKSETTINGS_I18N = {
     genreLabel: "Genre",
     genrePlaceholder: "Book genre",
     languageSection: "Writing Language",
+    headingFontLabel: "Heading font",
+    contentFontLabel: "Content font",
+    fontSerifLabel: "Serif (Georgia)",
+    fontSansLabel: "Sans-serif (Inter)",
+    fontMonoLabel: "Monospace",
     coverSection: "Cover",
     coverImageLabel: "Cover image",
     uploadCover: "Upload\ncover",
@@ -79,6 +84,11 @@ const BOOKSETTINGS_I18N = {
     genreLabel: "Жанр",
     genrePlaceholder: "Жанр книги",
     languageSection: "Язык",
+    headingFontLabel: "Шрифт заголовков",
+    contentFontLabel: "Шрифт контента",
+    fontSerifLabel: "Serif (Georgia)",
+    fontSansLabel: "Sans-serif (Inter)",
+    fontMonoLabel: "Моноширинный",
     coverSection: "Обложка",
     coverImageLabel: "Изображение обложки",
     uploadCover: "Загрузить\nобложку",
@@ -118,6 +128,11 @@ const BOOKSETTINGS_I18N = {
     genreLabel: "Жанр",
     genrePlaceholder: "Жанр книги",
     languageSection: "Мова",
+    headingFontLabel: "Шрифт заголовків",
+    contentFontLabel: "Шрифт контенту",
+    fontSerifLabel: "Serif (Georgia)",
+    fontSansLabel: "Sans-serif (Inter)",
+    fontMonoLabel: "Моноширинний",
     coverSection: "Обкладинка",
     coverImageLabel: "Зображення обкладинки",
     uploadCover: "Завантажити\nобкладинку",
@@ -157,6 +172,11 @@ const BOOKSETTINGS_I18N = {
     genreLabel: "Genre",
     genrePlaceholder: "Buchgenre",
     languageSection: "Sprache",
+    headingFontLabel: "Überschriften-Schrift",
+    contentFontLabel: "Inhalts-Schrift",
+    fontSerifLabel: "Serif (Georgia)",
+    fontSansLabel: "Sans-serif (Inter)",
+    fontMonoLabel: "Monospace",
     coverSection: "Cover",
     coverImageLabel: "Coverbild",
     uploadCover: "Cover\nhochladen",
@@ -206,6 +226,7 @@ export function BookSettings({ book }: { book: Book }) {
   const [mode, setMode] = useState(book.mode || "scientific");
   const [genre, setGenre] = useState(book.genre || "");
   const [language, setLanguage] = useState(book.language || "ru");
+  const [headingFont, setHeadingFont] = useState((book as any).headingFont || "");
   const [coverColor, setCoverColor] = useState(book.coverColor || "#007AFF");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -272,7 +293,7 @@ export function BookSettings({ book }: { book: Book }) {
   });
 
   const handleSave = () => {
-    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, coverColor, narrativeContext: buildNarrativeContext() });
+    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, headingFont, coverColor, narrativeContext: buildNarrativeContext() });
   };
 
   const mark = () => setIsDirty(true);
@@ -422,6 +443,25 @@ export function BookSettings({ book }: { book: Book }) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Fonts */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-widest">Шрифты вёрстки</h3>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">{s.headingFontLabel}</Label>
+              <Select value={headingFont || "same"} onValueChange={v => { setHeadingFont(v === "same" ? "" : v); mark(); }}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="same">Как у контента</SelectItem>
+                  <SelectItem value="serif">{s.fontSerifLabel}</SelectItem>
+                  <SelectItem value="sans">{s.fontSansLabel}</SelectItem>
+                  <SelectItem value="mono">{s.fontMonoLabel}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Cover */}

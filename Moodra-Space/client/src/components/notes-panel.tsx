@@ -5,6 +5,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Note } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useLang } from "@/contexts/language-context";
+import { SectionTourModal } from "@/components/section-tour-modal";
 import {
   FileText, Plus, Trash2, Lightbulb, MessageSquare, Hash, BookOpen,
   GripVertical, X, Check, Search, ChevronLeft, ChevronRight,
@@ -1604,6 +1605,7 @@ export function NotesPanel({ bookId, aiPanelOpen, bookTitle }: { bookId: number;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      <SectionTourModal sectionId="notes" lang={lang as any} />
       {/* Header */}
       <div className="border-b border-border flex-shrink-0">
         <div className="px-4 py-3 flex items-center gap-2">

@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { BookOpen, List, Settings2, FileDown, ChevronLeft, ChevronRight, Columns2, Square, Printer, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { useLang } from "@/contexts/language-context";
+import { SectionTourModal } from "@/components/section-tour-modal";
 import type { Book, Chapter } from "@shared/schema";
 
 interface LayoutPanelProps {
@@ -50,6 +51,18 @@ const FONT_FAMILIES: Record<FontFamily, string> = {
   serif: "'Georgia', 'Times New Roman', serif",
   sans: "'Inter', 'Helvetica Neue', sans-serif",
   mono: "'Courier New', monospace",
+};
+
+const BOOK_LANG_TOC: Record<string, { toc: string; chapterLabel: string; tocHeading: string }> = {
+  ru: { toc: "Оглавление", chapterLabel: "Глава", tocHeading: "Оглавление" },
+  en: { toc: "Table of Contents", chapterLabel: "Chapter", tocHeading: "Table of Contents" },
+  uk: { toc: "Зміст", chapterLabel: "Розділ", tocHeading: "Зміст" },
+  de: { toc: "Inhaltsverzeichnis", chapterLabel: "Kapitel", tocHeading: "Inhaltsverzeichnis" },
+  fr: { toc: "Table des matières", chapterLabel: "Chapitre", tocHeading: "Table des matières" },
+  es: { toc: "Índice", chapterLabel: "Capítulo", tocHeading: "Índice" },
+  it: { toc: "Indice", chapterLabel: "Capitolo", tocHeading: "Indice" },
+  zh: { toc: "目录", chapterLabel: "章", tocHeading: "目录" },
+  ja: { toc: "目次", chapterLabel: "章", tocHeading: "目次" },
 };
 
 interface LayoutBlock {
@@ -120,6 +133,78 @@ function buildPages(
   }
 
   return result;
+}
+
+function CoverPage({
+  book,
+  pageW,
+  pageH,
+  fontFamily,
+  headingFontFamily,
+  accent,
+}: {
+  book: Book;
+  pageW: number;
+  pageH: number;
+  fontFamily: string;
+  headingFontFamily?: string;
+  accent: string;
+}) {
+  const hasCover = !!(book as any).coverImage;
+  return (
+    <div
+      style={{
+        width: pageW,
+        height: pageH,
+        background: hasCover ? "#000" : `linear-gradient(160deg, ${accent}22 0%, #fff 60%)`,
+        position: "relative",
+        boxShadow: "0 2px 20px rgba(0,0,0,0.15)",
+        overflow: "hidden",
+        flexShrink: 0,
+      }}
+    >
+      {hasCover ? (
+        <img
+          src={(book as any).coverImage}
+          alt="cover"
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : (
+        <div style={{
+          width: "100%", height: "100%",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          padding: "10% 12%", gap: pageH * 0.03,
+        }}>
+          <div style={{ width: pageW * 0.18, height: 3, background: accent, borderRadius: 2, marginBottom: pageH * 0.04 }} />
+          <div style={{
+            fontFamily: headingFontFamily || fontFamily,
+            fontSize: pageW * 0.065,
+            fontWeight: 700,
+            color: "#1a1a1a",
+            textAlign: "center",
+            lineHeight: 1.2,
+            letterSpacing: "-0.01em",
+          }}>
+            {book.title}
+          </div>
+          {book.author && (
+            <div style={{
+              fontFamily,
+              fontSize: pageW * 0.028,
+              color: "#666",
+              textAlign: "center",
+              marginTop: pageH * 0.02,
+              letterSpacing: "0.06em",
+            }}>
+              {book.author}
+            </div>
+          )}
+          <div style={{ width: pageW * 0.10, height: 2, background: `${accent}60`, borderRadius: 2, marginTop: pageH * 0.04 }} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 function TocPage({
@@ -278,6 +363,7 @@ function Page({
   blocks,
   pageNumber,
   fontFamily,
+  headingFontFamily,
   fontSizePx,
   marginPx,
   lineSpacing,
@@ -299,6 +385,7 @@ function Page({
   blocks: { type: string; text: string }[];
   pageNumber: number;
   fontFamily: string;
+  headingFontFamily?: string;
   fontSizePx: number;
   marginPx: number;
   lineSpacing: number;
@@ -379,13 +466,13 @@ function Page({
           <div style={{ marginBottom: fontSizePx * 0.9, marginTop: fontSizePx * 0.3 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: fontSizePx * 0.4 }}>
               <div style={{ height: 1, flex: 1, background: `${accent}40` }} />
-              <span style={{ fontFamily, fontSize: fontSizePx * 0.7, color: accent, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600 }}>
-                Chapter
+              <span style={{ fontFamily: headingFontFamily || fontFamily, fontSize: fontSizePx * 0.7, color: accent, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600 }}>
+                {L.chapterLabel || "Chapter"}
               </span>
               <div style={{ height: 1, flex: 1, background: `${accent}40` }} />
             </div>
             <h2 style={{
-              fontFamily,
+              fontFamily: headingFontFamily || fontFamily,
               fontSize: fontSizePx * 1.75,
               fontWeight: 700,
               lineHeight: 1.2,
@@ -409,7 +496,7 @@ function Page({
             <div style={{ display: "flex", alignItems: "flex-start", gap: fontSizePx * 0.5 }}>
               <div style={{ width: 3, background: accent, borderRadius: 2, alignSelf: "stretch", minHeight: fontSizePx * 1.75, flexShrink: 0 }} />
               <h2 style={{
-                fontFamily,
+                fontFamily: headingFontFamily || fontFamily,
                 fontSize: fontSizePx * 1.9,
                 fontWeight: 800,
                 lineHeight: 1.1,
@@ -425,7 +512,7 @@ function Page({
         {chapterTitle && template === "minimal" && (
           <div style={{ marginBottom: fontSizePx * 1.2, marginTop: fontSizePx * 0.8, borderBottom: `0.5px solid rgba(0,0,0,0.12)`, paddingBottom: fontSizePx * 0.6 }}>
             <span style={{
-              fontFamily,
+              fontFamily: headingFontFamily || fontFamily,
               fontSize: fontSizePx * 0.65,
               color: "#999",
               letterSpacing: "0.22em",
@@ -437,7 +524,7 @@ function Page({
               —
             </span>
             <h2 style={{
-              fontFamily,
+              fontFamily: headingFontFamily || fontFamily,
               fontSize: fontSizePx * 1.55,
               fontWeight: 400,
               fontStyle: "italic",
@@ -458,7 +545,7 @@ function Page({
           if (b.type === "h1" || b.type === "h2" || b.type === "heading") {
             return (
               <h3 key={i} style={{
-                fontFamily,
+                fontFamily: headingFontFamily || fontFamily,
                 fontSize: fontSizePx * 1.2,
                 fontWeight: 700,
                 marginTop: fontSizePx * 1.0 + paraSpacingPx,
@@ -476,7 +563,7 @@ function Page({
           if (b.type === "h3") {
             return (
               <h4 key={i} style={{
-                fontFamily,
+                fontFamily: headingFontFamily || fontFamily,
                 fontSize: fontSizePx * 1.05,
                 fontWeight: 600,
                 marginTop: fontSizePx * 0.7 + paraSpacingPx,
@@ -692,12 +779,19 @@ function Page({
 }
 
 export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const L = (t as any).layoutPanel || {};
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const bookLang = BOOK_LANG_TOC[book.language || "ru"] || BOOK_LANG_TOC.en;
+  const Leff = { ...L, toc: bookLang.toc, tocHeading: bookLang.tocHeading, chapterLabel: bookLang.chapterLabel };
+
   const [pageSize, setPageSize] = useState<PageSize>("a4");
   const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
+  const bookHeadingFont = (book as any).headingFont as FontFamily | "" | undefined;
+  const headingFontFamilyStr = bookHeadingFont && FONT_FAMILIES[bookHeadingFont as FontFamily]
+    ? FONT_FAMILIES[bookHeadingFont as FontFamily]
+    : undefined;
   const [fontSizePt, setFontSizePt] = useState(11);
   const [marginSize, setMarginSize] = useState<MarginSize>("normal");
   const [lineSpacing, setLineSpacing] = useState<LineSpacing>("relaxed");
@@ -709,6 +803,7 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(null);
   const [template, setTemplate] = useState<Template>("classic");
   const [showTocPage, setShowTocPage] = useState(true);
+  const [showCoverPage, setShowCoverPage] = useState(true);
   const [paraSpacing, setParaSpacing] = useState<ParaSpacing>("small");
   const [firstLineIndent, setFirstLineIndent] = useState(true);
   const [dropCap, setDropCap] = useState(false);
@@ -823,8 +918,8 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
       lineHeight: String(lineSpacingVal),
       paragraphSpacing: paraSpacingPx > 0 ? (paraSpacingPx / fontSizePx).toFixed(2) : "0",
       chapterBreak: "true",
-      chapterLabel: L.chapterLabel || "Chapter",
-      tocHeading: L.tocHeading || "Table of Contents",
+      chapterLabel: bookLang.chapterLabel,
+      tocHeading: bookLang.tocHeading,
     });
     window.open(`/api/books/${bookId}/export/pdf-html?${params}`, "_blank");
   };
@@ -852,8 +947,10 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
 
   const SCALE = canvasZoom;
 
-  const isTocPage = showTocPage && spreadIndex === 0;
-  const contentSpreadIndex = showTocPage ? Math.max(0, spreadIndex - 1) : spreadIndex;
+  const numSpecialPages = (showCoverPage ? 1 : 0) + (showTocPage ? 1 : 0);
+  const isCoverPage = showCoverPage && spreadIndex === 0;
+  const isTocPage = showTocPage && spreadIndex === (showCoverPage ? 1 : 0) && !isCoverPage;
+  const contentSpreadIndex = Math.max(0, spreadIndex - numSpecialPages);
   const leftPage = pages[contentSpreadIndex];
   const rightPage = pages[contentSpreadIndex + 1];
 
@@ -861,7 +958,7 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
     ? [leftPage, rightPage].filter(Boolean)
     : [leftPage].filter(Boolean);
 
-  const adjustedTotal = totalPages + (showTocPage ? 1 : 0);
+  const adjustedTotal = totalPages + numSpecialPages;
 
   if (!chapters.length) {
     return (
@@ -874,6 +971,7 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
 
   return (
     <div className="flex flex-1 overflow-hidden" style={{ background: "hsl(30, 58%, 97%)" }}>
+      <SectionTourModal sectionId="layout" lang={lang as any} />
       {/* Left sidebar — ToC + Settings */}
       <div
         style={{
@@ -1086,6 +1184,22 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Cover page toggle */}
+        {showSettings && (
+          <div style={{ padding: "6px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#c2a897" }}>
+              {L.cover || "Cover"}
+            </span>
+            <button onClick={() => setShowCoverPage(v => !v)} style={{
+              padding: "3px 8px", borderRadius: 5, border: `1px solid ${showCoverPage ? "rgba(249,109,28,0.25)" : "rgba(0,0,0,0.10)"}`,
+              background: showCoverPage ? "rgba(249,109,28,0.10)" : "rgba(0,0,0,0.03)",
+              color: showCoverPage ? "#F96D1C" : "#aaa", fontSize: 10, fontWeight: 500, cursor: "pointer",
+            }}>
+              {showCoverPage ? "On" : "Off"}
+            </button>
           </div>
         )}
 
@@ -1358,7 +1472,16 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
               transition: "transform 0.2s ease",
             }}
           >
-            {isTocPage ? (
+            {isCoverPage ? (
+              <CoverPage
+                book={book}
+                pageW={pageW}
+                pageH={pageH}
+                fontFamily={fontFamilyStr}
+                headingFontFamily={headingFontFamilyStr}
+                accent={accent}
+              />
+            ) : isTocPage ? (
               <TocPage
                 book={book}
                 chapters={chapters}
@@ -1367,7 +1490,7 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
                 fontFamily={fontFamilyStr}
                 accent={accent}
                 chapterPageMap={chapterPageMap}
-                L={L}
+                L={Leff}
               />
             ) : (
               displayPages.map((page, pi) => page && (
@@ -1378,13 +1501,14 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
                   blocks={page.blocks}
                   pageNumber={contentSpreadIndex + pi + 1}
                   fontFamily={fontFamilyStr}
+                  headingFontFamily={headingFontFamilyStr}
                   fontSizePx={fontSizePx}
                   marginPx={marginPx}
                   lineSpacing={lineSpacingVal}
                   scale={SCALE}
                   pageW={pageW}
                   pageH={pageH}
-                  L={L}
+                  L={Leff}
                   isLeft={pi === 0}
                   accent={accent}
                   template={template}

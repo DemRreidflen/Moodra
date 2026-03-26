@@ -4,6 +4,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAiError } from "@/contexts/ai-error-context";
 import { useLang } from "@/contexts/language-context";
+import { SectionTourModal } from "@/components/section-tour-modal";
 import { useFreeMode } from "@/hooks/use-free-mode";
 import type { Book, Draft, Chapter } from "@shared/schema";
 import {
@@ -1091,6 +1092,7 @@ function DraftEditor({ draft, bookId, book, chapters, onBack }: {
 // ─── Main Workspace ───────────────────────────────────────────────────────────
 
 export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book }) {
+  const { lang } = useLang();
   const [view, setView] = useState<"workspace" | "draft-editor">("workspace");
   const [activeDraft, setActiveDraft] = useState<Draft | null>(null);
 
@@ -1124,6 +1126,7 @@ export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      <SectionTourModal sectionId="drafts" lang={lang as any} />
       {/* 50 / 50 split — each panel independently scrollable */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Stage tracker + AI assistant */}

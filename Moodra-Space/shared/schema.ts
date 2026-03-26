@@ -36,6 +36,7 @@ export const books = pgTable("books", {
   coverColor: text("cover_color").default("#6366f1"),
   coverImage: text("cover_image").default(""),
   language: text("language").default("ru"),
+  headingFont: text("heading_font").default(""),
   status: text("status").default("draft"),
   wordCount: integer("word_count").default(0),
   narrativeContext: jsonb("narrative_context").$type<{
