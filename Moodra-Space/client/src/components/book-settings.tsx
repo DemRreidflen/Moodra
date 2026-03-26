@@ -46,6 +46,7 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Replace",
     removeCover: "Remove",
     coverColorLabel: "Cover colour",
+    coverExportHint: "Re-upload the cover before exporting to PDF/DOCX/EPUB — this ensures it embeds correctly in the final file.",
     dangerZone: "Danger zone",
     deleteBook: "Delete book",
     deleteDesc: "This action is irreversible. All chapters and data will be deleted.",
@@ -85,6 +86,7 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Заменить",
     removeCover: "Удалить",
     coverColorLabel: "Цвет обложки",
+    coverExportHint: "Перед экспортом в PDF/DOCX/EPUB повторно загрузите обложку — это гарантирует её корректное встраивание в финальный файл.",
     dangerZone: "Опасная зона",
     deleteBook: "Удалить книгу",
     deleteDesc: "Это действие необратимо. Все главы и данные будут удалены.",
@@ -124,6 +126,7 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Замінити",
     removeCover: "Видалити",
     coverColorLabel: "Колір обкладинки",
+    coverExportHint: "Перед експортом у PDF/DOCX/EPUB повторно завантажте обкладинку — це гарантує її коректне вбудовування у фінальний файл.",
     dangerZone: "Небезпечна зона",
     deleteBook: "Видалити книгу",
     deleteDesc: "Ця дія незворотна. Всі розділи і дані будуть видалені.",
@@ -163,6 +166,7 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Ersetzen",
     removeCover: "Entfernen",
     coverColorLabel: "Coverfarbe",
+    coverExportHint: "Lade das Cover vor dem Export als PDF/DOCX/EPUB erneut hoch — so wird es korrekt in die finale Datei eingebettet.",
     dangerZone: "Gefahrenzone",
     deleteBook: "Buch löschen",
     deleteDesc: "Diese Aktion ist unwiderruflich. Alle Kapitel und Daten werden gelöscht.",
@@ -472,6 +476,14 @@ export function BookSettings({ book }: { book: Book }) {
                 </button>
               )}
             </div>
+
+            {currentCover && (
+              <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-[11px] leading-snug"
+                style={{ background: "rgba(251,191,36,0.10)", color: "#92600a", border: "1px solid rgba(251,191,36,0.30)" }}>
+                <span className="mt-px flex-shrink-0 text-[13px]">⚠</span>
+                <span>{s.coverExportHint}</span>
+              </div>
+            )}
 
             {!currentCover && (
               <div className="space-y-1.5">
