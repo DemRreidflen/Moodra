@@ -2788,7 +2788,8 @@ ${body}
     const marginBottom = Math.max(5,  Math.min(50, Number(q.marginBottom ?? 22)));
     const marginLeft   = Math.max(5,  Math.min(50, Number(q.marginLeft   ?? 20)));
     const marginRight  = Math.max(5,  Math.min(50, Number(q.marginRight  ?? 16)));
-    const fontFamily   = q.fontFamily ?? "Georgia, \"Times New Roman\", serif";
+    const fontFamily        = q.fontFamily ?? "Georgia, \"Times New Roman\", serif";
+    const headingFontFamily = q.headingFontFamily || fontFamily;
     const fontSize     = Math.max(7,  Math.min(18, Number(q.fontSize     ?? 10.5)));
     const lineHeight   = Math.max(1,  Math.min(3,  Number(q.lineHeight   ?? 1.72)));
     const paraSpacing       = Math.max(0,   Math.min(3,  Number(q.paragraphSpacing ?? 0)));
@@ -3013,6 +3014,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     font-family: ${fontFamily};
   }
   .chapter-title {
+    font-family: ${headingFontFamily};
     font-size: ${h1Size}pt;
     font-weight: 700;
     line-height: 1.25;
@@ -3046,6 +3048,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .chapter-content > p:first-child { text-indent: 0; }
 
   h2.section-h1 {
+    font-family: ${headingFontFamily};
     font-size: ${h2Size}pt;
     font-weight: 700;
     margin: 20px 0 8px;
@@ -3054,6 +3057,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     page-break-after: avoid;
   }
   h3.section-h2 {
+    font-family: ${headingFontFamily};
     font-size: ${h3Size}pt;
     font-weight: 700;
     font-style: italic;
@@ -3063,6 +3067,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     page-break-after: avoid;
   }
   h4.section-h3 {
+    font-family: ${headingFontFamily};
     font-size: ${Math.max(7, h3Size - 1)}pt;
     font-weight: 600;
     margin: 14px 0 4px;

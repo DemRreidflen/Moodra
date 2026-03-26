@@ -90,7 +90,8 @@ function ExportModal({
       if (exportFormat === "pdf") {
         // PDF: open in new tab — Paged.js auto-triggers the print dialog
         const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-        const html = generatePrintHtml({ book, chapters, settings, frontMatter, lp, pagedJsUrl });
+        const coverImageUrl = book.coverImage ? `${window.location.origin}${book.coverImage}` : "";
+        const html = generatePrintHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp, pagedJsUrl });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
         const w = window.open(blobUrl, "_blank");
@@ -378,7 +379,8 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   useEffect(() => {
     if (!book || chapters.length === 0) return;
     const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-    const html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl });
+    const coverImageUrl = book.coverImage ? `${window.location.origin}${book.coverImage}` : "";
+    const html = generatePagedJsHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp, zoom, pagedJsUrl });
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
     setTotalPages(0); // reset while iframe re-renders
@@ -686,6 +688,16 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           <SecHead label={lp.headingsSection} open={open.headings} toggle={() => tog("headings")} />
           {open.headings && (
             <div className="space-y-0.5 pb-3 border-b border-border/30">
+              <Row label={lp.headingFont || "Heading font"}>
+                <select
+                  value={settings.headingFontFamily}
+                  onChange={e => update({ headingFontFamily: e.target.value })}
+                  className="h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none max-w-[138px]"
+                >
+                  <option value="">{lp.headingFontSameAsBody || "Same as body"}</option>
+                  {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </Row>
               <Row label={lp.chapter_h1}><NumInput value={settings.h1Size} onChange={v => update({ h1Size: v })} min={10} max={36} unit="pt" /></Row>
               <Row label={lp.section_h2}><NumInput value={settings.h2Size} onChange={v => update({ h2Size: v })} min={10} max={30} unit="pt" /></Row>
               <Row label={lp.subsection_h3}><NumInput value={settings.h3Size} onChange={v => update({ h3Size: v })} min={8} max={24} unit="pt" /></Row>
@@ -735,6 +747,13 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           <SecHead label={lp.frontMatterSection || "Front Matter"} open={open.frontmatter} toggle={() => tog("frontmatter")} />
           {open.frontmatter && (
             <div className="pb-3 border-b border-border/30 space-y-2">
+
+              {/* Cover page toggle */}
+              {book.coverImage && (
+                <Row label={lp.fmCoverPage || "Cover page"}>
+                  <Toggle on={frontMatter.coverPageEnabled !== false} onToggle={() => updateFm({ coverPageEnabled: !(frontMatter.coverPageEnabled !== false) })} />
+                </Row>
+              )}
 
               {/* Table of Contents toggle */}
               <Row label={lp.tocLabel || "Table of Contents"}>
@@ -803,10 +822,20 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                       <select value={frontMatter.titlePage.decorativeStyle} onChange={e => updateTitlePage({ decorativeStyle: e.target.value as any })}
                         className="h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none">
                         <option value="none">{lp.fmDecoNone || "None"}</option>
-                        <option value="lines">{lp.fmDecoLines || "Lines"}</option>
-                        <option value="ornament">{lp.fmDecoOrnament || "Ornament ✦"}</option>
+                        <option value="image">{lp.fmDecoImage || "Monogram / Image"}</option>
                       </select>
                     </Row>
+                    {frontMatter.titlePage.decorativeStyle === "image" && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">{lp.fmDecoImageUrl || "Image URL (https://…)"}</p>
+                        <input
+                          value={frontMatter.titlePage.decorationImageUrl ?? ""}
+                          onChange={e => updateTitlePage({ decorationImageUrl: e.target.value })}
+                          placeholder="https://example.com/logo.png"
+                          className="w-full h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none"
+                        />
+                      </div>
+                    )}
 
                     {/* Typography Presets */}
                     <div className="pt-1">

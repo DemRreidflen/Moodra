@@ -14,7 +14,8 @@ export interface TitlePageSettings {
   city: string;
   year: string;
   alignment: "left" | "center" | "right";
-  decorativeStyle: "none" | "lines" | "ornament";
+  decorativeStyle: "none" | "image";
+  decorationImageUrl: string;
   titlePreset: TitlePagePreset;
   titleFontSize: number;
   subtitleFontSize: number;
@@ -51,6 +52,7 @@ export interface DedicationPageSettings {
 }
 
 export interface FrontMatterSettings {
+  coverPageEnabled: boolean;
   titlePage: TitlePageSettings;
   copyrightPage: CopyrightPageSettings;
   dedicationPage: DedicationPageSettings;
@@ -60,7 +62,7 @@ export interface FrontMatterSettings {
 export const TITLE_PAGE_PRESETS: Record<TitlePagePreset, Partial<TitlePageSettings>> = {
   classic: {
     alignment: "center",
-    decorativeStyle: "lines",
+    decorativeStyle: "none",
     titleFontSize: 28,
     subtitleFontSize: 13,
     authorFontSize: 12,
@@ -80,7 +82,7 @@ export const TITLE_PAGE_PRESETS: Record<TitlePagePreset, Partial<TitlePageSettin
   },
   modern: {
     alignment: "center",
-    decorativeStyle: "ornament",
+    decorativeStyle: "none",
     titleFontSize: 32,
     subtitleFontSize: 14,
     authorFontSize: 12,
@@ -101,6 +103,7 @@ export const TITLE_PAGE_PRESETS: Record<TitlePagePreset, Partial<TitlePageSettin
 };
 
 export const DEFAULT_FRONT_MATTER: FrontMatterSettings = {
+  coverPageEnabled: true,
   titlePage: {
     enabled: true,
     useBookTitle: true,
@@ -113,7 +116,8 @@ export const DEFAULT_FRONT_MATTER: FrontMatterSettings = {
     city: "",
     year: new Date().getFullYear().toString(),
     alignment: "center",
-    decorativeStyle: "lines",
+    decorativeStyle: "none",
+    decorationImageUrl: "",
     titlePreset: "classic",
     titleFontSize: 28,
     subtitleFontSize: 13,
@@ -158,10 +162,15 @@ export function useFrontMatter(bookId: number) {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
+        const tp = { ...DEFAULT_FRONT_MATTER.titlePage, ...parsed.titlePage };
+        // Migrate old decorativeStyle values that no longer exist
+        if (tp.decorativeStyle === "lines" || tp.decorativeStyle === "ornament") {
+          tp.decorativeStyle = "none";
+        }
         return {
           ...DEFAULT_FRONT_MATTER,
           ...parsed,
-          titlePage: { ...DEFAULT_FRONT_MATTER.titlePage, ...parsed.titlePage },
+          titlePage: tp,
           copyrightPage: { ...DEFAULT_FRONT_MATTER.copyrightPage, ...parsed.copyrightPage },
           dedicationPage: { ...DEFAULT_FRONT_MATTER.dedicationPage, ...parsed.dedicationPage },
         };
