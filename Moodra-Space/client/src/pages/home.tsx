@@ -30,6 +30,30 @@ const COVER_COLORS = [
   "#1C1C1E", "#2C2C2E", "#48484A", "#636366",
 ];
 
+async function resizeCoverImage(file: File, maxW = 600, maxH = 840, quality = 0.85): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const blobUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxW || height > maxH) {
+        const ratio = Math.min(maxW / width, maxH / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(blobUrl);
+      canvas.toBlob((blob) => resolve(blob ?? file), "image/jpeg", quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(file); };
+    img.src = blobUrl;
+  });
+}
+
 function CoverUploadArea({
   preview, onFile, onClear, label
 }: {
@@ -98,9 +122,11 @@ function CreateBookDialog({ open, onClose }: { open: boolean; onClose: () => voi
     { value: "fiction", label: h.modeFiction, sub: h.modeFictionSub, icon: MFeather },
   ];
 
-  const handleFile = (file: File) => {
-    setCoverFile(file);
-    setCoverPreview(URL.createObjectURL(file));
+  const handleFile = async (file: File) => {
+    const resized = await resizeCoverImage(file);
+    const resizedFile = new File([resized], file.name, { type: "image/jpeg" });
+    setCoverFile(resizedFile);
+    setCoverPreview(URL.createObjectURL(resized));
   };
 
   const clearFile = () => {

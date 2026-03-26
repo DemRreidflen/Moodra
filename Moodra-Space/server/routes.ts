@@ -21,13 +21,7 @@ const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: uploadsDir,
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, `cover-${Date.now()}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -113,7 +107,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const id = Number(req.params.id);
       if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
-      const coverImage = `/uploads/${req.file.filename}`;
+      const mime = req.file.mimetype || "image/jpeg";
+      const coverImage = `data:${mime};base64,${req.file.buffer.toString("base64")}`;
       const book = await storage.updateBook(id, { coverImage });
       if (!book) return res.status(404).json({ error: "Книга не найдена" });
       res.json({ coverImage });

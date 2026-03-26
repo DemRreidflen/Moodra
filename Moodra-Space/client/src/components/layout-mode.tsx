@@ -90,7 +90,9 @@ function ExportModal({
       if (exportFormat === "pdf") {
         // PDF: open in new tab — Paged.js auto-triggers the print dialog
         const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-        const coverImageUrl = book.coverImage ? `${window.location.origin}${book.coverImage}` : "";
+        const coverImageUrl = book.coverImage
+          ? (book.coverImage.startsWith("data:") ? book.coverImage : `${window.location.origin}${book.coverImage}`)
+          : "";
         const html = generatePrintHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, pagedJsUrl });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
@@ -405,7 +407,9 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   useEffect(() => {
     if (!book || chapters.length === 0) return;
     const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-    const coverImageUrl = book.coverImage ? `${window.location.origin}${book.coverImage}` : "";
+    const coverImageUrl = book.coverImage
+      ? (book.coverImage.startsWith("data:") ? book.coverImage : `${window.location.origin}${book.coverImage}`)
+      : "";
     const html = generatePagedJsHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, zoom, pagedJsUrl });
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
