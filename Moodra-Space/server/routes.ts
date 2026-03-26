@@ -3035,6 +3035,13 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     overflow-wrap: normal;
     hyphenate-limit-chars: 6 3 3;
   }
+  /* ── RU/UA: страница не может заканчиваться переносом слова.
+     Для EN это правило не применяется — там всё как было. ── */
+  :lang(ru) p,
+  :lang(uk) p {
+    -webkit-hyphenate-limit-last: page;
+    hyphenate-limit-last: page;
+  }
   p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
   .chapter-content > p:first-child { text-indent: 0; }
 

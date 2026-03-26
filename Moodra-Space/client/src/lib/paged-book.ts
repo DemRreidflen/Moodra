@@ -268,6 +268,7 @@ html, body {
   -webkit-hyphens: auto;
   hyphenate-limit-chars: 5 3 3;
   hyphenate-limit-lines: 3;
+  -webkit-hyphenate-limit-last: always;
   hyphenate-limit-last: always;
 }
 
@@ -282,6 +283,16 @@ p {
   -webkit-hyphens: auto;
 }
 p + p { margin-top: ${s.paragraphSpacing * s.fontSize}pt; }
+
+/* ── RU/UA rule: страница не может заканчиваться переносом слова.
+   hyphenate-limit-last:page запрещает разбивать последнее слово
+   перед разрывом страницы — слово целиком переходит на след. стр.
+   Для EN это правило не применяется. ─────────────────────────── */
+:lang(ru) p,
+:lang(uk) p {
+  -webkit-hyphenate-limit-last: page;
+  hyphenate-limit-last: page;
+}
 blockquote + p,
 h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
