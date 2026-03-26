@@ -6,7 +6,7 @@ import {
   Download, ZoomIn, ZoomOut, BookOpen, ChevronRight,
   FileText, Settings2, AlignLeft, AlignJustify, AlignCenter, AlignRight,
   ChevronDown, ChevronUp, Columns2, Square,
-  ChevronLeft, X, FileDown, Printer, ImagePlus, Trash2, GripVertical,
+  ChevronLeft, X, FileDown, Printer, ImagePlus, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/language-context";
@@ -76,7 +76,7 @@ function ExportModal({
   chapters: Chapter[];
   settings: LayoutSettings;
   frontMatter: FrontMatterSettings;
-  designerPages: { id: string; afterChapterIndex: number; imageUrl: string }[];
+  designerPages: { id: string; afterPage: number; imageUrl: string }[];
   onClose: () => void;
   lp: Record<string, string>;
 }) {
@@ -307,11 +307,13 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [activeChapter, setActiveChapter] = useState(0);
   const [open, setOpen] = useState({ page: true, typography: true, headings: false, hf: false, frontmatter: false });
   const [showExport, setShowExport] = useState(false);
-  const [designerPages, setDesignerPages] = useState<{ id: string; afterChapterIndex: number; imageUrl: string }[]>(() => {
+  const [designerPages, setDesignerPages] = useState<{ id: string; afterPage: number; imageUrl: string }[]>(() => {
     try { return JSON.parse(localStorage.getItem(`moodra_designer_pages_${bookId}`) || "[]"); } catch { return []; }
   });
   const designerPageInputRef = useRef<HTMLInputElement>(null);
-  const [pendingDpAfter, setPendingDpAfter] = useState<number>(-1);
+  const [pendingDpAfter, setPendingDpAfter] = useState<number>(1);
+  const [showDpForm, setShowDpForm] = useState(false);
+  const [dpPageInput, setDpPageInput] = useState("1");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: chapters = [] } = useQuery<Chapter[]>({
@@ -380,13 +382,13 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     localStorage.setItem(`moodra_designer_pages_${bookId}`, JSON.stringify(pages));
   }, [bookId]);
 
-  const handleDesignerPageUpload = useCallback((file: File, afterChapterIndex: number) => {
+  const handleDesignerPageUpload = useCallback((file: File, afterPage: number) => {
     const reader = new FileReader();
     reader.onload = e => {
       const imageUrl = e.target?.result as string;
       if (!imageUrl) return;
-      const newPage = { id: Math.random().toString(36).slice(2), afterChapterIndex, imageUrl };
-      saveDesignerPages([...designerPages, newPage]);
+      const newPage = { id: Math.random().toString(36).slice(2), afterPage, imageUrl };
+      saveDesignerPages([...designerPages, newPage].sort((a, b) => a.afterPage - b.afterPage));
     };
     reader.readAsDataURL(file);
   }, [designerPages, saveDesignerPages]);
@@ -470,7 +472,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
         className="hidden"
         onChange={e => {
           const file = e.target.files?.[0];
-          if (file) handleDesignerPageUpload(file, pendingDpAfter);
+          if (file) { handleDesignerPageUpload(file, pendingDpAfter); setShowDpForm(false); }
           e.target.value = "";
         }}
       />
@@ -509,35 +511,11 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
           <div className="mx-3 my-1.5 border-t border-border/30" />
 
-          {/* Designer pages before all chapters (afterChapterIndex = -1) */}
-          {designerPages.filter(dp => dp.afterChapterIndex === -1).map(dp => (
-            <div key={dp.id} className="mx-1 mb-0.5 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
-              <GripVertical className="h-3 w-3 text-amber-400 shrink-0" />
-              <img src={dp.imageUrl} alt="" className="h-6 w-4 object-cover rounded shrink-0" />
-              <span className="text-[10px] text-amber-700 dark:text-amber-400 flex-1 truncate">{lp.designerPage || "Design page"}</span>
-              <button onClick={() => saveDesignerPages(designerPages.filter(p => p.id !== dp.id))}
-                className="shrink-0 text-amber-400 hover:text-red-500 transition-colors">
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-
-          {/* Add designer page before chapter 1 */}
-          <button
-            onClick={() => { setPendingDpAfter(-1); designerPageInputRef.current?.click(); }}
-            className="mx-1 mb-1 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] text-muted-foreground/50 hover:text-primary hover:bg-secondary/60 transition-colors"
-            style={{ width: "calc(100% - 8px)" }}
-          >
-            <ImagePlus className="h-2.5 w-2.5" />
-            <span>{lp.addDesignerPage || "+ Design page"}</span>
-          </button>
-
           {/* Chapter list */}
           {chapters.map((ch, idx) => {
             let blocks: any[] = [];
             try { blocks = typeof ch.content === "string" ? JSON.parse(ch.content) : (ch.content || []); } catch {}
             const h2s = blocks.filter(b => b.type === "h2").slice(0, 3);
-
             return (
               <div key={ch.id}>
                 <button
@@ -561,32 +539,68 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                     </span>
                   </div>
                 ))}
-
-                {/* Designer pages after this chapter */}
-                {designerPages.filter(dp => dp.afterChapterIndex === idx).map(dp => (
-                  <div key={dp.id} className="mx-1 mt-0.5 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
-                    <GripVertical className="h-3 w-3 text-amber-400 shrink-0" />
-                    <img src={dp.imageUrl} alt="" className="h-6 w-4 object-cover rounded shrink-0" />
-                    <span className="text-[10px] text-amber-700 dark:text-amber-400 flex-1 truncate">{lp.designerPage || "Design page"}</span>
-                    <button onClick={() => saveDesignerPages(designerPages.filter(p => p.id !== dp.id))}
-                      className="shrink-0 text-amber-400 hover:text-red-500 transition-colors">
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-
-                {/* Add designer page after this chapter */}
-                <button
-                  onClick={() => { setPendingDpAfter(idx); designerPageInputRef.current?.click(); }}
-                  className="mx-1 my-0.5 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] text-muted-foreground/50 hover:text-primary hover:bg-secondary/60 transition-colors"
-                  style={{ width: "calc(100% - 8px)" }}
-                >
-                  <ImagePlus className="h-2.5 w-2.5" />
-                  <span>{lp.addDesignerPage || "+ Design page"}</span>
-                </button>
               </div>
             );
           })}
+
+          {/* ── Designer Pages section ── */}
+          <div className="mx-3 mt-2 mb-1 border-t border-border/30" />
+          <div className="px-3 py-1 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+              {lp.designerPagesSection || "Design pages"}
+            </p>
+            <button
+              onClick={() => { setShowDpForm(v => !v); setDpPageInput(totalPages ? String(totalPages) : "1"); }}
+              className="text-[9px] flex items-center gap-0.5 text-muted-foreground/50 hover:text-primary transition-colors"
+            >
+              <ImagePlus className="h-2.5 w-2.5" />
+              <span>{lp.addDesignerPage || "+ Add"}</span>
+            </button>
+          </div>
+
+          {/* Inline add form */}
+          {showDpForm && (
+            <div className="mx-2 mb-2 p-2 rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/80 dark:bg-amber-950/20 space-y-1.5">
+              <p className="text-[10px] text-amber-700 dark:text-amber-400">{lp.dpAfterPage || "After page:"}</p>
+              <input
+                type="number"
+                min={1}
+                max={totalPages || 999}
+                value={dpPageInput}
+                onChange={e => setDpPageInput(e.target.value)}
+                className="w-full h-7 rounded-md border border-border/60 bg-background text-xs px-2 outline-none tabular-nums"
+                placeholder={totalPages ? String(totalPages) : "1"}
+              />
+              <button
+                onClick={() => {
+                  const p = Math.max(1, parseInt(dpPageInput, 10) || 1);
+                  setPendingDpAfter(p);
+                  designerPageInputRef.current?.click();
+                }}
+                className="w-full h-7 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-medium transition-colors flex items-center justify-center gap-1"
+              >
+                <ImagePlus className="h-3 w-3" />
+                <span>{lp.chooseImage || "Choose image"}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Designer page list */}
+          {designerPages.length === 0 && !showDpForm && (
+            <p className="px-3 text-[10px] text-muted-foreground/40 italic">{lp.noDesignerPages || "No design pages yet"}</p>
+          )}
+          {designerPages.map(dp => (
+            <div key={dp.id} className="mx-1 mb-0.5 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
+              <img src={dp.imageUrl} alt="" className="h-6 w-4 object-cover rounded shrink-0" />
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 flex-1 truncate">
+                {lp.afterPageLabel || "After p."} {dp.afterPage}
+              </span>
+              <button onClick={() => saveDesignerPages(designerPages.filter(p => p.id !== dp.id))}
+                className="shrink-0 text-amber-400 hover:text-red-500 transition-colors">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
         </div>
       </aside>
 

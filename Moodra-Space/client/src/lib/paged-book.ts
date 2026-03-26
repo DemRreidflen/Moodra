@@ -811,16 +811,8 @@ function buildChapters(
   s: BookTypographySettings,
   lang: string,
   lp: Record<string, string>,
-  designerPages?: { afterChapterIndex: number; imageUrl: string }[],
 ): string {
   const parts: string[] = [];
-
-  // Designer pages before chapter 0 (afterChapterIndex === -1)
-  (designerPages ?? [])
-    .filter(dp => dp.afterChapterIndex === -1)
-    .forEach(dp => {
-      parts.push(`<div class="designer-page"><img src="${dp.imageUrl}" alt="Design page"/></div>`);
-    });
 
   chapters.forEach((ch, ci) => {
     const blocks = parseBlocks(ch.content).filter(
@@ -838,13 +830,6 @@ function buildChapters(
     ${blocksHtml || '<p>—</p>'}
   </div>
 </section>`);
-
-    // Designer pages after this chapter
-    (designerPages ?? [])
-      .filter(dp => dp.afterChapterIndex === ci)
-      .forEach(dp => {
-        parts.push(`<div class="designer-page"><img src="${dp.imageUrl}" alt="Design page"/></div>`);
-      });
   });
 
   return parts.join("\n");
@@ -852,11 +837,33 @@ function buildChapters(
 
 // ── postMessage bridge script (runs inside the iframe) ────────────────
 
-function makeBridgeScript(zoom: number): string {
+function makeBridgeScript(zoom: number, designerPages?: { afterPage: number; imageUrl: string }[]): string {
+  const dpJson = JSON.stringify(designerPages ?? []);
   return `
 <script>
 (function() {
   window.PagedConfig = { auto: false };
+  var DESIGNER_PAGES = ${dpJson};
+
+  function injectDesignerPages(allPageEls) {
+    if (!DESIGNER_PAGES.length) return;
+    var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return b.afterPage - a.afterPage; });
+    var dpStyle = document.createElement('style');
+    dpStyle.textContent = '.injected-dp{display:block;overflow:hidden;box-sizing:border-box;margin:0 auto;}.injected-dp img{width:100%;height:100%;object-fit:cover;display:block;}@media print{.injected-dp{break-before:page;break-after:page;page-break-before:always;page-break-after:always;}}';
+    document.head.appendChild(dpStyle);
+    sorted.forEach(function(dp) {
+      var pageEl = allPageEls[dp.afterPage - 1];
+      if (!pageEl) return;
+      var w = pageEl.offsetWidth; var h = pageEl.offsetHeight;
+      var div = document.createElement('div');
+      div.className = 'injected-dp';
+      div.style.width = w + 'px'; div.style.height = h + 'px';
+      var img = document.createElement('img');
+      img.src = dp.imageUrl; img.alt = '';
+      div.appendChild(img);
+      pageEl.insertAdjacentElement('afterend', div);
+    });
+  }
 
   function applyViewMode(mode) {
     document.body.setAttribute('data-view', mode || 'single');
@@ -881,13 +888,15 @@ function makeBridgeScript(zoom: number): string {
       bgStyle.textContent = 'html,body,.pagedjs_pages,.pagedjs_pages_wrapper{background:#cdc7bf!important}';
       document.head.appendChild(bgStyle);
 
+      var allPages = Array.from(document.querySelectorAll('.pagedjs_page'));
+      injectDesignerPages(allPages);
+
       var chapterPages = {};
-      var allPages = document.querySelectorAll('.pagedjs_page');
       document.querySelectorAll('[id^="chapter-"]').forEach(function(el) {
         var ci = parseInt(el.id.replace('chapter-', ''), 10);
         var pg = el.closest('.pagedjs_page');
         if (pg) {
-          var idx = Array.from(allPages).indexOf(pg);
+          var idx = allPages.indexOf(pg);
           if (idx >= 0) chapterPages[ci] = idx + 1;
         }
       });
@@ -921,15 +930,37 @@ function makeBridgeScript(zoom: number): string {
 
 // ── Print bridge script (runs in the print window — auto-triggers print dialog) ──
 
-const PRINT_BRIDGE_SCRIPT = `
+function makePrintBridgeScript(designerPages?: { afterPage: number; imageUrl: string }[]): string {
+  const dpJson = JSON.stringify(designerPages ?? []);
+  return `
 <script>
 (function() {
   window.PagedConfig = { auto: false };
+  var DESIGNER_PAGES = ${dpJson};
+  function injectDesignerPages(allPageEls) {
+    if (!DESIGNER_PAGES.length) return;
+    var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return b.afterPage - a.afterPage; });
+    var dpStyle = document.createElement('style');
+    dpStyle.textContent = '.injected-dp{display:block;overflow:hidden;box-sizing:border-box;margin:0 auto;break-before:page;break-after:page;page-break-before:always;page-break-after:always;}.injected-dp img{width:100%;height:100%;object-fit:cover;display:block;}';
+    document.head.appendChild(dpStyle);
+    sorted.forEach(function(dp) {
+      var pageEl = allPageEls[dp.afterPage - 1];
+      if (!pageEl) return;
+      var w = pageEl.offsetWidth; var h = pageEl.offsetHeight;
+      var div = document.createElement('div');
+      div.className = 'injected-dp';
+      div.style.width = w + 'px'; div.style.height = h + 'px';
+      var img = document.createElement('img'); img.src = dp.imageUrl; img.alt = '';
+      div.appendChild(img);
+      pageEl.insertAdjacentElement('afterend', div);
+    });
+  }
   window.addEventListener('load', function() {
     var paged = new Paged.Previewer();
     paged.preview().then(function() {
+      injectDesignerPages(Array.from(document.querySelectorAll('.pagedjs_page')));
       // Short delay so Paged.js finishes painting before print dialog opens
-      setTimeout(function() { window.print(); }, 400);
+      setTimeout(function() { window.print(); }, 600);
     });
   });
   // Close the tab automatically after the user dismisses the print dialog
@@ -938,6 +969,7 @@ const PRINT_BRIDGE_SCRIPT = `
   });
 })();
 </script>`;
+}
 
 // ── Public API ────────────────────────────────────────────────────────
 
@@ -949,7 +981,7 @@ export interface PagedBookOptions {
   lp:          Record<string, string>;
   zoom?:       number;
   printMode?:  boolean;
-  designerPages?: { afterChapterIndex: number; imageUrl: string }[];
+  designerPages?: { afterPage: number; imageUrl: string }[];
   /** Absolute URL to paged.polyfill.js (must be absolute — blob:// iframes can't use relative paths). */
   pagedJsUrl:  string;
 }
@@ -971,7 +1003,7 @@ export function generatePagedJsHtml(opts: PagedBookOptions): string {
   const css  = settingsToCss(opts);
 
   const frontMatterHtml = buildFrontMatter(book, fm, chapters, lp, s);
-  const chaptersHtml    = buildChapters(chapters, s, lang, lp, designerPages);
+  const chaptersHtml    = buildChapters(chapters, s, lang, lp);
 
   // Print mode: hide shadows + background, use PRINT bridge (auto-triggers window.print())
   const printOverrideCss = printMode ? `
@@ -980,7 +1012,7 @@ export function generatePagedJsHtml(opts: PagedBookOptions): string {
   .pagedjs_page, .pagedjs_sheet, .pagedjs_pages { box-shadow: none !important; }
 }` : "";
 
-  const bridge = printMode ? PRINT_BRIDGE_SCRIPT : makeBridgeScript(zoom);
+  const bridge = printMode ? makePrintBridgeScript(designerPages) : makeBridgeScript(zoom, designerPages);
 
   return `<!DOCTYPE html>
 <html lang="${htmlLang}">
