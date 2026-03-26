@@ -255,7 +255,7 @@ function BookCard({ book, onDelete }: { book: Book; onDelete: (id: number) => vo
       className="group flex flex-col cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
       onClick={() => navigate(`/book/${book.id}`)}
     >
-      <div className="relative aspect-[3/4] rounded-xl overflow-hidden shadow-apple-sm mb-3">
+      <div className="relative rounded-xl overflow-hidden shadow-apple-sm mb-3" style={{ aspectRatio: "148/210" }}>
         {book.coverImage ? (
           <img src={book.coverImage} alt={book.title} className="w-full h-full object-cover" />
         ) : (

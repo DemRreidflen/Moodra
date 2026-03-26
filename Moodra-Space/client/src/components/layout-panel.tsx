@@ -815,8 +815,9 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
   const [pageSize, setPageSize] = useState<PageSize>("a4");
   const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
   const bookHeadingFont = (book as any).headingFont as FontFamily | "" | undefined;
-  const headingFontFamilyStr = bookHeadingFont && FONT_FAMILIES[bookHeadingFont as FontFamily]
-    ? FONT_FAMILIES[bookHeadingFont as FontFamily]
+  const [layoutHeadingFont, setLayoutHeadingFont] = useState<FontFamily | "">(bookHeadingFont || "");
+  const headingFontFamilyStr = layoutHeadingFont && FONT_FAMILIES[layoutHeadingFont as FontFamily]
+    ? FONT_FAMILIES[layoutHeadingFont as FontFamily]
     : undefined;
   const [fontSizePt, setFontSizePt] = useState(11);
   const [marginSize, setMarginSize] = useState<MarginSize>("normal");
@@ -825,7 +826,6 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
   const [spreadIndex, setSpreadIndex] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showToc, setShowToc] = useState(true);
-  const [exporting, setExporting] = useState(false);
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(null);
   const [template, setTemplate] = useState<Template>("classic");
   const [showTocPage, setShowTocPage] = useState(true);
@@ -949,13 +949,8 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
     }
   };
 
-  const exportWord = async () => {
-    setExporting(true);
-    try {
-      window.open(`/api/books/${bookId}/export/docx`, "_blank");
-    } finally {
-      setTimeout(() => setExporting(false), 2000);
-    }
+  const exportEpub = () => {
+    window.open(`/api/books/${bookId}/export/epub`, "_blank");
   };
 
   const exportPdf = () => {
@@ -1231,35 +1226,22 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
           </div>
         )}
 
-        {/* Template selector */}
+        {/* Heading font selector */}
         {showSettings && (
-          <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(249,109,28,0.08)" }}>
+          <div style={{ padding: "6px 12px 10px", borderTop: "1px solid rgba(249,109,28,0.08)" }}>
             <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#c2a897", marginBottom: 6 }}>
-              {L.template || "Template"}
+              {L.headingFont || "Heading Font"}
             </div>
-            <div style={{ display: "flex", gap: 4 }}>
-              {(["classic", "modern", "minimal"] as Template[]).map(t => (
-                <button key={t} onClick={() => setTemplate(t)} style={{
-                  flex: 1,
-                  padding: "5px 0",
-                  borderRadius: 5,
-                  border: `1px solid ${template === t ? `${TEMPLATE_ACCENTS[t]}40` : "rgba(0,0,0,0.08)"}`,
-                  background: template === t ? `${TEMPLATE_ACCENTS[t]}12` : "rgba(0,0,0,0.03)",
-                  color: template === t ? TEMPLATE_ACCENTS[t] : "#8a7a70",
-                  fontSize: 10,
-                  fontWeight: template === t ? 600 : 400,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 2,
-                }}>
-                  <div style={{ width: 16, height: 12, borderRadius: 2, background: TEMPLATE_ACCENTS[t], opacity: template === t ? 0.9 : 0.3 }} />
-                  {t}
-                </button>
-              ))}
-            </div>
+            <select
+              value={layoutHeadingFont}
+              onChange={e => setLayoutHeadingFont(e.target.value as FontFamily | "")}
+              style={selectStyle}
+            >
+              <option value="">{L.sameAsBody || "Same as body"}</option>
+              <option value="serif">{L.serif || "Serif (Georgia)"}</option>
+              <option value="sans">{L.sansSerif || "Sans-serif"}</option>
+              <option value="mono">{L.mono || "Monospace"}</option>
+            </select>
           </div>
         )}
 
@@ -1417,51 +1399,50 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
         )}
 
         {/* Export buttons */}
-        <div style={{ padding: "10px 12px", borderTop: "1px solid rgba(249,109,28,0.08)", display: "flex", flexDirection: "column", gap: 6 }}>
-          <button
-            onClick={exportWord}
-            disabled={exporting}
-            style={{
-              width: "100%",
-              padding: "7px 0",
-              borderRadius: 8,
-              background: exporting ? "rgba(249,109,28,0.07)" : "rgba(249,109,28,0.12)",
-              border: "1px solid rgba(249,109,28,0.18)",
-              color: "#F96D1C",
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: exporting ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              transition: "all 0.2s",
-            }}
-          >
-            <FileDown style={{ width: 12, height: 12 }} />
-            {exporting ? "…" : (L.exportWord || "Export Word")}
-          </button>
+        <div style={{ padding: "10px 12px", borderTop: "1px solid rgba(249,109,28,0.08)", display: "flex", gap: 6 }}>
           <button
             onClick={exportPdf}
             style={{
-              width: "100%",
+              flex: 1,
+              padding: "7px 0",
+              borderRadius: 8,
+              background: "rgba(249,109,28,0.12)",
+              border: "1px solid rgba(249,109,28,0.18)",
+              color: "#F96D1C",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 5,
+              transition: "all 0.2s",
+            }}
+          >
+            <Printer style={{ width: 12, height: 12 }} />
+            PDF
+          </button>
+          <button
+            onClick={exportEpub}
+            style={{
+              flex: 1,
               padding: "7px 0",
               borderRadius: 8,
               background: "rgba(45,26,14,0.06)",
               border: "1px solid rgba(45,26,14,0.12)",
               color: "#6b5a50",
               fontSize: 11,
-              fontWeight: 500,
+              fontWeight: 600,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 6,
+              gap: 5,
               transition: "all 0.2s",
             }}
           >
-            <Printer style={{ width: 12, height: 12 }} />
-            {L.exportPdf || "Export PDF"}
+            <FileDown style={{ width: 12, height: 12 }} />
+            EPUB
           </button>
         </div>
       </div>

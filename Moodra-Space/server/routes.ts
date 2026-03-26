@@ -3040,13 +3040,13 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
 <body lang="${htmlLang}">
 
 <!-- Cover -->
-<div class="cover">
-  <div class="cover-ornament">· · ·</div>
+${book.coverImage && book.coverImage.startsWith("data:") ? `<div style="page-break-after:always;margin:0;padding:0;width:100%;height:100vh;overflow:hidden;"><img src="${book.coverImage}" alt="cover" style="width:100%;height:100%;object-fit:cover;display:block;"/></div>` : `<div class="cover">
+  <div class="cover-ornament">&middot; &middot; &middot;</div>
   <div class="cover-title">${escapeXml(book.title)}</div>
   ${book.description ? `<div class="cover-subtitle">${escapeXml(book.description)}</div>` : ""}
   <div class="cover-rule"></div>
-  <div class="cover-meta">Moodra · ${date}</div>
-</div>
+  <div class="cover-meta">Moodra &middot; ${date}</div>
+</div>`}
 
 <!-- Table of Contents -->
 ${chapters.length > 1 ? `
