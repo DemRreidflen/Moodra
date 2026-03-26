@@ -839,14 +839,13 @@ function makeBridgeScript(zoom: number): string {
   function enableEditMode() {
     editMode = true;
     document.body.setAttribute('data-edit', '1');
-    // Find all ch-body and ch-title in page boxes and make them editable.
-    // We iterate over ALL occurrences — Paged.js may split a chapter across
-    // several pages but each fragment still carries data-chapter-id.
-    document.querySelectorAll('.ch-body').forEach(function(el) {
+    // Only make visible page box elements editable — NOT the hidden source
+    // that Paged.js keeps in the DOM for layout reference.
+    document.querySelectorAll('.pagedjs_page .ch-body').forEach(function(el) {
       el.setAttribute('contenteditable', 'true');
       el.setAttribute('spellcheck', 'true');
     });
-    document.querySelectorAll('.ch-title').forEach(function(el) {
+    document.querySelectorAll('.pagedjs_page .ch-title').forEach(function(el) {
       el.setAttribute('contenteditable', 'true');
       el.setAttribute('spellcheck', 'false');
     });
@@ -863,24 +862,35 @@ function makeBridgeScript(zoom: number): string {
   }
 
   /* Collect all body fragments that belong to a chapter and return
-     concatenated clean HTML. Paged.js may have split the .ch-body
-     across multiple page boxes, each fragment with the same
-     data-chapter-id on the ancestor section. */
+     concatenated clean HTML.
+     IMPORTANT: Paged.js keeps the ORIGINAL source element in the DOM
+     (usually hidden) AND creates copies inside each .pagedjs_page box.
+     We must only collect from the visible page boxes — otherwise we get
+     the full original content PLUS every page-split fragment,
+     which triples/quadruples the text when saved back. */
   function collectChapterBody(chapterId) {
     var fragments = [];
-    // querySelectorAll returns elements in DOM order — page 1 first.
-    document.querySelectorAll('section[data-chapter-id="' + chapterId + '"] .ch-body').forEach(function(el) {
+    // Scope to .pagedjs_page to skip the hidden original source element.
+    document.querySelectorAll(
+      '.pagedjs_page section[data-chapter-id="' + chapterId + '"] .ch-body'
+    ).forEach(function(el) {
       fragments.push(el.innerHTML);
     });
-    // Deduplicate: Paged.js sometimes keeps the original hidden source.
-    // We merge unique fragments only.
-    if (fragments.length <= 1) return fragments[0] || '';
-    // Combine without repeating identical leading/trailing paragraphs.
-    return fragments.join('');
+    if (fragments.length > 0) return fragments.join('');
+    // Fallback: Paged.js hasn't rendered yet (unlikely during edit mode)
+    var src = document.querySelector('section[data-chapter-id="' + chapterId + '"] .ch-body');
+    return src ? src.innerHTML : '';
   }
 
   function collectChapterTitle(chapterId) {
-    var el = document.querySelector('section[data-chapter-id="' + chapterId + '"] .ch-title');
+    // Prefer the title from a visible page box to avoid the hidden source
+    var el = document.querySelector(
+      '.pagedjs_page section[data-chapter-id="' + chapterId + '"] .ch-title'
+    );
+    if (!el) {
+      // Fallback to any occurrence
+      el = document.querySelector('section[data-chapter-id="' + chapterId + '"] .ch-title');
+    }
     return el ? stripSoftHyphens(el.innerText || el.textContent || '') : '';
   }
 

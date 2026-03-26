@@ -50,9 +50,15 @@ interface Block { type: string; content: string; }
 
 /** Convert Paged.js ch-body innerHTML back to Block[] for saving */
 function htmlToBlocks(bodyHtml: string): Block[] {
-  const clean = (s: string) => s.replace(/\u00AD/g, "").replace(/&shy;/g, "");
+  const clean = (s: string) => s.replace(/\u00AD/g, "").replace(/&shy;/g, "").replace(/<wbr\s*\/?>/gi, "");
   const div = document.createElement("div");
   div.innerHTML = clean(bodyHtml);
+  // Remove any Paged.js wrapper elements (safety: keep only known block-level elements)
+  div.querySelectorAll(".pagedjs_token, .pagedjs_break_token, [data-ref]").forEach(el => el.remove());
+  const isEmptyHtml = (html: string) => {
+    const t = html.replace(/<br\s*\/?>/gi, "").replace(/&nbsp;/gi, " ").trim();
+    return !t;
+  };
   const blocks: Block[] = [];
   for (const el of Array.from(div.children)) {
     const tag = el.tagName.toLowerCase();
@@ -60,7 +66,8 @@ function htmlToBlocks(bodyHtml: string): Block[] {
     const iHtml = clean(el.innerHTML).trim();
     const iText = clean(el.textContent || "").trim();
     if (tag === "p") {
-      if (iHtml) blocks.push({ type: "paragraph", content: iHtml });
+      if (iHtml && !isEmptyHtml(iHtml)) blocks.push({ type: "paragraph", content: iHtml });
+      else if (!iHtml) blocks.push({ type: "paragraph", content: "" });
     } else if (tag === "h2" && cls.includes("bh1")) {
       if (iText) blocks.push({ type: "h1", content: iText });
     } else if (tag === "h3" && cls.includes("bh2")) {
