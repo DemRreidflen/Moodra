@@ -2415,6 +2415,43 @@ New directions the author could explore — what could make this text exceptiona
     const safeTitle = escapeXml(epubTitle);
     const now = new Date().toISOString().split("T")[0];
 
+    // ── Cover image ──────────────────────────────────────────────────────
+    let hasCover = false;
+    let coverMime = "image/jpeg";
+    let coverExt = "jpg";
+    if (book.coverImage) {
+      if (book.coverImage.startsWith("data:")) {
+        const m = book.coverImage.match(/^data:([^;]+);base64,(.+)$/s);
+        if (m) {
+          coverMime = m[1];
+          coverExt = coverMime.includes("png") ? "png" : coverMime.includes("gif") ? "gif" : "jpg";
+          const imgBuf = Buffer.from(m[2], "base64");
+          oebps.file(`cover.${coverExt}`, imgBuf);
+          hasCover = true;
+        }
+      } else if (book.coverImage.startsWith("/uploads/")) {
+        const imgPath = path.join(process.cwd(), book.coverImage);
+        if (fs.existsSync(imgPath)) {
+          const imgBuf = fs.readFileSync(imgPath);
+          coverExt = path.extname(book.coverImage).slice(1) || "jpg";
+          coverMime = coverExt === "png" ? "image/png" : "image/jpeg";
+          oebps.file(`cover.${coverExt}`, imgBuf);
+          hasCover = true;
+        }
+      }
+    }
+    if (hasCover) {
+      oebps.file("cover.xhtml",
+        `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<head><meta charset="UTF-8"/><title>${safeTitle}</title>
+<style>html,body{margin:0;padding:0;width:100%;height:100%}img{width:100%;height:100%;object-fit:cover;display:block}</style>
+</head>
+<body epub:type="cover"><img src="cover.${coverExt}" alt="${safeTitle} cover"/></body>
+</html>`);
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     const manifestItems = chapters.map(ch =>
       `<item id="ch${ch.id}" href="ch${ch.id}.xhtml" media-type="application/xhtml+xml"/>`
     ).join("\n    ");
@@ -2431,13 +2468,17 @@ New directions the author could explore — what could make this text exceptiona
     <dc:language>${escapeXml(epubLanguage)}</dc:language>
     <dc:date>${now}</dc:date>
     <dc:identifier id="uid">moodra-${bookId}-${now}</dc:identifier>
+    ${hasCover ? `<meta name="cover" content="cover-image"/>` : ""}
   </metadata>
   <manifest>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    ${hasCover ? `<item id="cover-image" href="cover.${coverExt}" media-type="${coverMime}" properties="cover-image"/>` : ""}
+    ${hasCover ? `<item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>` : ""}
     ${manifestItems}
   </manifest>
   <spine toc="ncx">
+    ${hasCover ? `<itemref idref="cover-page" linear="yes"/>` : ""}
     ${spineItems}
   </spine>
 </package>`);

@@ -7,6 +7,7 @@ import {
   FileText, Settings2, AlignLeft, AlignJustify, AlignCenter, AlignRight,
   ChevronDown, ChevronUp, Columns2, Square,
   ChevronLeft, X, FileDown, Printer, Pencil,
+  BookMarked, PenLine, Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/language-context";
@@ -105,6 +106,102 @@ function anchorDownload(href: string, filename: string) {
   document.body.removeChild(a);
 }
 
+// ─── Layout Onboarding Modal ─────────────────────────────────────────
+const ONBOARDING_KEY = "moodra:layout-intro-seen";
+
+function LayoutOnboarding({ onClose, lp }: { onClose: () => void; lp: Record<string, string> }) {
+  const [step, setStep] = useState(0);
+
+  const steps = [
+    {
+      icon: <BookMarked className="h-8 w-8 text-primary" />,
+      title: lp.layoutOnboardingStep1Title || "Full book preview",
+      desc: lp.layoutOnboardingStep1Desc || "See your book exactly as it will be printed.",
+    },
+    {
+      icon: <PenLine className="h-8 w-8 text-primary" />,
+      title: lp.layoutOnboardingStep2Title || "Inline editing",
+      desc: lp.layoutOnboardingStep2Desc || "Click Edit in the toolbar to type directly on the page.",
+    },
+    {
+      icon: <Share2 className="h-8 w-8 text-primary" />,
+      title: lp.layoutOnboardingStep3Title || "Export",
+      desc: lp.layoutOnboardingStep3Desc || "Export as PDF, DOCX, or EPUB from the toolbar.",
+    },
+  ];
+
+  const handleClose = () => {
+    localStorage.setItem(ONBOARDING_KEY, "1");
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={e => { if (e.target === e.currentTarget) handleClose(); }}
+    >
+      <div className="bg-background rounded-2xl shadow-2xl w-[380px] overflow-hidden" style={{ maxWidth: "calc(100vw - 32px)" }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+          <span className="font-semibold text-sm">{lp.layoutOnboardingTitle || "Welcome to Layout Mode"}</span>
+          <button onClick={handleClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-8 flex flex-col items-center text-center gap-4">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(249,109,28,0.10)" }}>
+            {steps[step].icon}
+          </div>
+          <div>
+            <div className="font-semibold text-base mb-1">{steps[step].title}</div>
+            <div className="text-sm text-muted-foreground leading-relaxed">{steps[step].desc}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 px-5 pb-5">
+          <div className="flex gap-1.5">
+            {steps.map((_, i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full transition-colors"
+                style={{ background: i === step ? "#F96D1C" : "rgba(249,109,28,0.25)" }}
+              />
+            ))}
+          </div>
+          <div className="flex gap-2">
+            {step > 0 && (
+              <button
+                onClick={() => setStep(s => s - 1)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border/60 hover:bg-secondary transition-colors"
+              >
+                {lp.layoutOnboardingPrev || "Back"}
+              </button>
+            )}
+            {step < steps.length - 1 ? (
+              <button
+                onClick={() => setStep(s => s + 1)}
+                className="px-4 py-1.5 text-sm rounded-lg text-white font-medium transition-colors"
+                style={{ background: "#F96D1C" }}
+              >
+                {lp.layoutOnboardingNext || "Next"}
+              </button>
+            ) : (
+              <button
+                onClick={handleClose}
+                className="px-4 py-1.5 text-sm rounded-lg text-white font-medium transition-colors"
+                style={{ background: "#F96D1C" }}
+              >
+                {lp.layoutOnboardingGotIt || "Got it"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Export Modal ────────────────────────────────────────────────────
 function ExportModal({
   bookId,
@@ -138,6 +235,7 @@ function ExportModal({
         const coverImageUrl = book.coverImage
           ? (book.coverImage.startsWith("data:") ? book.coverImage : `${window.location.origin}${book.coverImage}`)
           : "";
+        const bookLp = { ...lp, ...getBookLangStrings(book.language) };
         const html = generatePrintHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, pagedJsUrl });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
@@ -386,7 +484,14 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [showExport, setShowExport] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [pendingReload, setPendingReload] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (!localStorage.getItem(ONBOARDING_KEY)) {
+      setShowOnboarding(true);
+    }
+  }, []);
 
   const { data: chapters = [] } = useQuery<Chapter[]>({
     queryKey: ["/api/books", bookId, "chapters"],
@@ -544,6 +649,10 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
+      {showOnboarding && (
+        <LayoutOnboarding lp={lp} onClose={() => setShowOnboarding(false)} />
+      )}
+
       {showExport && (
         <ExportModal
           bookId={bookId}

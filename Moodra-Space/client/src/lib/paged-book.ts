@@ -922,6 +922,26 @@ function makeBridgeScript(zoom: number): string {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       if (editMode && activeSectionId) saveChapterById(activeSectionId);
+      return;
+    }
+    /* Enter inside .ch-body: insert <p> instead of browser default <div> */
+    if (e.key === 'Enter' && !e.shiftKey && editMode) {
+      var target = e.target;
+      var body = target && target.closest && target.closest('.ch-body[contenteditable]');
+      if (!body) return;
+      e.preventDefault();
+      var sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      var range = sel.getRangeAt(0);
+      range.deleteContents();
+      var p = document.createElement('p');
+      p.appendChild(document.createElement('br'));
+      range.insertNode(p);
+      var newRange = document.createRange();
+      newRange.setStart(p, 0);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
     }
   }, true);
 
@@ -948,7 +968,10 @@ function makeBridgeScript(zoom: number): string {
         '[data-edit="1"] .ch-body[contenteditable]:hover{box-shadow:0 0 0 2px #F96D1C55}',
         '[data-edit="1"] .ch-body[contenteditable]:focus{box-shadow:0 0 0 2px #F96D1C}',
         '[data-edit="1"] .ch-title[contenteditable]{cursor:text;outline:none}',
-        '[data-edit="1"] .ch-title[contenteditable]:focus{box-shadow:0 0 0 2px #F96D1C}'
+        '[data-edit="1"] .ch-title[contenteditable]:focus{box-shadow:0 0 0 2px #F96D1C}',
+        /* Force justify on browser-inserted divs (Chrome Enter behavior) */
+        '[data-edit="1"] .ch-body[contenteditable] div{text-align:justify;hyphens:auto;widows:2;orphans:2}',
+        '[data-edit="1"] .ch-body[contenteditable] p{text-align:justify;hyphens:auto;widows:2;orphans:2}'
       ].join('');
       document.head.appendChild(editCss);
 
