@@ -448,8 +448,8 @@ hr.bdiv {
 .title-align-left   { align-items: flex-start; text-align: left; }
 .title-align-right  { align-items: flex-end; text-align: right; }
 .title-deco-img { max-width: 80px; max-height: 80px; object-fit: contain; margin-bottom: 1em; }
-.title-main { font-size: var(--t-fs, 28pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none; }
-.title-sub  { font-size: var(--s-fs, 13pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
+.title-main { font-family: ${s.headingFontFamily || s.fontFamily}; font-size: var(--t-fs, 28pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none; }
+.title-sub  { font-family: ${s.headingFontFamily || s.fontFamily}; font-size: var(--s-fs, 13pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
 .title-author { font-size: var(--a-fs, 12pt); color: #555; letter-spacing: 0.05em; }
 .title-bottom-block { margin-top: auto; padding-top: 1em; }
 .title-publisher { font-size: ${s.fontSize - 1}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -493,6 +493,7 @@ hr.bdiv {
 /* TOC */
 .toc-page { padding: 8pt 0; }
 .toc-heading {
+  font-family: ${s.headingFontFamily || s.fontFamily};
   font-size: ${s.h2Size}pt;
   text-align: center;
   margin-bottom: 20pt;

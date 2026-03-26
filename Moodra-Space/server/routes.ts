@@ -2992,6 +2992,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     padding: 20px 0;
   }
   .toc-heading {
+    font-family: ${headingFontFamily};
     font-size: 13pt;
     font-weight: 700;
     letter-spacing: 2px;
