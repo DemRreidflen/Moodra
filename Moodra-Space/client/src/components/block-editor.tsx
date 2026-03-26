@@ -750,10 +750,7 @@ function parseInitialContent(content: string): Block[] {
   try {
     if (content.trim().startsWith("[")) {
       const parsed = JSON.parse(content);
-      // Never return an empty array — an empty blocks state leaves the editor
-      // in a stuck/unresponsive state. Return a single empty paragraph instead.
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      return [{ id: generateId(), type: "paragraph", content: "" }];
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     // Fallback to single paragraph

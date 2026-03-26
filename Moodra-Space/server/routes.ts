@@ -21,7 +21,13 @@ const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: uploadsDir,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `cover-${Date.now()}${ext}`);
+    },
+  }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -107,8 +113,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const id = Number(req.params.id);
       if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
-      const mime = req.file.mimetype || "image/jpeg";
-      const coverImage = `data:${mime};base64,${req.file.buffer.toString("base64")}`;
+      const coverImage = `/uploads/${req.file.filename}`;
       const book = await storage.updateBook(id, { coverImage });
       if (!book) return res.status(404).json({ error: "Книга не найдена" });
       res.json({ coverImage });
@@ -1329,7 +1334,7 @@ ${existing ? "Не дублируй уже имеющиеся источники
 
   app.post("/api/ai/adapt-language", async (req: Request, res: Response) => {
     try {
-      const { text, targetLanguage, bookTitle, bookMode, chapterTitle } = req.body;
+      const { text, targetLanguage, bookTitle, bookMode } = req.body;
       if (!text || !targetLanguage) return res.status(400).json({ error: "text and targetLanguage are required" });
 
       const systemPrompt = `You are the Native Translation Agent — a specialist in literary language adaptation.
@@ -1414,26 +1419,7 @@ Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction
 
       trackTokens(getUserId(req), totalTokens);
       const adapted = adaptedChunks.join("\n\n");
-
-      let adaptedTitle = chapterTitle || "";
-      if (chapterTitle && chapterTitle.trim()) {
-        try {
-          const titleCompletion = await ai.chat.completions.create({
-            model: ADAPT_MODEL,
-            messages: [
-              { role: "system", content: `Translate this chapter title into ${targetLanguage}. Return ONLY the translated title, nothing else.` },
-              { role: "user", content: chapterTitle.trim() },
-            ],
-            max_completion_tokens: 200,
-          });
-          trackTokens(getUserId(req), titleCompletion.usage?.total_tokens || 0);
-          adaptedTitle = titleCompletion.choices[0].message.content?.trim() || chapterTitle;
-        } catch {
-          adaptedTitle = chapterTitle;
-        }
-      }
-
-      res.json({ adapted, adaptedTitle, chunkCount: chunks.length });
+      res.json({ adapted, chunkCount: chunks.length });
     } catch (e: any) {
       const { status, message, code } = openAIErrorMessage(e);
       res.status(status).json({ error: message, code });
@@ -2415,43 +2401,6 @@ New directions the author could explore — what could make this text exceptiona
     const safeTitle = escapeXml(epubTitle);
     const now = new Date().toISOString().split("T")[0];
 
-    // ── Cover image ──────────────────────────────────────────────────────
-    let hasCover = false;
-    let coverMime = "image/jpeg";
-    let coverExt = "jpg";
-    if (book.coverImage) {
-      if (book.coverImage.startsWith("data:")) {
-        const m = book.coverImage.match(/^data:([^;]+);base64,(.+)$/s);
-        if (m) {
-          coverMime = m[1];
-          coverExt = coverMime.includes("png") ? "png" : coverMime.includes("gif") ? "gif" : "jpg";
-          const imgBuf = Buffer.from(m[2], "base64");
-          oebps.file(`cover.${coverExt}`, imgBuf);
-          hasCover = true;
-        }
-      } else if (book.coverImage.startsWith("/uploads/")) {
-        const imgPath = path.join(process.cwd(), book.coverImage);
-        if (fs.existsSync(imgPath)) {
-          const imgBuf = fs.readFileSync(imgPath);
-          coverExt = path.extname(book.coverImage).slice(1) || "jpg";
-          coverMime = coverExt === "png" ? "image/png" : "image/jpeg";
-          oebps.file(`cover.${coverExt}`, imgBuf);
-          hasCover = true;
-        }
-      }
-    }
-    if (hasCover) {
-      oebps.file("cover.xhtml",
-        `<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-<head><meta charset="UTF-8"/><title>${safeTitle}</title>
-<style>html,body{margin:0;padding:0;width:100%;height:100%}img{width:100%;height:100%;object-fit:cover;display:block}</style>
-</head>
-<body epub:type="cover"><img src="cover.${coverExt}" alt="${safeTitle} cover"/></body>
-</html>`);
-    }
-    // ─────────────────────────────────────────────────────────────────────
-
     const manifestItems = chapters.map(ch =>
       `<item id="ch${ch.id}" href="ch${ch.id}.xhtml" media-type="application/xhtml+xml"/>`
     ).join("\n    ");
@@ -2468,17 +2417,13 @@ New directions the author could explore — what could make this text exceptiona
     <dc:language>${escapeXml(epubLanguage)}</dc:language>
     <dc:date>${now}</dc:date>
     <dc:identifier id="uid">moodra-${bookId}-${now}</dc:identifier>
-    ${hasCover ? `<meta name="cover" content="cover-image"/>` : ""}
   </metadata>
   <manifest>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    ${hasCover ? `<item id="cover-image" href="cover.${coverExt}" media-type="${coverMime}" properties="cover-image"/>` : ""}
-    ${hasCover ? `<item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>` : ""}
     ${manifestItems}
   </manifest>
   <spine toc="ncx">
-    ${hasCover ? `<itemref idref="cover-page" linear="yes"/>` : ""}
     ${spineItems}
   </spine>
 </package>`);
@@ -2549,8 +2494,7 @@ ${body}
     const FONT = "Georgia";
     const BODY_SIZE = 24;
     const H1_SIZE = 32;
-    const H2_SIZE = 28;
-    const H3_SIZE = 26;
+    const H2_SIZE = 26;
     const LINE_SPACING = { rule: LineRuleType.EXACT, value: 360 };
     const MARGINS = {
       top: convertInchesToTwip(1),
@@ -2559,60 +2503,11 @@ ${body}
       right: convertInchesToTwip(1),
     };
 
-    // ─── Inline HTML → run options ────────────────────────────────────────────
-    type RunOpt = { text: string; bold?: true; italics?: true; underline?: {}; strike?: true; color?: string };
-    function htmlToRunOpts(html: string, defaultColor?: string): RunOpt[] {
-      const opts: RunOpt[] = [];
-      if (!html) return opts;
-      const decode = (s: string) =>
-        s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-         .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ");
-      let bold = false, italic = false, underline = false, strike = false;
-      let i = 0;
-      while (i < html.length) {
-        if (html[i] === "<") {
-          const end = html.indexOf(">", i);
-          if (end === -1) { i++; continue; }
-          const inner = html.slice(i + 1, end).trim().toLowerCase();
-          const isClose = inner.startsWith("/");
-          const tagName = (isClose ? inner.slice(1) : inner).split(/[\s/]/)[0];
-          if (tagName === "br") opts.push({ text: "\n" });
-          else if (!isClose) {
-            if (tagName === "strong" || tagName === "b") bold = true;
-            else if (tagName === "em" || tagName === "i") italic = true;
-            else if (tagName === "u") underline = true;
-            else if (tagName === "s" || tagName === "del" || tagName === "strike") strike = true;
-          } else {
-            if (tagName === "strong" || tagName === "b") bold = false;
-            else if (tagName === "em" || tagName === "i") italic = false;
-            else if (tagName === "u") underline = false;
-            else if (tagName === "s" || tagName === "del" || tagName === "strike") strike = false;
-          }
-          i = end + 1;
-        } else {
-          const nextTag = html.indexOf("<", i);
-          const chunk = decode(html.slice(i, nextTag === -1 ? undefined : nextTag));
-          if (chunk) {
-            const opt: RunOpt = { text: chunk };
-            if (bold) opt.bold = true;
-            if (italic) opt.italics = true;
-            if (underline) opt.underline = {};
-            if (strike) opt.strike = true;
-            if (defaultColor) opt.color = defaultColor;
-            opts.push(opt);
-          }
-          i = nextTag === -1 ? html.length : nextTag;
-        }
-      }
-      return opts;
-    }
-
-    const mkRuns = (html: string, overrides: Partial<RunOpt> = {}) =>
-      htmlToRunOpts(html).map(o => new TextRun({ font: FONT, size: BODY_SIZE, ...o, ...overrides }));
-
     const tocEntries = chapters.map((ch, i) =>
       new Paragraph({
-        children: [new TextRun({ text: `${i + 1}.  ${ch.title}`, font: FONT, size: BODY_SIZE, color: "444444" })],
+        children: [
+          new TextRun({ text: `${i + 1}.  ${ch.title}`, font: FONT, size: BODY_SIZE, color: "444444" }),
+        ],
         spacing: { before: 60, after: 60 },
       })
     );
@@ -2653,122 +2548,25 @@ ${body}
       );
 
       for (const block of blocks) {
-        const rawHtml = String(block.content || block.text || "");
-        const indentLevel = Math.max(0, Math.min(8, Number(block.metadata?.indentLevel ?? 0)));
-        const indentLeft = convertInchesToTwip(0.4 + indentLevel * 0.4);
-
-        if (!rawHtml && block.type !== "divider") continue;
-
-        switch (block.type) {
-          case "h1":
-          case "heading":
-            allChildren.push(new Paragraph({
-              children: mkRuns(rawHtml, { size: H1_SIZE, bold: true }),
-              heading: HeadingLevel.HEADING_2,
-              spacing: { before: 360, after: 180 },
-            }));
-            break;
-          case "h2":
-            allChildren.push(new Paragraph({
-              children: mkRuns(rawHtml, { size: H2_SIZE, bold: true }),
-              heading: HeadingLevel.HEADING_3,
-              spacing: { before: 280, after: 140 },
-            }));
-            break;
-          case "h3":
-            allChildren.push(new Paragraph({
-              children: mkRuns(rawHtml, { size: H3_SIZE, bold: true }),
-              spacing: { before: 220, after: 100 },
-            }));
-            break;
-          case "quote":
-            allChildren.push(new Paragraph({
-              children: mkRuns(rawHtml, { italics: true, color: "555555" }),
-              indent: { left: convertInchesToTwip(0.6 + indentLevel * 0.4), right: convertInchesToTwip(0.3) },
-              spacing: { before: 160, after: 160, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-              border: { left: { style: BorderStyle.SINGLE, size: 6, color: "CCCCCC", space: 8 } },
-            }));
-            break;
-          case "bullet_item":
-            allChildren.push(new Paragraph({
-              children: [
-                new TextRun({ text: "•\t", font: FONT, size: BODY_SIZE }),
-                ...mkRuns(rawHtml),
-              ],
-              indent: { left: indentLeft + convertInchesToTwip(0.3), hanging: convertInchesToTwip(0.22) },
-              spacing: { before: 60, after: 60, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          case "numbered_item":
-            allChildren.push(new Paragraph({
-              children: [
-                new TextRun({ text: "–\t", font: FONT, size: BODY_SIZE }),
-                ...mkRuns(rawHtml),
-              ],
-              indent: { left: indentLeft + convertInchesToTwip(0.3), hanging: convertInchesToTwip(0.22) },
-              spacing: { before: 60, after: 60, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          case "check_item":
-            allChildren.push(new Paragraph({
-              children: [
-                new TextRun({ text: block.metadata?.checked ? "☑\t" : "☐\t", font: FONT, size: BODY_SIZE }),
-                ...mkRuns(rawHtml),
-              ],
-              indent: { left: indentLeft + convertInchesToTwip(0.3), hanging: convertInchesToTwip(0.22) },
-              spacing: { before: 60, after: 60, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          case "divider":
-            allChildren.push(new Paragraph({
-              children: [new TextRun({ text: "— — —", font: FONT, size: BODY_SIZE, color: "AAAAAA" })],
-              alignment: AlignmentType.CENTER,
-              spacing: { before: 280, after: 280 },
-            }));
-            break;
-          case "hypothesis":
-            allChildren.push(new Paragraph({
-              children: [new TextRun({ text: "◆  ", font: FONT, size: BODY_SIZE, color: "6366F1" }), ...mkRuns(rawHtml)],
-              indent: { left: indentLeft },
-              spacing: { before: 120, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          case "argument":
-            allChildren.push(new Paragraph({
-              children: [new TextRun({ text: "✓  ", font: FONT, size: BODY_SIZE, color: "22C55E" }), ...mkRuns(rawHtml)],
-              indent: { left: indentLeft },
-              spacing: { before: 120, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          case "counterargument":
-            allChildren.push(new Paragraph({
-              children: [new TextRun({ text: "✕  ", font: FONT, size: BODY_SIZE, color: "EF4444" }), ...mkRuns(rawHtml)],
-              indent: { left: indentLeft },
-              spacing: { before: 120, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          case "idea":
-            allChildren.push(new Paragraph({
-              children: [new TextRun({ text: "☆  ", font: FONT, size: BODY_SIZE, color: "F59E0B" }), ...mkRuns(rawHtml)],
-              indent: { left: indentLeft },
-              spacing: { before: 120, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          case "question":
-            allChildren.push(new Paragraph({
-              children: [new TextRun({ text: "?  ", font: FONT, size: BODY_SIZE, color: "0EA5E9" }), ...mkRuns(rawHtml)],
-              indent: { left: indentLeft },
-              spacing: { before: 120, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
-            break;
-          default:
-            allChildren.push(new Paragraph({
-              children: mkRuns(rawHtml),
-              indent: indentLevel > 0
-                ? { left: indentLeft }
-                : { firstLine: convertInchesToTwip(0.4) },
-              spacing: { before: 0, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
-            }));
+        const text = String(block.content || block.text || "").trim();
+        if (!text) continue;
+        if (block.type === "heading") {
+          allChildren.push(new Paragraph({
+            children: [new TextRun({ text, font: FONT, size: H2_SIZE, bold: true })],
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 240, after: 120 },
+          }));
+        } else if (block.type === "quote") {
+          allChildren.push(new Paragraph({
+            children: [new TextRun({ text, font: FONT, size: BODY_SIZE, italics: true, color: "555555" })],
+            indent: { left: convertInchesToTwip(0.5) },
+            spacing: { before: 120, after: 120, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
+          }));
+        } else {
+          allChildren.push(new Paragraph({
+            children: [new TextRun({ text, font: FONT, size: BODY_SIZE })],
+            spacing: { before: 0, after: 160, line: LINE_SPACING.value, lineRule: LINE_SPACING.rule },
+          }));
         }
       }
     }
@@ -2843,8 +2641,7 @@ ${body}
     const marginBottom = Math.max(5,  Math.min(50, Number(q.marginBottom ?? 22)));
     const marginLeft   = Math.max(5,  Math.min(50, Number(q.marginLeft   ?? 20)));
     const marginRight  = Math.max(5,  Math.min(50, Number(q.marginRight  ?? 16)));
-    const fontFamily        = q.fontFamily ?? "Georgia, \"Times New Roman\", serif";
-    const headingFontFamily = q.headingFontFamily || fontFamily;
+    const fontFamily   = q.fontFamily ?? "Georgia, \"Times New Roman\", serif";
     const fontSize     = Math.max(7,  Math.min(18, Number(q.fontSize     ?? 10.5)));
     const lineHeight   = Math.max(1,  Math.min(3,  Number(q.lineHeight   ?? 1.72)));
     const paraSpacing       = Math.max(0,   Math.min(3,  Number(q.paragraphSpacing ?? 0)));
@@ -3028,7 +2825,6 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     padding: 20px 0;
   }
   .toc-heading {
-    font-family: ${headingFontFamily};
     font-size: 13pt;
     font-weight: 700;
     letter-spacing: 2px;
@@ -3070,7 +2866,6 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     font-family: ${fontFamily};
   }
   .chapter-title {
-    font-family: ${headingFontFamily};
     font-size: ${h1Size}pt;
     font-weight: 700;
     line-height: 1.25;
@@ -3093,18 +2888,10 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     overflow-wrap: normal;
     hyphenate-limit-chars: 6 3 3;
   }
-  /* ── RU/UA: страница не может заканчиваться переносом слова.
-     Для EN это правило не применяется — там всё как было. ── */
-  :lang(ru) p,
-  :lang(uk) p {
-    -webkit-hyphenate-limit-last: page;
-    hyphenate-limit-last: page;
-  }
   p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
   .chapter-content > p:first-child { text-indent: 0; }
 
   h2.section-h1 {
-    font-family: ${headingFontFamily};
     font-size: ${h2Size}pt;
     font-weight: 700;
     margin: 20px 0 8px;
@@ -3113,7 +2900,6 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     page-break-after: avoid;
   }
   h3.section-h2 {
-    font-family: ${headingFontFamily};
     font-size: ${h3Size}pt;
     font-weight: 700;
     font-style: italic;
@@ -3123,7 +2909,6 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     page-break-after: avoid;
   }
   h4.section-h3 {
-    font-family: ${headingFontFamily};
     font-size: ${Math.max(7, h3Size - 1)}pt;
     font-weight: 600;
     margin: 14px 0 4px;

@@ -569,18 +569,13 @@ export function ChapterEditor({
         const c = chapter.content || "";
         if (c.trim().startsWith("[")) {
           const parsed = JSON.parse(c);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setBlocks(parsed);
-          } else {
-            // Empty or invalid array — use empty block so editor stays functional
-            setBlocks([{ id: "init-0", type: "paragraph" as const, content: "" }]);
-          }
+          if (Array.isArray(parsed)) { setBlocks(parsed); } else { setBlocks([]); }
         } else if (c) {
           setBlocks([{ id: "init-0", type: "paragraph" as const, content: c }]);
         } else {
-          setBlocks([{ id: "init-0", type: "paragraph" as const, content: "" }]);
+          setBlocks([]);
         }
-      } catch { setBlocks([{ id: "init-0", type: "paragraph" as const, content: "" }]); }
+      } catch { setBlocks([]); }
       clearTimeout(saveTimerRef.current);
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: "auto" });
       const stored = localStorage.getItem(`moodra_adaptations_${chapter.id}`);
@@ -1109,12 +1104,11 @@ export function ChapterEditor({
       const adaptResp = await fetch("/api/ai/adapt-language", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, targetLanguage: adaptLang, bookTitle, bookMode, chapterTitle: chapter.title }),
+        body: JSON.stringify({ text, targetLanguage: adaptLang, bookTitle, bookMode }),
       });
       const adaptData = await adaptResp.json();
       if (!adaptResp.ok) throw new Error(adaptData.error || "Adaptation error");
       const adapted = adaptData.adapted || "";
-      const adaptedTitle: string = adaptData.adaptedTitle || chapter.title;
       const adaptedParagraphs = adapted.split(/\n\n+/).filter((p: string) => p.trim());
       const originalNonDividers = blocks.filter(b => b.type !== "divider");
       const adaptedBlocks = adaptedParagraphs.map((p: string, i: number) => ({
@@ -1146,7 +1140,7 @@ export function ChapterEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: adaptedTitle,
+          title: chapter.title,
           content: JSON.stringify(adaptedBlocks),
           order: workflow === "new" ? 1 : 9999,
         }),

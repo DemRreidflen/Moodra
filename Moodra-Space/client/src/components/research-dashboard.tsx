@@ -214,7 +214,7 @@ function SectionHeader({
 
 // ─── Draft Stages Section ────────────────────────────────────────────────────
 
-function DraftStagesSection({ bookId, book, drafts, className }: { bookId: number; book: Book; drafts: Draft[]; className?: string }) {
+function DraftStagesSection({ bookId, book, drafts }: { bookId: number; book: Book; drafts: Draft[] }) {
   const { lang } = useLang();
   const { toast } = useToast();
   const t = (RESEARCH_I18N[lang as keyof typeof RESEARCH_I18N] ?? RESEARCH_I18N.ru) as ResearchT;
@@ -253,7 +253,7 @@ function DraftStagesSection({ bookId, book, drafts, className }: { bookId: numbe
   const progress = activeDrafts.length > 0 ? Math.round((finalCount / activeDrafts.length) * 100) : 0;
 
   return (
-    <div className={`rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm${className ? ` ${className}` : ""}`}>
+    <div className="rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm">
       <SectionHeader
         icon={ListChecks} color="#6366F1"
         title={t.stagesTitle}
@@ -271,7 +271,7 @@ function DraftStagesSection({ bookId, book, drafts, className }: { bookId: numbe
         </div>
       )}
       {activeDrafts.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground/50">
+        <div className="flex flex-col items-center gap-3 py-8 text-center text-muted-foreground/50">
           <ListChecks className="h-8 w-8" />
           <p className="text-sm">{t.noDrafts}</p>
         </div>
@@ -332,10 +332,9 @@ const ASSIST_MODES = [
   { id: "ideas",    IconComp: IdeaIcon,         getLabel: (t: ResearchT) => t.aiIdeas,    getDesc: (t: ResearchT) => t.aiIdeasDesc },
 ] as const;
 
-function DraftAiAssistant({ book, onInsert, className }: {
+function DraftAiAssistant({ book, onInsert }: {
   book: Book;
   onInsert?: (text: string) => void;
-  className?: string;
 }) {
   const { lang } = useLang();
   const { isFreeMode } = useFreeMode();
@@ -371,7 +370,7 @@ function DraftAiAssistant({ book, onInsert, className }: {
   const color = "#F96D1C";
 
   return (
-    <div className={`rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm space-y-4${className ? ` ${className}` : ""}`}>
+    <div className="rounded-2xl border border-border/50 bg-background/80 p-6 shadow-sm space-y-4">
       <SectionHeader
         icon={Sparkles} color={color}
         title={t.aiAssist}
@@ -1128,8 +1127,8 @@ export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book
       {/* 50 / 50 split — each panel independently scrollable */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Stage tracker + AI assistant */}
-        <div className="flex-1 overflow-y-auto border-r border-border/30 p-4 flex flex-col gap-4">
-          <DraftStagesSection bookId={bookId} book={book} drafts={drafts} className="flex-1" />
+        <div className="flex-1 overflow-y-auto border-r border-border/30 p-4 space-y-4">
+          <DraftStagesSection bookId={bookId} book={book} drafts={drafts} />
           <DraftAiAssistant book={book} />
         </div>
 

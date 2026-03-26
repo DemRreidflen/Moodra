@@ -161,7 +161,7 @@ function blockToHtml(b: Block, lang: string, s: BookTypographySettings): string 
 // ── CSS generator ─────────────────────────────────────────────────────
 
 interface PagedBookInput {
-  book:        { title: string; language?: string | null; coverImageUrl?: string | null };
+  book:        { title: string; language?: string | null };
   chapters:    { title: string; content: unknown }[];
   settings:    BookTypographySettings;
   frontMatter: FrontMatterSettings;
@@ -234,17 +234,6 @@ function settingsToCss(input: PagedBookInput): string {
   @bottom-right  { content: none; }
 }
 
-/* Cover page: full-bleed, zero margins */
-@page cover {
-  margin: 0;
-  @top-left   { content: none; }
-  @top-center { content: none; }
-  @top-right  { content: none; }
-  @bottom-left   { content: none; }
-  @bottom-center { content: none; }
-  @bottom-right  { content: none; }
-}
-
 /* Chapter start pages: no header */
 @page chapter-start {
   @top-left   { content: none; }
@@ -279,7 +268,6 @@ html, body {
   -webkit-hyphens: auto;
   hyphenate-limit-chars: 5 3 3;
   hyphenate-limit-lines: 3;
-  -webkit-hyphenate-limit-last: always;
   hyphenate-limit-last: always;
 }
 
@@ -294,22 +282,11 @@ p {
   -webkit-hyphens: auto;
 }
 p + p { margin-top: ${s.paragraphSpacing * s.fontSize}pt; }
-
-/* ── RU/UA rule: страница не может заканчиваться переносом слова.
-   hyphenate-limit-last:page запрещает разбивать последнее слово
-   перед разрывом страницы — слово целиком переходит на след. стр.
-   Для EN это правило не применяется. ─────────────────────────── */
-:lang(ru) p,
-:lang(uk) p {
-  -webkit-hyphenate-limit-last: page;
-  hyphenate-limit-last: page;
-}
 blockquote + p,
 h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
 /* ── Headings ───────────────────────────────────────────────── */
 .bh1 {
-  font-family: ${s.headingFontFamily || s.fontFamily};
   font-size: ${s.h1Size}pt;
   font-weight: 700;
   line-height: 1.25;
@@ -321,7 +298,6 @@ h2 + p, h3 + p, h4 + p { text-indent: 0; }
   hyphens: none;
 }
 .bh2 {
-  font-family: ${s.headingFontFamily || s.fontFamily};
   font-size: ${s.h2Size}pt;
   font-weight: 600;
   line-height: 1.3;
@@ -333,7 +309,6 @@ h2 + p, h3 + p, h4 + p { text-indent: 0; }
   hyphens: none;
 }
 .bh3 {
-  font-family: ${s.headingFontFamily || s.fontFamily};
   font-size: ${s.h3Size}pt;
   font-weight: 600;
   line-height: 1.3;
@@ -396,7 +371,7 @@ hr.bdiv {
   padding-bottom: ${s.lineHeight * 2}em;
 }
 .ch-title {
-  font-family: ${s.headingFontFamily || s.fontFamily};
+  font-family: ${s.fontFamily};
   font-size: ${s.h1Size}pt;
   font-weight: 700;
   line-height: 1.2;
@@ -420,25 +395,6 @@ hr.bdiv {
   flex-direction: column;
 }
 
-/* Cover page (full-bleed image) */
-.cover-page {
-  page: cover;
-  break-after: page;
-  page-break-after: always;
-  width: ${ps.width}mm;
-  height: ${ps.height}mm;
-  overflow: hidden;
-  display: block;
-  margin: 0;
-  padding: 0;
-}
-.cover-page img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
 /* Title page */
 .title-page {
   justify-content: space-between;
@@ -447,9 +403,11 @@ hr.bdiv {
 .title-align-center { align-items: center; text-align: center; }
 .title-align-left   { align-items: flex-start; text-align: left; }
 .title-align-right  { align-items: flex-end; text-align: right; }
-.title-deco-img { max-width: 80px; max-height: 80px; object-fit: contain; margin-bottom: 1em; }
-.title-main { font-family: ${s.headingFontFamily || s.fontFamily}; font-size: var(--t-fs, 28pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none; }
-.title-sub  { font-family: ${s.headingFontFamily || s.fontFamily}; font-size: var(--s-fs, 13pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
+.title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
+.title-top-line { width: 40px; height: 2px; background: #d4c5b0; margin-bottom: 1em; }
+.title-mid-line { width: 40px; height: 1px; background: #d4c5b0; margin: 0.5em 0; }
+.title-main { font-size: var(--t-fs, 28pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none; }
+.title-sub  { font-size: var(--s-fs, 13pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
 .title-author { font-size: var(--a-fs, 12pt); color: #555; letter-spacing: 0.05em; }
 .title-bottom-block { margin-top: auto; padding-top: 1em; }
 .title-publisher { font-size: ${s.fontSize - 1}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -493,7 +451,6 @@ hr.bdiv {
 /* TOC */
 .toc-page { padding: 8pt 0; }
 .toc-heading {
-  font-family: ${s.headingFontFamily || s.fontFamily};
   font-size: ${s.h2Size}pt;
   text-align: center;
   margin-bottom: 20pt;
@@ -663,7 +620,7 @@ body[data-view="spread"] .pagedjs_page:nth-child(2n) {
 // ── HTML content builder ──────────────────────────────────────────────
 
 function buildFrontMatter(
-  book: { title: string; language?: string | null; coverImageUrl?: string | null },
+  book: { title: string; language?: string | null },
   fm: FrontMatterSettings,
   chapters: { title: string }[],
   lp: Record<string, string>,
@@ -672,28 +629,24 @@ function buildFrontMatter(
   const parts: string[] = [];
   const lang = book.language ?? "ru";
 
-  // Cover page (full-bleed image) — shown if enabled and a cover image URL is available
-  if (fm.coverPageEnabled !== false && book.coverImageUrl) {
-    parts.push(`<div class="cover-page"><img src="${book.coverImageUrl}" alt="${esc(book.title)}" /></div>`);
-  }
-
   // Title page
   if (fm.titlePage?.enabled) {
     const tp  = fm.titlePage;
     const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
     const align = tp.alignment ?? "center";
-    const deco  = (tp.decorativeStyle ?? "none") as string;
+    const deco  = tp.decorativeStyle ?? "none";
     const tfs   = tp.titleFontSize   ?? 28;
     const sfs   = tp.subtitleFontSize ?? 13;
     const afs   = tp.authorFontSize  ?? 12;
     const sp    = tp.elementSpacing  ?? 1.2;
     const lh    = tp.titleLineHeight ?? 1.2;
-    const decoImgUrl = tp.decorationImageUrl ?? "";
     parts.push(`
 <div class="front-matter-page title-page title-align-${align}" style="--t-fs:${tfs}pt;--s-fs:${sfs}pt;--a-fs:${afs}pt;--sp:${sp}em;--lh:${lh}">
-  ${deco === "image" && decoImgUrl ? `<img class="title-deco-img" src="${decoImgUrl}" alt="decoration" />` : ""}
+  ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
+  ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
   <h1 class="title-main">${esc(titleText)}</h1>
   ${tp.subtitle ? `<div class="title-sub">${esc(tp.subtitle)}</div>` : ""}
+  ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
   ${tp.author ? `<div class="title-author">${esc(tp.author)}</div>` : ""}
   <div class="title-bottom-block">
     ${tp.publisherName ? `<div class="title-publisher">${esc(tp.publisherName)}</div>` : ""}
@@ -791,13 +744,12 @@ function wrapListItems(rawHtmlParts: string[], blocks: Block[]): string {
 }
 
 function buildChapters(
-  chapters: { id?: number | string; title: string; content: unknown }[],
+  chapters: { title: string; content: unknown }[],
   s: BookTypographySettings,
   lang: string,
   lp: Record<string, string>,
 ): string {
   return chapters.map((ch, ci) => {
-    const chapterId = ch.id ?? ci;
     const blocks = parseBlocks(ch.content).filter(
       (b) => b.content.trim() || b.type === "divider" || b.type === "pagebreak",
     );
@@ -805,7 +757,7 @@ function buildChapters(
     const blocksHtml = wrapListItems(rawHtmlParts, blocks);
 
     return `
-<section class="chapter" id="chapter-${ci}" data-chapter-id="${chapterId}" data-chapter-idx="${ci}">
+<section class="chapter" id="chapter-${ci}">
   <div class="ch-header">
     <h1 class="ch-title">${softHyphenateText(esc(ch.title), lang)}</h1>
   </div>
@@ -823,173 +775,29 @@ function makeBridgeScript(zoom: number): string {
 <script>
 (function() {
   window.PagedConfig = { auto: false };
-  var editMode = false;
-  var activeSectionId = null;
 
   function applyViewMode(mode) {
     document.body.setAttribute('data-view', mode || 'single');
   }
-
-  function stripSoftHyphens(str) {
-    return str ? str.replace(/\u00AD/g, '').replace(/&shy;/g, '') : '';
-  }
-
-  /* ── Edit mode ──────────────────────────────────────────── */
-
-  function enableEditMode() {
-    editMode = true;
-    document.body.setAttribute('data-edit', '1');
-    // Only make visible page box elements editable — NOT the hidden source
-    // that Paged.js keeps in the DOM for layout reference.
-    document.querySelectorAll('.pagedjs_page .ch-body').forEach(function(el) {
-      el.setAttribute('contenteditable', 'true');
-      el.setAttribute('spellcheck', 'true');
-    });
-    document.querySelectorAll('.pagedjs_page .ch-title').forEach(function(el) {
-      el.setAttribute('contenteditable', 'true');
-      el.setAttribute('spellcheck', 'false');
-    });
-  }
-
-  function disableEditMode() {
-    editMode = false;
-    activeSectionId = null;
-    document.body.removeAttribute('data-edit');
-    document.querySelectorAll('[contenteditable]').forEach(function(el) {
-      el.removeAttribute('contenteditable');
-      el.removeAttribute('spellcheck');
-    });
-  }
-
-  /* Collect all body fragments that belong to a chapter and return
-     concatenated clean HTML.
-     IMPORTANT: Paged.js keeps the ORIGINAL source element in the DOM
-     (usually hidden) AND creates copies inside each .pagedjs_page box.
-     We must only collect from the visible page boxes — otherwise we get
-     the full original content PLUS every page-split fragment,
-     which triples/quadruples the text when saved back. */
-  function collectChapterBody(chapterId) {
-    var fragments = [];
-    // Scope to .pagedjs_page to skip the hidden original source element.
-    document.querySelectorAll(
-      '.pagedjs_page section[data-chapter-id="' + chapterId + '"] .ch-body'
-    ).forEach(function(el) {
-      fragments.push(el.innerHTML);
-    });
-    if (fragments.length > 0) return fragments.join('');
-    // Fallback: Paged.js hasn't rendered yet (unlikely during edit mode)
-    var src = document.querySelector('section[data-chapter-id="' + chapterId + '"] .ch-body');
-    return src ? src.innerHTML : '';
-  }
-
-  function collectChapterTitle(chapterId) {
-    // Prefer the title from a visible page box to avoid the hidden source
-    var el = document.querySelector(
-      '.pagedjs_page section[data-chapter-id="' + chapterId + '"] .ch-title'
-    );
-    if (!el) {
-      // Fallback to any occurrence
-      el = document.querySelector('section[data-chapter-id="' + chapterId + '"] .ch-title');
-    }
-    return el ? stripSoftHyphens(el.innerText || el.textContent || '') : '';
-  }
-
-  function saveChapterById(chapterId) {
-    var bodyHtml = stripSoftHyphens(collectChapterBody(chapterId));
-    var titleText = collectChapterTitle(chapterId);
-    // Strip tags to check if there's actual text content — avoid saving when
-    // Paged.js page boxes haven't rendered yet (empty / whitespace / <br> only).
-    var bodyText = bodyHtml.replace(/<[^>]*>/g, '').replace(/\s/g, '').replace(/\u00A0/g, '');
-    if (!bodyText && !titleText) return;
-    // Additional guard: if bodyHtml is whitespace/empty, do NOT overwrite content.
-    // This fires when the user blurs while Paged.js source is not yet in page boxes.
-    if (!bodyText) return;
-    window.parent.postMessage({
-      type: 'chapter-edit-save',
-      chapterId: parseInt(chapterId, 10),
-      titleText: titleText.trim(),
-      bodyHtml: bodyHtml
-    }, '*');
-  }
-
-  /* Track which chapter the user is editing */
-  document.addEventListener('focusin', function(e) {
-    if (!editMode) return;
-    var sec = e.target && e.target.closest && e.target.closest('section[data-chapter-id]');
-    if (sec) activeSectionId = sec.getAttribute('data-chapter-id');
-  }, true);
-
-  /* Auto-save when focus leaves a chapter section */
-  document.addEventListener('focusout', function(e) {
-    if (!editMode) return;
-    var sec = e.target && e.target.closest && e.target.closest('section[data-chapter-id]');
-    if (!sec) return;
-    var id = sec.getAttribute('data-chapter-id');
-    setTimeout(function() {
-      // Only save if focus moved outside this section
-      var focused = document.activeElement;
-      var stillInside = focused && sec.contains(focused);
-      if (!stillInside) saveChapterById(id);
-    }, 150);
-  }, true);
-
-  /* Ctrl+S / Cmd+S — save focused chapter */
-  document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      if (editMode && activeSectionId) saveChapterById(activeSectionId);
-      return;
-    }
-    /* Enter inside .ch-body: insert <p> instead of browser default <div> */
-    if (e.key === 'Enter' && !e.shiftKey && editMode) {
-      var target = e.target;
-      var body = target && target.closest && target.closest('.ch-body[contenteditable]');
-      if (!body) return;
-      e.preventDefault();
-      var sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return;
-      var range = sel.getRangeAt(0);
-      range.deleteContents();
-      var p = document.createElement('p');
-      p.appendChild(document.createElement('br'));
-      range.insertNode(p);
-      var newRange = document.createRange();
-      newRange.setStart(p, 0);
-      newRange.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-    }
-  }, true);
-
-  /* ── Paged.js init ──────────────────────────────────────── */
 
   window.addEventListener('load', function() {
     var paged = new Paged.Previewer();
     paged.preview().then(function(flow) {
       applyViewMode('single');
 
+      // Apply zoom AFTER Paged.js has finished layout so page-break
+      // calculations happen at 100% scale. Use CSS zoom property (not
+      // transform:scale) so layout dimensions actually shrink, removing
+      // white-gap artifacts.
       var z = ${zoom};
       if (z !== 1) {
         document.documentElement.style.zoom = String(z);
       }
-
+      // Inject background override after Paged.js renders
+      // in case Paged.js stylesheet overrides our initial CSS.
       var bgStyle = document.createElement('style');
       bgStyle.textContent = 'html,body,.pagedjs_pages,.pagedjs_pages_wrapper{background:#cdc7bf!important}';
       document.head.appendChild(bgStyle);
-
-      /* Edit-mode visual styles — injected after Paged.js so they win */
-      var editCss = document.createElement('style');
-      editCss.textContent = [
-        '[data-edit="1"] .ch-body[contenteditable]{cursor:text;outline:none;transition:box-shadow .15s}',
-        '[data-edit="1"] .ch-body[contenteditable]:hover{box-shadow:0 0 0 2px #F96D1C55}',
-        '[data-edit="1"] .ch-body[contenteditable]:focus{box-shadow:0 0 0 2px #F96D1C}',
-        '[data-edit="1"] .ch-title[contenteditable]{cursor:text;outline:none}',
-        '[data-edit="1"] .ch-title[contenteditable]:focus{box-shadow:0 0 0 2px #F96D1C}',
-        /* Force justify on browser-inserted divs (Chrome Enter behavior) */
-        '[data-edit="1"] .ch-body[contenteditable] div{text-align:justify;hyphens:auto;widows:2;orphans:2}',
-        '[data-edit="1"] .ch-body[contenteditable] p{text-align:justify;hyphens:auto;widows:2;orphans:2}'
-      ].join('');
-      document.head.appendChild(editCss);
 
       var chapterPages = {};
       var allPages = document.querySelectorAll('.pagedjs_page');
@@ -1004,8 +812,6 @@ function makeBridgeScript(zoom: number): string {
       window.parent.postMessage({ type: 'paged-ready', total: flow.total, chapterPages: chapterPages }, '*');
     });
   });
-
-  /* ── Message bridge ─────────────────────────────────────── */
 
   window.addEventListener('message', function(e) {
     if (!e.data || typeof e.data !== 'object') return;
@@ -1025,12 +831,6 @@ function makeBridgeScript(zoom: number): string {
       var ci = parseInt(e.data.chapterIdx, 10);
       var el = document.getElementById('chapter-' + ci);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    if (e.data.type === 'enable-edit') enableEditMode();
-    if (e.data.type === 'disable-edit') disableEditMode();
-    if (e.data.type === 'save-chapter' && e.data.chapterId != null) {
-      saveChapterById(String(e.data.chapterId));
     }
   });
 })();
@@ -1060,8 +860,8 @@ const PRINT_BRIDGE_SCRIPT = `
 // ── Public API ────────────────────────────────────────────────────────
 
 export interface PagedBookOptions {
-  book:        { title: string; language?: string | null; coverImageUrl?: string | null };
-  chapters:    { id?: number | string; title: string; content: unknown }[];
+  book:        { title: string; language?: string | null };
+  chapters:    { title: string; content: unknown }[];
   settings:    BookTypographySettings;
   frontMatter: FrontMatterSettings;
   lp:          Record<string, string>;

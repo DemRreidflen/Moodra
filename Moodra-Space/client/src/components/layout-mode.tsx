@@ -6,8 +6,7 @@ import {
   Download, ZoomIn, ZoomOut, BookOpen, ChevronRight,
   FileText, Settings2, AlignLeft, AlignJustify, AlignCenter, AlignRight,
   ChevronDown, ChevronUp, Columns2, Square,
-  ChevronLeft, X, FileDown, Printer, Pencil,
-  BookMarked, PenLine, Share2,
+  ChevronLeft, X, FileDown, Printer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/language-context";
@@ -48,58 +47,6 @@ type ViewMode = "single" | "spread";
 // Pagination is now handled by Paged.js — see paged-book.ts
 interface Block { type: string; content: string; }
 
-/** Convert Paged.js ch-body innerHTML back to Block[] for saving */
-function htmlToBlocks(bodyHtml: string): Block[] {
-  const clean = (s: string) => s.replace(/\u00AD/g, "").replace(/&shy;/g, "").replace(/<wbr\s*\/?>/gi, "");
-  const div = document.createElement("div");
-  div.innerHTML = clean(bodyHtml);
-  // Remove any Paged.js wrapper elements (safety: keep only known block-level elements)
-  div.querySelectorAll(".pagedjs_token, .pagedjs_break_token, [data-ref]").forEach(el => el.remove());
-  const isEmptyHtml = (html: string) => {
-    const t = html.replace(/<br\s*\/?>/gi, "").replace(/&nbsp;/gi, " ").trim();
-    return !t;
-  };
-  const blocks: Block[] = [];
-  for (const el of Array.from(div.children)) {
-    const tag = el.tagName.toLowerCase();
-    const cls = el.className || "";
-    const iHtml = clean(el.innerHTML).trim();
-    const iText = clean(el.textContent || "").trim();
-    if (tag === "p") {
-      if (iHtml && !isEmptyHtml(iHtml)) blocks.push({ type: "paragraph", content: iHtml });
-      else if (!iHtml) blocks.push({ type: "paragraph", content: "" });
-    } else if (tag === "h2" && cls.includes("bh1")) {
-      if (iText) blocks.push({ type: "h1", content: iText });
-    } else if (tag === "h3" && cls.includes("bh2")) {
-      if (iText) blocks.push({ type: "h2", content: iText });
-    } else if (tag === "h4" && cls.includes("bh3")) {
-      if (iText) blocks.push({ type: "h3", content: iText });
-    } else if (tag === "blockquote") {
-      if (iHtml) blocks.push({ type: "quote", content: iHtml });
-    } else if (tag === "div" && cls.includes("callout")) {
-      const inner = el.querySelector("div");
-      const content = inner ? clean(inner.innerHTML).trim() : iHtml;
-      if (cls.includes(" ch")) blocks.push({ type: "hypothesis", content });
-      else if (cls.includes(" ca")) blocks.push({ type: "argument", content });
-      else if (cls.includes(" cc")) blocks.push({ type: "counterargument", content });
-      else if (cls.includes(" ci_")) blocks.push({ type: "idea", content });
-      else if (cls.includes(" cq")) blocks.push({ type: "question", content });
-      else blocks.push({ type: "paragraph", content });
-    } else if (tag === "ul" && cls.includes("blist-checklist")) {
-      el.querySelectorAll("li").forEach(li => blocks.push({ type: "check_item", content: clean(li.innerHTML) }));
-    } else if (tag === "ul") {
-      el.querySelectorAll("li").forEach(li => blocks.push({ type: "bullet_item", content: clean(li.innerHTML) }));
-    } else if (tag === "ol") {
-      el.querySelectorAll("li").forEach(li => blocks.push({ type: "numbered_item", content: clean(li.innerHTML) }));
-    } else if (tag === "hr") {
-      blocks.push({ type: "divider", content: "" });
-    } else if (tag === "div" && cls.includes("explicit-pagebreak")) {
-      blocks.push({ type: "pagebreak", content: "" });
-    }
-  }
-  return blocks;
-}
-
 
 
 // ─── Anchor download helper (avoids popup-blocker issues) ────────────
@@ -111,102 +58,6 @@ function anchorDownload(href: string, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-}
-
-// ─── Layout Onboarding Modal ─────────────────────────────────────────
-const ONBOARDING_KEY = "moodra:layout-intro-seen";
-
-function LayoutOnboarding({ onClose, lp }: { onClose: () => void; lp: Record<string, string> }) {
-  const [step, setStep] = useState(0);
-
-  const steps = [
-    {
-      icon: <BookMarked className="h-8 w-8 text-primary" />,
-      title: lp.layoutOnboardingStep1Title || "Full book preview",
-      desc: lp.layoutOnboardingStep1Desc || "See your book exactly as it will be printed.",
-    },
-    {
-      icon: <PenLine className="h-8 w-8 text-primary" />,
-      title: lp.layoutOnboardingStep2Title || "Inline editing",
-      desc: lp.layoutOnboardingStep2Desc || "Click Edit in the toolbar to type directly on the page.",
-    },
-    {
-      icon: <Share2 className="h-8 w-8 text-primary" />,
-      title: lp.layoutOnboardingStep3Title || "Export",
-      desc: lp.layoutOnboardingStep3Desc || "Export as PDF, DOCX, or EPUB from the toolbar.",
-    },
-  ];
-
-  const handleClose = () => {
-    localStorage.setItem(ONBOARDING_KEY, "1");
-    onClose();
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={e => { if (e.target === e.currentTarget) handleClose(); }}
-    >
-      <div className="bg-background rounded-2xl shadow-2xl w-[380px] overflow-hidden" style={{ maxWidth: "calc(100vw - 32px)" }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
-          <span className="font-semibold text-sm">{lp.layoutOnboardingTitle || "Welcome to Layout Mode"}</span>
-          <button onClick={handleClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors">
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
-        <div className="px-6 py-8 flex flex-col items-center text-center gap-4">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(249,109,28,0.10)" }}>
-            {steps[step].icon}
-          </div>
-          <div>
-            <div className="font-semibold text-base mb-1">{steps[step].title}</div>
-            <div className="text-sm text-muted-foreground leading-relaxed">{steps[step].desc}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-2 px-5 pb-5">
-          <div className="flex gap-1.5">
-            {steps.map((_, i) => (
-              <div
-                key={i}
-                className="w-2 h-2 rounded-full transition-colors"
-                style={{ background: i === step ? "#F96D1C" : "rgba(249,109,28,0.25)" }}
-              />
-            ))}
-          </div>
-          <div className="flex gap-2">
-            {step > 0 && (
-              <button
-                onClick={() => setStep(s => s - 1)}
-                className="px-3 py-1.5 text-sm rounded-lg border border-border/60 hover:bg-secondary transition-colors"
-              >
-                {lp.layoutOnboardingPrev || "Back"}
-              </button>
-            )}
-            {step < steps.length - 1 ? (
-              <button
-                onClick={() => setStep(s => s + 1)}
-                className="px-4 py-1.5 text-sm rounded-lg text-white font-medium transition-colors"
-                style={{ background: "#F96D1C" }}
-              >
-                {lp.layoutOnboardingNext || "Next"}
-              </button>
-            ) : (
-              <button
-                onClick={handleClose}
-                className="px-4 py-1.5 text-sm rounded-lg text-white font-medium transition-colors"
-                style={{ background: "#F96D1C" }}
-              >
-                {lp.layoutOnboardingGotIt || "Got it"}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─── Export Modal ────────────────────────────────────────────────────
@@ -239,11 +90,7 @@ function ExportModal({
       if (exportFormat === "pdf") {
         // PDF: open in new tab — Paged.js auto-triggers the print dialog
         const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-        const coverImageUrl = book.coverImage
-          ? (book.coverImage.startsWith("data:") ? book.coverImage : `${window.location.origin}${book.coverImage}`)
-          : "";
-        const bookLp = { ...lp, ...getBookLangStrings(book.language) };
-        const html = generatePrintHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, pagedJsUrl });
+        const html = generatePrintHtml({ book, chapters, settings, frontMatter, lp, pagedJsUrl });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
         const w = window.open(blobUrl, "_blank");
@@ -440,36 +287,10 @@ function SecHead({ label, open, toggle }: { label: string; open: boolean; toggle
   );
 }
 
-// ─── Book-language strings (independent of platform UI language) ─────
-const BOOK_LANG_STRINGS: Record<string, { tocHeading: string; chapterLabel: string; cpEditor: string; cpCoverDesigner: string }> = {
-  en:      { tocHeading: "Table of Contents",    chapterLabel: "Chapter",   cpEditor: "Editor",    cpCoverDesigner: "Cover design" },
-  "en-GB": { tocHeading: "Table of Contents",    chapterLabel: "Chapter",   cpEditor: "Editor",    cpCoverDesigner: "Cover design" },
-  "en-CA": { tocHeading: "Table of Contents",    chapterLabel: "Chapter",   cpEditor: "Editor",    cpCoverDesigner: "Cover design" },
-  ru:      { tocHeading: "Оглавление",            chapterLabel: "Глава",     cpEditor: "Редактор",  cpCoverDesigner: "Дизайн обложки" },
-  ua:      { tocHeading: "Зміст",                 chapterLabel: "Розділ",    cpEditor: "Редактор",  cpCoverDesigner: "Дизайн обкладинки" },
-  de:      { tocHeading: "Inhaltsverzeichnis",    chapterLabel: "Kapitel",   cpEditor: "Lektor",    cpCoverDesigner: "Covergestaltung" },
-  fr:      { tocHeading: "Table des matières",    chapterLabel: "Chapitre",  cpEditor: "Éditeur",   cpCoverDesigner: "Conception de couverture" },
-  es:      { tocHeading: "Índice",                chapterLabel: "Capítulo",  cpEditor: "Editor",    cpCoverDesigner: "Diseño de portada" },
-  it:      { tocHeading: "Indice",                chapterLabel: "Capitolo",  cpEditor: "Editore",   cpCoverDesigner: "Progetto copertina" },
-  zh:      { tocHeading: "目录",                   chapterLabel: "章",        cpEditor: "编辑",      cpCoverDesigner: "封面设计" },
-  ja:      { tocHeading: "目次",                   chapterLabel: "章",        cpEditor: "編集",      cpCoverDesigner: "装丁" },
-  pl:      { tocHeading: "Spis treści",           chapterLabel: "Rozdział",  cpEditor: "Redaktor",  cpCoverDesigner: "Projekt okładki" },
-  cs:      { tocHeading: "Obsah",                 chapterLabel: "Kapitola",  cpEditor: "Redaktor",  cpCoverDesigner: "Návrh obálky" },
-  kk:      { tocHeading: "Мазмұны",               chapterLabel: "Тарау",     cpEditor: "Редактор",  cpCoverDesigner: "Мұқаба дизайны" },
-};
-
-function getBookLangStrings(bookLanguage: string | null | undefined) {
-  const lang = bookLanguage || "ru";
-  return BOOK_LANG_STRINGS[lang]
-    ?? BOOK_LANG_STRINGS[lang.split("-")[0]]
-    ?? BOOK_LANG_STRINGS["en"];
-}
-
 // ─── Main component ──────────────────────────────────────────────────
 export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const { t } = useLang();
   const lp = t.layoutPanel as Record<string, string>;
-  const bookLp = { ...lp, ...getBookLangStrings(book.language) };
 
   const { settings, update } = useBookSettings(bookId);
   const { frontMatter, updateTitlePage, updateCopyrightPage, updateDedicationPage, update: updateFm } = useFrontMatter(bookId);
@@ -489,16 +310,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [activeChapter, setActiveChapter] = useState(0);
   const [open, setOpen] = useState({ presets: true, page: true, typography: true, headings: false, hf: false, frontmatter: false });
   const [showExport, setShowExport] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [pendingReload, setPendingReload] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  useEffect(() => {
-    if (!localStorage.getItem(ONBOARDING_KEY)) {
-      setShowOnboarding(true);
-    }
-  }, []);
 
   const { data: chapters = [] } = useQuery<Chapter[]>({
     queryKey: ["/api/books", bookId, "chapters"],
@@ -508,20 +320,8 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
   const updateBlockMutation = useMutation({
     mutationFn: ({ chapterId, blocks }: { chapterId: number; blocks: Block[] }) =>
-      apiRequest("PATCH", `/api/chapters/${chapterId}`, { content: JSON.stringify(blocks) }),
+      apiRequest("PATCH", `/api/books/${bookId}/chapters/${chapterId}`, { content: JSON.stringify(blocks) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "chapters"] }),
-  });
-
-  const saveLayoutChapterMutation = useMutation({
-    mutationFn: ({ chapterId, title, blocks }: { chapterId: number; title?: string; blocks: Block[] }) =>
-      apiRequest("PATCH", `/api/chapters/${chapterId}`, {
-        content: JSON.stringify(blocks),
-        ...(title !== undefined && { title }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/books", bookId, "chapters"] });
-      setPendingReload(true);
-    },
   });
 
   useEffect(() => {
@@ -559,26 +359,8 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
         setTotalPages(total);
         setTotalSpreads(viewMode === "spread" ? 1 + Math.ceil(Math.max(0, total - 1) / 2) : total);
         setChapterPages(e.data.chapterPages ?? {});
+        // Re-apply the current view mode in case the iframe re-rendered
         (e.source as WindowProxy)?.postMessage({ type: "set-view-mode", mode: viewMode }, "*");
-      }
-
-      // Inline layout editing — save chapter content back to DB
-      if (e.data.type === "chapter-edit-save") {
-        const { chapterId, titleText, bodyHtml } = e.data as {
-          chapterId: number;
-          titleText: string;
-          bodyHtml: string;
-        };
-        // Guard: only save if we have actual body HTML — empty bodyHtml means
-        // Paged.js hadn't rendered the page boxes yet (or collect failed) and
-        // we must NOT overwrite real content with an empty blocks array.
-        if (!bodyHtml || !bodyHtml.trim()) return;
-        const blocks = htmlToBlocks(bodyHtml);
-        // Guard: never save an empty blocks array — this would erase the chapter.
-        // An empty result means the HTML parser didn't find recognisable block elements
-        // (e.g. Paged.js artefacts only) — treat it as a no-op.
-        if (blocks.length === 0) return;
-        saveLayoutChapterMutation.mutate({ chapterId, title: titleText || undefined, blocks });
       }
 
     };
@@ -593,36 +375,23 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
   // Regenerate Paged.js HTML whenever settings, chapters, or zoom changes.
   // Paged.js runs inside the iframe and will send back "paged-ready" with the page count.
-  // While edit mode is active we do NOT regenerate — that would wipe the user's edits.
   useEffect(() => {
     if (!book || chapters.length === 0) return;
-    if (editMode) return;
     const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-    const coverImageUrl = book.coverImage
-      ? (book.coverImage.startsWith("data:") ? book.coverImage : `${window.location.origin}${book.coverImage}`)
-      : "";
-    const html = generatePagedJsHtml({ book: { ...book, coverImageUrl }, chapters, settings, frontMatter, lp: bookLp, zoom, pagedJsUrl });
+    const html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl });
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    setTotalPages(0);
+    setTotalPages(0); // reset while iframe re-renders
     setCurrentSpread(0);
-    setPendingReload(false);
     if (iframeRef.current) iframeRef.current.src = url;
     return () => URL.revokeObjectURL(url);
-  }, [book, chapters, settings, zoom, lp, frontMatter, editMode]);
+  }, [book, chapters, settings, zoom, lp, frontMatter]);
 
   // When viewMode changes, tell the iframe to switch display layout.
   // This is a pure visual change — Paged.js does NOT re-paginate.
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: "set-view-mode", mode: viewMode }, "*");
   }, [viewMode]);
-
-  // Sync edit mode with the iframe
-  useEffect(() => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: editMode ? "enable-edit" : "disable-edit" }, "*"
-    );
-  }, [editMode]);
 
   const prevPage = () => {
     const next = Math.max(0, currentSpread - 1);
@@ -662,10 +431,6 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
-      {showOnboarding && (
-        <LayoutOnboarding lp={lp} onClose={() => setShowOnboarding(false)} />
-      )}
-
       {showExport && (
         <ExportModal
           bookId={bookId}
@@ -810,27 +575,6 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
 
             <div className="w-px h-4 bg-border/50 mx-1" />
 
-            {/* Edit mode toggle */}
-            <button
-              onClick={() => setEditMode(m => !m)}
-              title={editMode ? (lp.editModeOff || "Exit edit mode") : (lp.editModeOn || "Edit layout")}
-              className={cn(
-                "flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-semibold transition-all",
-                editMode
-                  ? "bg-[#F96D1C] text-white hover:opacity-90"
-                  : "bg-secondary text-foreground hover:bg-secondary/80"
-              )}
-            >
-              <Pencil className="h-3 w-3" />
-              {editMode ? (lp.editModeOff || "Exit editing") : (lp.editModeOn || "Edit")}
-            </button>
-
-            {pendingReload && !editMode && (
-              <span className="text-[10px] text-muted-foreground animate-pulse">{lp.layoutUpdating || "Updating…"}</span>
-            )}
-
-            <div className="w-px h-4 bg-border/50 mx-1" />
-
             <button
               onClick={() => setShowExport(true)}
               className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90"
@@ -942,16 +686,6 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           <SecHead label={lp.headingsSection} open={open.headings} toggle={() => tog("headings")} />
           {open.headings && (
             <div className="space-y-0.5 pb-3 border-b border-border/30">
-              <Row label={lp.headingFont || "Heading font"}>
-                <select
-                  value={settings.headingFontFamily}
-                  onChange={e => update({ headingFontFamily: e.target.value })}
-                  className="h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none max-w-[138px]"
-                >
-                  <option value="">{lp.headingFontSameAsBody || "Same as body"}</option>
-                  {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
-              </Row>
               <Row label={lp.chapter_h1}><NumInput value={settings.h1Size} onChange={v => update({ h1Size: v })} min={10} max={36} unit="pt" /></Row>
               <Row label={lp.section_h2}><NumInput value={settings.h2Size} onChange={v => update({ h2Size: v })} min={10} max={30} unit="pt" /></Row>
               <Row label={lp.subsection_h3}><NumInput value={settings.h3Size} onChange={v => update({ h3Size: v })} min={8} max={24} unit="pt" /></Row>
@@ -1001,13 +735,6 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           <SecHead label={lp.frontMatterSection || "Front Matter"} open={open.frontmatter} toggle={() => tog("frontmatter")} />
           {open.frontmatter && (
             <div className="pb-3 border-b border-border/30 space-y-2">
-
-              {/* Cover page toggle */}
-              {book.coverImage && (
-                <Row label={lp.fmCoverPage || "Cover page"}>
-                  <Toggle on={frontMatter.coverPageEnabled !== false} onToggle={() => updateFm({ coverPageEnabled: !(frontMatter.coverPageEnabled !== false) })} />
-                </Row>
-              )}
 
               {/* Table of Contents toggle */}
               <Row label={lp.tocLabel || "Table of Contents"}>
@@ -1076,20 +803,10 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                       <select value={frontMatter.titlePage.decorativeStyle} onChange={e => updateTitlePage({ decorativeStyle: e.target.value as any })}
                         className="h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none">
                         <option value="none">{lp.fmDecoNone || "None"}</option>
-                        <option value="image">{lp.fmDecoImage || "Monogram / Image"}</option>
+                        <option value="lines">{lp.fmDecoLines || "Lines"}</option>
+                        <option value="ornament">{lp.fmDecoOrnament || "Ornament ✦"}</option>
                       </select>
                     </Row>
-                    {frontMatter.titlePage.decorativeStyle === "image" && (
-                      <div>
-                        <p className="text-[10px] text-muted-foreground mb-0.5">{lp.fmDecoImageUrl || "Image URL (https://…)"}</p>
-                        <input
-                          value={frontMatter.titlePage.decorationImageUrl ?? ""}
-                          onChange={e => updateTitlePage({ decorationImageUrl: e.target.value })}
-                          placeholder="https://example.com/logo.png"
-                          className="w-full h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none"
-                        />
-                      </div>
-                    )}
 
                     {/* Typography Presets */}
                     <div className="pt-1">
@@ -1298,13 +1015,6 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
             >
               <FileDown className="h-4 w-4" />
               {lp.exportDocx || "Export DOCX"}
-            </button>
-            <button
-              onClick={() => anchorDownload(`/api/books/${bookId}/export/epub`, `${book.title.replace(/[^a-zA-Z0-9а-яёА-ЯЁіїєІЇЄ\s]/g, "").trim() || "book"}.epub`)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-secondary hover:bg-secondary/80 transition-all"
-            >
-              <BookOpen className="h-4 w-4" />
-              {lp.exportEpub || "Export EPUB"}
             </button>
           </div>
         </div>

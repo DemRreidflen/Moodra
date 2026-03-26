@@ -46,7 +46,6 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Replace",
     removeCover: "Remove",
     coverColorLabel: "Cover colour",
-    coverExportHint: "Re-upload the cover before exporting to PDF/DOCX/EPUB — this ensures it embeds correctly in the final file.",
     dangerZone: "Danger zone",
     deleteBook: "Delete book",
     deleteDesc: "This action is irreversible. All chapters and data will be deleted.",
@@ -86,7 +85,6 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Заменить",
     removeCover: "Удалить",
     coverColorLabel: "Цвет обложки",
-    coverExportHint: "Перед экспортом в PDF/DOCX/EPUB повторно загрузите обложку — это гарантирует её корректное встраивание в финальный файл.",
     dangerZone: "Опасная зона",
     deleteBook: "Удалить книгу",
     deleteDesc: "Это действие необратимо. Все главы и данные будут удалены.",
@@ -126,7 +124,6 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Замінити",
     removeCover: "Видалити",
     coverColorLabel: "Колір обкладинки",
-    coverExportHint: "Перед експортом у PDF/DOCX/EPUB повторно завантажте обкладинку — це гарантує її коректне вбудовування у фінальний файл.",
     dangerZone: "Небезпечна зона",
     deleteBook: "Видалити книгу",
     deleteDesc: "Ця дія незворотна. Всі розділи і дані будуть видалені.",
@@ -166,7 +163,6 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Ersetzen",
     removeCover: "Entfernen",
     coverColorLabel: "Coverfarbe",
-    coverExportHint: "Lade das Cover vor dem Export als PDF/DOCX/EPUB erneut hoch — so wird es korrekt in die finale Datei eingebettet.",
     dangerZone: "Gefahrenzone",
     deleteBook: "Buch löschen",
     deleteDesc: "Diese Aktion ist unwiderruflich. Alle Kapitel und Daten werden gelöscht.",
@@ -188,45 +184,15 @@ const COVER_COLORS = [
 ];
 
 const BOOK_LANGUAGES = [
-  { value: "ua", label: "Українська" },
-  { value: "pl", label: "Polski" },
-  { value: "cs", label: "Čeština" },
-  { value: "kk", label: "Қазақша" },
+  { value: "ru", label: "Русский" },
   { value: "en", label: "English" },
-  { value: "en-GB", label: "English (UK)" },
-  { value: "en-CA", label: "English (Canada)" },
   { value: "de", label: "Deutsch" },
   { value: "fr", label: "Français" },
   { value: "es", label: "Español" },
   { value: "it", label: "Italiano" },
   { value: "zh", label: "中文" },
   { value: "ja", label: "日本語" },
-  { value: "ru", label: "Русский" },
 ];
-
-async function resizeImageToBlob(file: File, maxW = 600, maxH = 840, quality = 0.85): Promise<Blob> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const blobUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      let { width, height } = img;
-      if (width > maxW || height > maxH) {
-        const ratio = Math.min(maxW / width, maxH / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, width, height);
-      URL.revokeObjectURL(blobUrl);
-      canvas.toBlob((blob) => resolve(blob ?? file), "image/jpeg", quality);
-    };
-    img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(file); };
-    img.src = blobUrl;
-  });
-}
 
 export function BookSettings({ book }: { book: Book }) {
   const [, navigate] = useLocation();
@@ -311,11 +277,9 @@ export function BookSettings({ book }: { book: Book }) {
 
   const mark = () => setIsDirty(true);
 
-  const handleFile = async (file: File) => {
-    const resized = await resizeImageToBlob(file);
-    const resizedFile = new File([resized], file.name, { type: "image/jpeg" });
-    setCoverFile(resizedFile);
-    setCoverPreview(URL.createObjectURL(resized));
+  const handleFile = (file: File) => {
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
     setIsDirty(true);
   };
 
@@ -502,14 +466,6 @@ export function BookSettings({ book }: { book: Book }) {
                 </button>
               )}
             </div>
-
-            {currentCover && (
-              <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-[11px] leading-snug"
-                style={{ background: "rgba(251,191,36,0.10)", color: "#92600a", border: "1px solid rgba(251,191,36,0.30)" }}>
-                <span className="mt-px flex-shrink-0 text-[13px]">⚠</span>
-                <span>{s.coverExportHint}</span>
-              </div>
-            )}
 
             {!currentCover && (
               <div className="space-y-1.5">

@@ -18,9 +18,13 @@ import { FocusTimer } from "@/components/focus-timer";
 import { LanguagePicker } from "@/components/language-picker";
 import {
   ArrowLeft, Sparkles, Users, BookOpen, FileText,
-  Settings, Brain, Columns2, PenLine,
+  Settings, Brain, Download, Columns2,
+  X, FileText as FileText2, PenLine,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export type EditorTab = "editor" | "characters" | "notes" | "research" | "board" | "layout" | "settings";
@@ -204,6 +208,40 @@ export default function BookEditor() {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">AI-соавтор</TooltipContent>
           </Tooltip>
+
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="h-8 w-8 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    data-testid="button-export"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">Экспорт</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-44 rounded-xl">
+              <DropdownMenuItem
+                data-testid="export-epub"
+                onSelect={() => { window.open(`/api/books/${bookId}/export/epub`, "_blank"); }}
+                className="gap-2 cursor-pointer"
+              >
+                <Download className="h-4 w-4" />
+                Скачать EPUB
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="export-pdf"
+                onSelect={() => { window.open(`/api/books/${bookId}/export/pdf-html`, "_blank"); }}
+                className="gap-2 cursor-pointer"
+              >
+                <FileText2 className="h-4 w-4" />
+                Экспорт PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Language picker */}
           <div className="flex-shrink-0">
