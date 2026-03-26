@@ -14,7 +14,7 @@ import {
   Check, Trash2, Link2, SendToBack, GitBranch, Wand2,
   Minus, ChevronsLeftRight, Timer, Keyboard, ArrowDown,
   ListChecks, PenLine, Pencil, BookCheck, Flag, ChevronRight,
-  Layers3, TextCursorInput, Repeat2, Lightbulb as IdeaIcon,
+  Layers3, TextCursorInput, Repeat2, Lightbulb as IdeaIcon, Feather,
 } from "lucide-react";
 import { BlockEditor, Block, blocksToPlainText, BlockEditorAPI } from "@/components/block-editor";
 import { SelectionToolbar } from "@/components/selection-toolbar";
@@ -69,6 +69,13 @@ const RESEARCH_I18N = {
     noApiBtn: "Подключить →",
     typewriterMode: "Режим печатной машинки",
     sprintLabel: "Спринт", sprintGoalPlaceholder: "Слов", sprintStart: "Старт",
+    blankTitle: "Страх чистого листа", blankDesc: "Выплесните всё, что у вас есть — идеи, вопросы, страхи, фрагменты. AI поможет найти структуру и с чего начать",
+    blankPlaceholder: "Пишите всё подряд: о чём хочу написать, что меня беспокоит, что я знаю, что не знаю, с чего начать — любые мысли вразброс…",
+    blankBtn: "Помоги структурировать", blankBtnLoading: "Анализирую…",
+    blankResult: "Вот что я вижу в ваших идеях",
+    blankNoApi: "Для этой функции нужен API-ключ OpenAI",
+    blankCopy: "Скопировать совет",
+    blankCopied: "Скопировано!",
   },
   en: {
     cancelBtn: "Cancel", aiError: "AI error",
@@ -103,6 +110,13 @@ const RESEARCH_I18N = {
     noApiBtn: "Connect →",
     typewriterMode: "Typewriter mode",
     sprintLabel: "Sprint", sprintGoalPlaceholder: "Words", sprintStart: "Start",
+    blankTitle: "Blank Page Fear", blankDesc: "Dump everything you have — ideas, questions, fears, fragments. AI helps you find structure and where to start",
+    blankPlaceholder: "Write anything: what I want to write about, what worries me, what I know, what I don't, where to start — any scattered thoughts…",
+    blankBtn: "Help me structure this", blankBtnLoading: "Analyzing…",
+    blankResult: "Here's what I see in your ideas",
+    blankNoApi: "An OpenAI API key is needed for this feature",
+    blankCopy: "Copy advice",
+    blankCopied: "Copied!",
   },
   ua: {
     cancelBtn: "Скасувати", aiError: "Помилка ШІ",
@@ -137,6 +151,13 @@ const RESEARCH_I18N = {
     noApiBtn: "Підключити →",
     typewriterMode: "Режим друкарської машинки",
     sprintLabel: "Спринт", sprintGoalPlaceholder: "Слів", sprintStart: "Старт",
+    blankTitle: "Страх чистого аркуша", blankDesc: "Виплесніть усе, що є — ідеї, питання, страхи, фрагменти. ШІ допоможе знайти структуру і з чого почати",
+    blankPlaceholder: "Пишіть все підряд: про що хочу писати, що мене турбує, що я знаю, що не знаю — будь-які розрізнені думки…",
+    blankBtn: "Допоможи структурувати", blankBtnLoading: "Аналізую…",
+    blankResult: "Ось що я бачу у ваших ідеях",
+    blankNoApi: "Для цієї функції потрібен API-ключ OpenAI",
+    blankCopy: "Копіювати пораду",
+    blankCopied: "Скопійовано!",
   },
   de: {
     cancelBtn: "Abbrechen", aiError: "KI-Fehler",
@@ -171,6 +192,13 @@ const RESEARCH_I18N = {
     noApiBtn: "Verbinden →",
     typewriterMode: "Schreibmaschinen-Modus",
     sprintLabel: "Sprint", sprintGoalPlaceholder: "Wörter", sprintStart: "Start",
+    blankTitle: "Angst vor dem leeren Blatt", blankDesc: "Schreiben Sie alles heraus — Ideen, Fragen, Ängste, Fragmente. Die KI hilft Ihnen, Struktur und einen Anfang zu finden",
+    blankPlaceholder: "Schreiben Sie alles: worüber ich schreiben will, was mich beschäftigt, was ich weiß, was ich nicht weiß — beliebige Gedanken…",
+    blankBtn: "Hilf mir strukturieren", blankBtnLoading: "Analysiere…",
+    blankResult: "Das sehe ich in Ihren Ideen",
+    blankNoApi: "Für diese Funktion wird ein OpenAI-API-Schlüssel benötigt",
+    blankCopy: "Rat kopieren",
+    blankCopied: "Kopiert!",
   },
 } as const;
 type ResearchT = typeof RESEARCH_I18N.ru;
@@ -507,6 +535,120 @@ function DraftCard({ draft, chapters, onClick, onDelete }: {
         )}
         <span className="ml-auto">{draft.updatedAt ? format(new Date(draft.updatedAt), "d MMM") : ""}</span>
       </div>
+    </div>
+  );
+}
+
+// ─── Blank Page Fear Section ─────────────────────────────────────────────────
+
+function BlankPageFearSection({ book }: { book: Book }) {
+  const { lang } = useLang();
+  const { isFreeMode } = useFreeMode();
+  const { handleAiError } = useAiError();
+  const { toast } = useToast();
+  const t = (RESEARCH_I18N[lang as keyof typeof RESEARCH_I18N] ?? RESEARCH_I18N.ru) as ResearchT;
+
+  const [rawDump, setRawDump] = useState("");
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
+
+  const handleHelp = async () => {
+    if (!rawDump.trim() || loading) return;
+    if (isFreeMode) {
+      toast({ title: t.blankNoApi, variant: "destructive" });
+      return;
+    }
+    setLoading(true); setResult("");
+    try {
+      const data = await apiRequest("POST", "/api/ai/blank-page-help", {
+        rawDump: rawDump.trim(),
+        bookTitle: book.title,
+        bookMode: book.mode,
+      });
+      setResult(data.result || "");
+    } catch (e: any) {
+      if (!handleAiError(e)) toast({ title: t.aiError, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(result).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const color = "#8B5CF6";
+
+  return (
+    <div className="rounded-2xl border border-border/50 bg-background/80 shadow-sm overflow-hidden">
+      <button
+        onClick={() => setIsOpen(v => !v)}
+        className="w-full flex items-center justify-between p-5 text-left hover:bg-muted/20 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}15` }}>
+            <Feather className="h-4 w-4" style={{ color }} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold tracking-tight">{t.blankTitle}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{t.blankDesc}</p>
+          </div>
+        </div>
+        {isOpen
+          ? <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        }
+      </button>
+
+      {isOpen && (
+        <div className="px-5 pb-5 space-y-3 border-t border-border/30">
+          <textarea
+            value={rawDump}
+            onChange={e => setRawDump(e.target.value)}
+            rows={6}
+            placeholder={t.blankPlaceholder}
+            className="w-full mt-3 rounded-xl border border-border/60 bg-muted/20 px-3.5 py-3 text-sm resize-none outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all leading-relaxed"
+          />
+          <button
+            onClick={handleHelp}
+            disabled={!rawDump.trim() || loading}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ background: `linear-gradient(135deg, ${color}, #a78bfa)` }}
+          >
+            {loading
+              ? <><Loader2 className="h-4 w-4 animate-spin" />{t.blankBtnLoading}</>
+              : <><Sparkles className="h-4 w-4" />{t.blankBtn}</>
+            }
+          </button>
+
+          {result && (
+            <div className="rounded-xl border border-purple-200/40 bg-purple-50/30 dark:bg-purple-950/15 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-purple-200/30 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-3.5 w-3.5" style={{ color }} />
+                  <span className="text-xs font-semibold" style={{ color }}>{t.blankResult}</span>
+                </div>
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg transition-colors"
+                  style={{ background: `${color}12`, color }}
+                >
+                  <Check className={cn("h-3 w-3 transition-opacity", copied ? "opacity-100" : "opacity-0 absolute")} />
+                  {copied ? t.blankCopied : t.blankCopy}
+                </button>
+              </div>
+              <div className="px-4 py-3 max-h-72 overflow-y-auto">
+                <p className="text-sm leading-relaxed text-foreground/85 whitespace-pre-wrap">{result}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1129,9 +1271,10 @@ export function ResearchWorkspace({ bookId, book }: { bookId: number; book: Book
       <SectionTourModal sectionId="drafts" lang={lang as any} />
       {/* 50 / 50 split — each panel independently scrollable */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Stage tracker + AI assistant */}
+        {/* Left: Stage tracker + AI assistant + Blank Page Fear */}
         <div className="flex-1 overflow-y-auto border-r border-border/30 p-4 space-y-4">
           <DraftStagesSection bookId={bookId} book={book} drafts={drafts} />
+          <BlankPageFearSection book={book} />
           <DraftAiAssistant book={book} />
         </div>
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import { BookOpen, List, Settings2, FileDown, ChevronLeft, ChevronRight, Columns2, Square, Printer, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { BookOpen, List, Settings2, FileDown, ChevronLeft, ChevronRight, Columns2, Square, Printer, ZoomIn, ZoomOut, Maximize2, ImageIcon, X } from "lucide-react";
 import { useLang } from "@/contexts/language-context";
 import { SectionTourModal } from "@/components/section-tour-modal";
 import type { Book, Chapter } from "@shared/schema";
@@ -203,6 +203,32 @@ function CoverPage({
           <div style={{ width: pageW * 0.10, height: 2, background: `${accent}60`, borderRadius: 2, marginTop: pageH * 0.04 }} />
         </div>
       )}
+    </div>
+  );
+}
+
+interface DesignerPageDef {
+  id: string;
+  position: number; // 1-indexed slot in the combined (content+designer) sequence, after special pages
+  image: string;    // base64 data URL
+}
+
+function DesignerPageView({ image, pageW, pageH }: { image: string; pageW: number; pageH: number }) {
+  return (
+    <div style={{
+      width: pageW,
+      height: pageH,
+      background: "#000",
+      position: "relative",
+      boxShadow: "0 2px 20px rgba(0,0,0,0.15)",
+      overflow: "hidden",
+      flexShrink: 0,
+    }}>
+      <img
+        src={image}
+        alt="designer page"
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
     </div>
   );
 }
@@ -804,6 +830,12 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
   const [template, setTemplate] = useState<Template>("classic");
   const [showTocPage, setShowTocPage] = useState(true);
   const [showCoverPage, setShowCoverPage] = useState(true);
+  const [designerPages, setDesignerPages] = useState<DesignerPageDef[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`moodra_designer_pages_${bookId}`) || "[]"); }
+    catch { return []; }
+  });
+  const [addingDesignerPage, setAddingDesignerPage] = useState(false);
+  const [dpPosition, setDpPosition] = useState("2");
   const [paraSpacing, setParaSpacing] = useState<ParaSpacing>("small");
   const [firstLineIndent, setFirstLineIndent] = useState(true);
   const [dropCap, setDropCap] = useState(false);
@@ -814,6 +846,32 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
     localStorage.getItem("moodra_layout_ai_prompt") || ""
   );
   const [aiPromptSaved, setAiPromptSaved] = useState(false);
+
+  const saveDesignerPages = (pages: DesignerPageDef[]) => {
+    setDesignerPages(pages);
+    localStorage.setItem(`moodra_designer_pages_${bookId}`, JSON.stringify(pages));
+  };
+
+  const addDesignerPage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const pos = Math.max(1, parseInt(dpPosition, 10) || 1);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const image = ev.target?.result as string;
+      if (!image) return;
+      const newPage: DesignerPageDef = { id: crypto.randomUUID(), position: pos, image };
+      const updated = [...designerPages, newPage].sort((a, b) => a.position - b.position);
+      saveDesignerPages(updated);
+      setAddingDesignerPage(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const removeDesignerPage = (id: string) => {
+    saveDesignerPages(designerPages.filter(p => p.id !== id));
+  };
 
   const saveAiPrompt = (val: string) => {
     setAiStylePrompt(val);
@@ -951,14 +1009,32 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
   const isCoverPage = showCoverPage && spreadIndex === 0;
   const isTocPage = showTocPage && spreadIndex === (showCoverPage ? 1 : 0) && !isCoverPage;
   const contentSpreadIndex = Math.max(0, spreadIndex - numSpecialPages);
-  const leftPage = pages[contentSpreadIndex];
-  const rightPage = pages[contentSpreadIndex + 1];
+
+  // Build merged slots: content pages + designer pages interleaved by position
+  type Slot = { kind: "content"; page: typeof pages[0] } | { kind: "designer"; def: DesignerPageDef };
+  const designerPageMap = new Map<number, DesignerPageDef>();
+  for (const dp of designerPages) {
+    designerPageMap.set(dp.position - 1, dp); // position is 1-indexed
+  }
+  const totalSlots = pages.length + designerPages.length;
+  const slots: Slot[] = [];
+  let pIdx = 0;
+  for (let i = 0; i < totalSlots; i++) {
+    const dp = designerPageMap.get(i);
+    if (dp) { slots.push({ kind: "designer", def: dp }); }
+    else if (pIdx < pages.length) { slots.push({ kind: "content", page: pages[pIdx++] }); }
+  }
+
+  const leftSlot = slots[contentSpreadIndex] ?? null;
+  const rightSlot = slots[contentSpreadIndex + 1] ?? null;
+  const leftPage = leftSlot?.kind === "content" ? leftSlot.page : undefined;
+  const rightPage = rightSlot?.kind === "content" ? rightSlot.page : undefined;
 
   const displayPages = viewMode === "spread"
     ? [leftPage, rightPage].filter(Boolean)
     : [leftPage].filter(Boolean);
 
-  const adjustedTotal = totalPages + numSpecialPages;
+  const adjustedTotal = slots.length + numSpecialPages;
 
   if (!chapters.length) {
     return (
@@ -1216,6 +1292,89 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
             }}>
               {showTocPage ? "On" : "Off"}
             </button>
+          </div>
+        )}
+
+        {/* Designer Pages */}
+        {showSettings && (
+          <div style={{ padding: "8px 12px 10px", borderTop: "1px solid rgba(249,109,28,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#c2a897" }}>
+                {L.designerPages || "Designer Pages"}
+              </div>
+              <button
+                onClick={() => setAddingDesignerPage(v => !v)}
+                style={{
+                  padding: "3px 8px", borderRadius: 5, cursor: "pointer", fontSize: 10, fontWeight: 600,
+                  border: "1px solid rgba(249,109,28,0.25)", background: "rgba(249,109,28,0.10)", color: "#F96D1C",
+                }}
+              >
+                + {L.addPage || "Add"}
+              </button>
+            </div>
+
+            {addingDesignerPage && (
+              <div style={{ marginBottom: 8, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#888" }}>
+                  <span>{L.atPosition || "at slot"} #</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={dpPosition}
+                    onChange={e => setDpPosition(e.target.value)}
+                    style={{
+                      width: 40, padding: "2px 4px", borderRadius: 4, border: "1px solid rgba(0,0,0,0.15)",
+                      fontSize: 10, background: "rgba(0,0,0,0.03)", outline: "none",
+                    }}
+                  />
+                </div>
+                <label style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "3px 10px", borderRadius: 5, cursor: "pointer", fontSize: 10, fontWeight: 600,
+                  border: "1px solid rgba(0,0,0,0.18)", background: "rgba(0,0,0,0.04)", color: "#555",
+                }}>
+                  <ImageIcon style={{ width: 11, height: 11 }} />
+                  {L.chooseImage || "Choose image"}
+                  <input type="file" accept="image/*" onChange={addDesignerPage} style={{ display: "none" }} />
+                </label>
+              </div>
+            )}
+
+            {designerPages.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {designerPages.map(dp => (
+                  <div key={dp.id} style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "4px 6px", borderRadius: 6, background: "rgba(0,0,0,0.03)",
+                    border: "1px solid rgba(0,0,0,0.06)",
+                  }}>
+                    <img
+                      src={dp.image}
+                      alt=""
+                      style={{ width: 24, height: 32, objectFit: "cover", borderRadius: 3, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 10, color: "#888", flex: 1 }}>
+                      {L.atPosition || "slot"} #{dp.position}
+                    </span>
+                    <button
+                      onClick={() => removeDesignerPage(dp.id)}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer", color: "#bbb",
+                        display: "flex", alignItems: "center", padding: 2,
+                      }}
+                    >
+                      <X style={{ width: 11, height: 11 }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {designerPages.length === 0 && !addingDesignerPage && (
+              <p style={{ fontSize: 10, color: "#bbb", marginTop: 2 }}>
+                {L.designerPagesHint || "Full-page images inserted between pages. No page number shown."}
+              </p>
+            )}
           </div>
         )}
 
@@ -1493,32 +1652,46 @@ export function LayoutPanel({ book, chapters, bookId }: LayoutPanelProps) {
                 L={Leff}
               />
             ) : (
-              displayPages.map((page, pi) => page && (
-                <Page
-                  key={`${spreadIndex + pi}`}
-                  book={book}
-                  chapterTitle={page.chapterTitle}
-                  blocks={page.blocks}
-                  pageNumber={contentSpreadIndex + pi + 1}
-                  fontFamily={fontFamilyStr}
-                  headingFontFamily={headingFontFamilyStr}
-                  fontSizePx={fontSizePx}
-                  marginPx={marginPx}
-                  lineSpacing={lineSpacingVal}
-                  scale={SCALE}
-                  pageW={pageW}
-                  pageH={pageH}
-                  L={Leff}
-                  isLeft={pi === 0}
-                  accent={accent}
-                  template={template}
-                  paraSpacingPx={paraSpacingPx}
-                  firstLineIndent={firstLineIndent}
-                  dropCap={dropCap}
-                  pageNumbers={pageNumbers}
-                  runningHeader={runningHeader}
-                />
-              ))
+              [leftSlot, viewMode === "spread" ? rightSlot : null].filter(Boolean).map((slot, pi) => {
+                if (!slot) return null;
+                if (slot.kind === "designer") {
+                  return (
+                    <DesignerPageView
+                      key={`dp-${slot.def.id}-${pi}`}
+                      image={slot.def.image}
+                      pageW={pageW}
+                      pageH={pageH}
+                    />
+                  );
+                }
+                const page = slot.page;
+                return (
+                  <Page
+                    key={`${spreadIndex + pi}`}
+                    book={book}
+                    chapterTitle={page.chapterTitle}
+                    blocks={page.blocks}
+                    pageNumber={contentSpreadIndex + pi + 1}
+                    fontFamily={fontFamilyStr}
+                    headingFontFamily={headingFontFamilyStr}
+                    fontSizePx={fontSizePx}
+                    marginPx={marginPx}
+                    lineSpacing={lineSpacingVal}
+                    scale={SCALE}
+                    pageW={pageW}
+                    pageH={pageH}
+                    L={Leff}
+                    isLeft={pi === 0}
+                    accent={accent}
+                    template={template}
+                    paraSpacingPx={paraSpacingPx}
+                    firstLineIndent={firstLineIndent}
+                    dropCap={dropCap}
+                    pageNumbers={pageNumbers}
+                    runningHeader={runningHeader}
+                  />
+                );
+              })
             )}
           </div>
         </div>

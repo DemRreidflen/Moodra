@@ -1202,6 +1202,47 @@ ${existing ? "Не дублируй уже имеющиеся источники
     }
   });
 
+  // ---- Blank Page Fear ----
+  app.post("/api/ai/blank-page-help", async (req: Request, res: Response) => {
+    try {
+      const { rawDump, bookTitle, bookMode } = req.body;
+      if (!rawDump?.trim()) return res.status(400).json({ error: "rawDump required" });
+
+      const langInstruction = getLangInstruction(req);
+      const ai = await getOpenAI(req);
+      const aiModel = await getUserModel(req);
+
+      const systemPrompt =
+        `You are a warm, encouraging writing coach. The user is experiencing writer's block and has dumped their raw thoughts, fears, fragments, and ideas below. ` +
+        `Your job is to help them start writing without fear. ` +
+        `Respond with the following structure (use these exact section headers):\n\n` +
+        `**Your ideas have real potential.** (1-2 encouraging sentences reacting to their specific dump — be genuine, not generic)\n\n` +
+        `**Here's how I'd structure this:**\n` +
+        `(A numbered list of 3-5 concrete chapter/section ideas extracted or inferred from their dump. Each line: "1. [Short title] — [one sentence description]")\n\n` +
+        `**Start here — your first sentence:**\n` +
+        `(Write one specific opening sentence they could use right now, based on their most vivid idea)\n\n` +
+        `**Three small steps to get unstuck:**\n` +
+        `(3 bullet points with immediate, tiny, concrete actions for today)\n\n` +
+        `Context: Book "${bookTitle || "untitled"}" (${bookMode === "fiction" ? "fiction" : "non-fiction"}). ${langInstruction}`;
+
+      const completion = await ai.chat.completions.create({
+        model: aiModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: rawDump.trim() },
+        ],
+        temperature: 0.85,
+        max_tokens: 1200,
+      });
+      trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
+      const result = completion.choices[0].message.content?.trim() || "";
+      res.json({ result });
+    } catch (e: any) {
+      const { status, message } = openAIErrorMessage(e);
+      res.status(status).json({ error: message });
+    }
+  });
+
   // ---- AI Improve ----
   app.post("/api/ai/improve", async (req: Request, res: Response) => {
     try {
