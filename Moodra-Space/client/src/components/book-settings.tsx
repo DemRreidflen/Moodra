@@ -51,6 +51,9 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Replace",
     removeCover: "Remove",
     coverColorLabel: "Cover colour",
+    aboutAuthorSection: "About the author",
+    aboutAuthorLabel: "Author bio",
+    aboutAuthorPlaceholder: "A few sentences about the author — displayed in book exports and back matter…",
     dangerZone: "Danger zone",
     deleteBook: "Delete book",
     deleteDesc: "This action is irreversible. All chapters and data will be deleted.",
@@ -95,6 +98,9 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Заменить",
     removeCover: "Удалить",
     coverColorLabel: "Цвет обложки",
+    aboutAuthorSection: "Об авторе",
+    aboutAuthorLabel: "Биография автора",
+    aboutAuthorPlaceholder: "Несколько предложений об авторе — отображается в экспорте книги и на странице «Об авторе»…",
     dangerZone: "Опасная зона",
     deleteBook: "Удалить книгу",
     deleteDesc: "Это действие необратимо. Все главы и данные будут удалены.",
@@ -139,6 +145,9 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Замінити",
     removeCover: "Видалити",
     coverColorLabel: "Колір обкладинки",
+    aboutAuthorSection: "Про автора",
+    aboutAuthorLabel: "Біографія автора",
+    aboutAuthorPlaceholder: "Кілька речень про автора — відображається в експорті книги та на сторінці «Про автора»…",
     dangerZone: "Небезпечна зона",
     deleteBook: "Видалити книгу",
     deleteDesc: "Ця дія незворотна. Всі розділи і дані будуть видалені.",
@@ -183,6 +192,9 @@ const BOOKSETTINGS_I18N = {
     replaceCover: "Ersetzen",
     removeCover: "Entfernen",
     coverColorLabel: "Coverfarbe",
+    aboutAuthorSection: "Über den Autor",
+    aboutAuthorLabel: "Autorenbiografie",
+    aboutAuthorPlaceholder: "Einige Sätze über den Autor — wird im Buchexport und im Nachwort angezeigt…",
     dangerZone: "Gefahrenzone",
     deleteBook: "Buch löschen",
     deleteDesc: "Diese Aktion ist unwiderruflich. Alle Kapitel und Daten werden gelöscht.",
@@ -227,6 +239,7 @@ export function BookSettings({ book }: { book: Book }) {
   const [genre, setGenre] = useState(book.genre || "");
   const [language, setLanguage] = useState(book.language || "ru");
   const [headingFont, setHeadingFont] = useState((book as any).headingFont || "");
+  const [aboutAuthor, setAboutAuthor] = useState((book as any).aboutAuthor || "");
   const [coverColor, setCoverColor] = useState(book.coverColor || "#007AFF");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -293,7 +306,7 @@ export function BookSettings({ book }: { book: Book }) {
   });
 
   const handleSave = () => {
-    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, headingFont, coverColor, narrativeContext: buildNarrativeContext() });
+    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, headingFont, aboutAuthor, coverColor, narrativeContext: buildNarrativeContext() });
   };
 
   const mark = () => setIsDirty(true);
@@ -629,6 +642,21 @@ export function BookSettings({ book }: { book: Book }) {
                     : "Filled fields are embedded in every AI prompt — helping the co-author, text analysis, drafts, and idea board understand the essence of your book."}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* About the author */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-widest">{s.aboutAuthorSection}</h3>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">{s.aboutAuthorLabel}</Label>
+              <Textarea
+                value={aboutAuthor}
+                onChange={e => { setAboutAuthor(e.target.value); mark(); }}
+                rows={5}
+                placeholder={s.aboutAuthorPlaceholder}
+                className="bg-background rounded-xl resize-none border-border text-sm"
+              />
             </div>
           </div>
 
