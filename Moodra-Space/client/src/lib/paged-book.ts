@@ -845,24 +845,44 @@ function makeBridgeScript(zoom: number, designerPages?: { afterPage: number; ima
   window.PagedConfig = { auto: false };
   var DESIGNER_PAGES = ${dpJson};
 
+  function shiftPageNum(pageEl, oldNum, newNum) {
+    pageEl.setAttribute('data-page-number', String(newNum));
+    pageEl.querySelectorAll('.pagedjs_margin-content').forEach(function(el) {
+      if (el.textContent.trim() === String(oldNum)) { el.textContent = String(newNum); }
+    });
+  }
+
   function injectDesignerPages(allPageEls) {
-    if (!DESIGNER_PAGES.length) return;
-    var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return b.afterPage - a.afterPage; });
+    if (!DESIGNER_PAGES.length) return 0;
+    var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return a.afterPage - b.afterPage; });
+
+    // Step 1: Renumber existing pages to account for designer page slots
+    allPageEls.forEach(function(pageEl, idx) {
+      var pageNum = idx + 1;
+      var offset = 0;
+      for (var i = 0; i < sorted.length; i++) { if (sorted[i].afterPage < pageNum) offset++; }
+      if (offset > 0) shiftPageNum(pageEl, pageNum, pageNum + offset);
+    });
+
+    // Step 2: Add CSS for injected pages
     var dpStyle = document.createElement('style');
     dpStyle.textContent = '.injected-dp{display:block;overflow:hidden;box-sizing:border-box;margin:0 auto;}.injected-dp img{width:100%;height:100%;object-fit:cover;display:block;}@media print{.injected-dp{break-before:page;break-after:page;page-break-before:always;page-break-after:always;}}';
     document.head.appendChild(dpStyle);
-    sorted.forEach(function(dp) {
+
+    // Step 3: Inject divs in reverse order so earlier insertions don't shift indices
+    sorted.slice().reverse().forEach(function(dp) {
       var pageEl = allPageEls[dp.afterPage - 1];
       if (!pageEl) return;
       var w = pageEl.offsetWidth; var h = pageEl.offsetHeight;
       var div = document.createElement('div');
       div.className = 'injected-dp';
       div.style.width = w + 'px'; div.style.height = h + 'px';
-      var img = document.createElement('img');
-      img.src = dp.imageUrl; img.alt = '';
+      var img = document.createElement('img'); img.src = dp.imageUrl; img.alt = '';
       div.appendChild(img);
       pageEl.insertAdjacentElement('afterend', div);
     });
+
+    return sorted.length;
   }
 
   function applyViewMode(mode) {
@@ -889,7 +909,8 @@ function makeBridgeScript(zoom: number, designerPages?: { afterPage: number; ima
       document.head.appendChild(bgStyle);
 
       var allPages = Array.from(document.querySelectorAll('.pagedjs_page'));
-      injectDesignerPages(allPages);
+      var dpCount = injectDesignerPages(allPages);
+      var dpSorted = DESIGNER_PAGES.slice().sort(function(a, b) { return a.afterPage - b.afterPage; });
 
       var chapterPages = {};
       document.querySelectorAll('[id^="chapter-"]').forEach(function(el) {
@@ -897,10 +918,15 @@ function makeBridgeScript(zoom: number, designerPages?: { afterPage: number; ima
         var pg = el.closest('.pagedjs_page');
         if (pg) {
           var idx = allPages.indexOf(pg);
-          if (idx >= 0) chapterPages[ci] = idx + 1;
+          if (idx >= 0) {
+            var origPage = idx + 1;
+            var offset = 0;
+            for (var i = 0; i < dpSorted.length; i++) { if (dpSorted[i].afterPage < origPage) offset++; }
+            chapterPages[ci] = origPage + offset;
+          }
         }
       });
-      window.parent.postMessage({ type: 'paged-ready', total: flow.total, chapterPages: chapterPages }, '*');
+      window.parent.postMessage({ type: 'paged-ready', total: flow.total + dpCount, chapterPages: chapterPages }, '*');
     });
   });
 
@@ -937,13 +963,25 @@ function makePrintBridgeScript(designerPages?: { afterPage: number; imageUrl: st
 (function() {
   window.PagedConfig = { auto: false };
   var DESIGNER_PAGES = ${dpJson};
+  function shiftPageNum(pageEl, oldNum, newNum) {
+    pageEl.setAttribute('data-page-number', String(newNum));
+    pageEl.querySelectorAll('.pagedjs_margin-content').forEach(function(el) {
+      if (el.textContent.trim() === String(oldNum)) { el.textContent = String(newNum); }
+    });
+  }
   function injectDesignerPages(allPageEls) {
     if (!DESIGNER_PAGES.length) return;
-    var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return b.afterPage - a.afterPage; });
+    var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return a.afterPage - b.afterPage; });
+    allPageEls.forEach(function(pageEl, idx) {
+      var pageNum = idx + 1;
+      var offset = 0;
+      for (var i = 0; i < sorted.length; i++) { if (sorted[i].afterPage < pageNum) offset++; }
+      if (offset > 0) shiftPageNum(pageEl, pageNum, pageNum + offset);
+    });
     var dpStyle = document.createElement('style');
     dpStyle.textContent = '.injected-dp{display:block;overflow:hidden;box-sizing:border-box;margin:0 auto;break-before:page;break-after:page;page-break-before:always;page-break-after:always;}.injected-dp img{width:100%;height:100%;object-fit:cover;display:block;}';
     document.head.appendChild(dpStyle);
-    sorted.forEach(function(dp) {
+    sorted.slice().reverse().forEach(function(dp) {
       var pageEl = allPageEls[dp.afterPage - 1];
       if (!pageEl) return;
       var w = pageEl.offsetWidth; var h = pageEl.offsetHeight;
