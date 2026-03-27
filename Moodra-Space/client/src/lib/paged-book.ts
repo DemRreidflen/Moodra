@@ -464,7 +464,7 @@ hr.bdiv {
 .title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
 .title-top-line { width: 40px; height: 2px; background: #d4c5b0; margin-bottom: 1em; }
 .title-mid-line { width: 40px; height: 1px; background: #d4c5b0; margin: 0.5em 0; }
-.title-main { font-size: var(--t-fs, 28pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none; }
+.title-main { font-family: ${s.headingFontFamily || s.fontFamily}; font-size: var(--t-fs, 28pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none; }
 .title-sub  { font-size: var(--s-fs, 13pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
 .title-author { font-size: var(--a-fs, 12pt); color: #555; letter-spacing: 0.05em; }
 .title-bottom-block { margin-top: auto; padding-top: 1em; }
@@ -509,6 +509,7 @@ hr.bdiv {
 /* TOC */
 .toc-page { padding: 8pt 0; }
 .toc-heading {
+  font-family: ${s.headingFontFamily || s.fontFamily};
   font-size: ${s.h2Size}pt;
   text-align: center;
   margin-bottom: 20pt;
