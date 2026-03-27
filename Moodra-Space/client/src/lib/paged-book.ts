@@ -287,7 +287,7 @@ blockquote + p,
 h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
 /* ── Headings ───────────────────────────────────────────────── */
-${s.headingFontFamily ? `.bh1, .bh2, .bh3, .ch-title { font-family: ${s.headingFontFamily}; }` : ""}
+${s.headingFontFamily ? `.bh1, .bh2, .bh3 { font-family: ${s.headingFontFamily}; }` : ""}
 .bh1 {
   font-size: ${s.h1Size}pt;
   font-weight: 700;
@@ -373,7 +373,7 @@ hr.bdiv {
   padding-bottom: ${s.lineHeight * 2}em;
 }
 .ch-title {
-  font-family: ${s.fontFamily};
+  font-family: ${s.headingFontFamily || s.fontFamily};
   font-size: ${s.h1Size}pt;
   font-weight: 700;
   line-height: 1.2;
