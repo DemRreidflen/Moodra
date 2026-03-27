@@ -845,10 +845,20 @@ function makeBridgeScript(zoom: number, designerPages?: { afterPage: number; ima
   window.PagedConfig = { auto: false };
   var DESIGNER_PAGES = ${dpJson};
 
+  function replaceInTextNodes(node, oldStr, newStr) {
+    if (node.nodeType === 3) {
+      var re = new RegExp('(^|\\D)' + oldStr + '(\\D|$)', 'g');
+      var next = node.textContent.replace(re, function(_, pre, suf) { return pre + newStr + suf; });
+      if (next !== node.textContent) node.textContent = next;
+    } else {
+      for (var i = 0; i < node.childNodes.length; i++) replaceInTextNodes(node.childNodes[i], oldStr, newStr);
+    }
+  }
+
   function shiftPageNum(pageEl, oldNum, newNum) {
     pageEl.setAttribute('data-page-number', String(newNum));
     pageEl.querySelectorAll('.pagedjs_margin-content').forEach(function(el) {
-      if (el.textContent.trim() === String(oldNum)) { el.textContent = String(newNum); }
+      replaceInTextNodes(el, String(oldNum), String(newNum));
     });
   }
 
@@ -857,12 +867,14 @@ function makeBridgeScript(zoom: number, designerPages?: { afterPage: number; ima
     var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return a.afterPage - b.afterPage; });
 
     // Step 1: Renumber existing pages to account for designer page slots
-    allPageEls.forEach(function(pageEl, idx) {
-      var pageNum = idx + 1;
+    // Process from LAST to FIRST so earlier rewrites don't corrupt later lookups
+    for (var i = allPageEls.length - 1; i >= 0; i--) {
+      var pageEl = allPageEls[i];
+      var pageNum = i + 1;
       var offset = 0;
-      for (var i = 0; i < sorted.length; i++) { if (sorted[i].afterPage < pageNum) offset++; }
+      for (var j = 0; j < sorted.length; j++) { if (sorted[j].afterPage < pageNum) offset++; }
       if (offset > 0) shiftPageNum(pageEl, pageNum, pageNum + offset);
-    });
+    }
 
     // Step 2: Add CSS for injected pages
     var dpStyle = document.createElement('style');
@@ -963,21 +975,29 @@ function makePrintBridgeScript(designerPages?: { afterPage: number; imageUrl: st
 (function() {
   window.PagedConfig = { auto: false };
   var DESIGNER_PAGES = ${dpJson};
+  function replaceInTextNodes(node, oldStr, newStr) {
+    if (node.nodeType === 3) {
+      var re = new RegExp('(^|\\D)' + oldStr + '(\\D|$)', 'g');
+      var next = node.textContent.replace(re, function(_, pre, suf) { return pre + newStr + suf; });
+      if (next !== node.textContent) node.textContent = next;
+    } else {
+      for (var k = 0; k < node.childNodes.length; k++) replaceInTextNodes(node.childNodes[k], oldStr, newStr);
+    }
+  }
   function shiftPageNum(pageEl, oldNum, newNum) {
     pageEl.setAttribute('data-page-number', String(newNum));
     pageEl.querySelectorAll('.pagedjs_margin-content').forEach(function(el) {
-      if (el.textContent.trim() === String(oldNum)) { el.textContent = String(newNum); }
+      replaceInTextNodes(el, String(oldNum), String(newNum));
     });
   }
   function injectDesignerPages(allPageEls) {
     if (!DESIGNER_PAGES.length) return;
     var sorted = DESIGNER_PAGES.slice().sort(function(a, b) { return a.afterPage - b.afterPage; });
-    allPageEls.forEach(function(pageEl, idx) {
-      var pageNum = idx + 1;
-      var offset = 0;
-      for (var i = 0; i < sorted.length; i++) { if (sorted[i].afterPage < pageNum) offset++; }
+    for (var i = allPageEls.length - 1; i >= 0; i--) {
+      var pageEl = allPageEls[i]; var pageNum = i + 1; var offset = 0;
+      for (var j = 0; j < sorted.length; j++) { if (sorted[j].afterPage < pageNum) offset++; }
       if (offset > 0) shiftPageNum(pageEl, pageNum, pageNum + offset);
-    });
+    }
     var dpStyle = document.createElement('style');
     dpStyle.textContent = '.injected-dp{display:block;overflow:hidden;box-sizing:border-box;margin:0 auto;break-before:page;break-after:page;page-break-before:always;page-break-after:always;}.injected-dp img{width:100%;height:100%;object-fit:cover;display:block;}';
     document.head.appendChild(dpStyle);
