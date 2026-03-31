@@ -13,7 +13,7 @@ import { useLang } from "@/contexts/language-context";
 import { MPdf } from "@/components/icons";
 import { useBookSettings, BookTypographySettings } from "@/hooks/use-book-settings";
 import { useFrontMatter, FrontMatterSettings } from "@/hooks/use-front-matter";
-import { generatePagedJsHtml, generatePrintHtml } from "@/lib/paged-book";
+import { generatePagedJsHtml, generatePrintHtml, generateCyrillicPreviewHtml } from "@/lib/paged-book";
 
 // ─── Page sizes ─────────────────────────────────────────────────────
 const PAGE_SIZES = {
@@ -503,16 +503,23 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     reader.readAsDataURL(file);
   }, [designerPages, saveDesignerPages]);
 
-  // Regenerate Paged.js HTML whenever settings, chapters, or zoom changes.
-  // Paged.js runs inside the iframe and will send back "paged-ready" with the page count.
+  // Regenerate iframe HTML whenever settings, chapters, or zoom changes.
+  // Latin engine: Paged.js (sends back "paged-ready" with page count).
+  // Cyrillic engine: generateCyrillicPreviewHtml (same CSS as WeasyPrint export, no Paged.js).
   useEffect(() => {
     if (!book || chapters.length === 0) return;
-    const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-    const html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl, designerPages });
+    let html: string;
+    if (settings.layoutEngine === "cyrillic") {
+      html = generateCyrillicPreviewHtml({ book, chapters, settings, frontMatter, lp, zoom, designerPages });
+      setTotalPages(0);
+    } else {
+      const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
+      html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl, designerPages });
+      setTotalPages(0); // reset while iframe re-renders
+    }
+    setCurrentSpread(0);
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    setTotalPages(0); // reset while iframe re-renders
-    setCurrentSpread(0);
     if (iframeRef.current) iframeRef.current.src = url;
     return () => URL.revokeObjectURL(url);
   }, [book, chapters, settings, zoom, lp, frontMatter, designerPages]);
@@ -867,7 +874,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                     <Toggle on={settings.cyrillicHyphenLinks} onToggle={() => update({ cyrillicHyphenLinks: !settings.cyrillicHyphenLinks })} />
                   </Row>
                   <p className="text-[9.5px] text-muted-foreground/70 leading-snug px-0.5 pt-0.5">
-                    Визуальный preview в редакторе может не совпадать с финальным PDF.
+                    Preview использует те же шрифт, поля и CSS что и итоговый PDF.
                   </p>
                 </div>
               )}
