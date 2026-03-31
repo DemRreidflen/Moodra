@@ -467,36 +467,38 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     try { return JSON.parse(localStorage.getItem(`moodra_designer_pages_${bookId}`) || "[]"); } catch { return []; }
   });
 
-  // One-time migration: compress any existing stored designer page images that
-  // are larger than ~600 KB as base64 (≈ 450 KB binary) so they fit in the
-  // export payload even behind strict proxy limits.
+  // One-time migration: if any existing designer page still carries a raw
+  // base64 data URL, upload it to the server and swap the URL.
   useEffect(() => {
-    const THRESHOLD = 600_000; // base64 string length
-    const MAX = 1700;
-    const pages = designerPages;
-    if (!pages.some(p => p.imageUrl.length > THRESHOLD)) return;
-    let pending = 0;
-    const updated = pages.map(p => ({ ...p }));
-    pages.forEach((p, i) => {
-      if (p.imageUrl.length <= THRESHOLD) return;
-      pending++;
-      const img = new Image();
-      img.onload = () => {
-        const ratio = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
-        const w = Math.round(img.naturalWidth  * ratio);
-        const h = Math.round(img.naturalHeight * ratio);
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
-        const compressed = canvas.toDataURL("image/jpeg", 0.88);
-        updated[i].imageUrl = compressed.length < p.imageUrl.length ? compressed : p.imageUrl;
-        pending--;
-        if (pending === 0) {
-          setDesignerPages(updated);
-          localStorage.setItem(`moodra_designer_pages_${bookId}`, JSON.stringify(updated));
-        }
-      };
-      img.src = p.imageUrl;
+    const needsMigration = designerPages.filter(p => p.imageUrl.startsWith("data:"));
+    if (needsMigration.length === 0) return;
+    let remaining = needsMigration.length;
+    const updated = designerPages.map(p => ({ ...p }));
+    designerPages.forEach((p, i) => {
+      if (!p.imageUrl.startsWith("data:")) return;
+      const mimeMatch = p.imageUrl.match(/^data:([^;]+);/);
+      const mime = mimeMatch?.[1] ?? "image/jpeg";
+      const ext = mime.split("/")[1] ?? "jpg";
+      fetch(p.imageUrl)
+        .then(r => r.blob())
+        .then(blob => {
+          const file = new File([blob], `dp.${ext}`, { type: mime });
+          const form = new FormData();
+          form.append("image", file);
+          return fetch(`/api/books/${bookId}/designer-pages/upload`, { method: "POST", body: form });
+        })
+        .then(r => r.json())
+        .then(({ url }) => {
+          if (url) updated[i].imageUrl = url;
+        })
+        .catch(() => {/* keep original on error */})
+        .finally(() => {
+          remaining--;
+          if (remaining === 0) {
+            setDesignerPages(updated);
+            localStorage.setItem(`moodra_designer_pages_${bookId}`, JSON.stringify(updated));
+          }
+        });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
@@ -573,34 +575,22 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     localStorage.setItem(`moodra_designer_pages_${bookId}`, JSON.stringify(pages));
   }, [bookId]);
 
-  const handleDesignerPageUpload = useCallback((file: File, afterPage: number) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const rawUrl = e.target?.result as string;
-      if (!rawUrl) return;
-      // Compress to max 1700 px longest side at JPEG 88 % to keep payloads small
-      // without visible quality loss for print (A4 @ 150 dpi = 1240 × 1754 px).
-      const img = new Image();
-      img.onload = () => {
-        const MAX = 1700;
-        const ratio = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
-        const w = Math.round(img.naturalWidth  * ratio);
-        const h = Math.round(img.naturalHeight * ratio);
-        const canvas = document.createElement("canvas");
-        canvas.width  = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, w, h);
-        const compressed = canvas.toDataURL("image/jpeg", 0.88);
-        // Use compressed only if it's actually smaller than the original.
-        const imageUrl = compressed.length < rawUrl.length ? compressed : rawUrl;
-        const newPage = { id: Math.random().toString(36).slice(2), afterPage, imageUrl };
-        saveDesignerPages([...designerPages, newPage].sort((a, b) => a.afterPage - b.afterPage));
-      };
-      img.src = rawUrl;
-    };
-    reader.readAsDataURL(file);
-  }, [designerPages, saveDesignerPages]);
+  const handleDesignerPageUpload = useCallback(async (file: File, afterPage: number) => {
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const resp = await fetch(`/api/books/${bookId}/designer-pages/upload`, {
+        method: "POST",
+        body: form,
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const { url } = await resp.json();
+      const newPage = { id: Math.random().toString(36).slice(2), afterPage, imageUrl: url };
+      saveDesignerPages([...designerPages, newPage].sort((a, b) => a.afterPage - b.afterPage));
+    } catch (err) {
+      console.error("Designer page upload failed:", err);
+    }
+  }, [bookId, designerPages, saveDesignerPages]);
 
   // Regenerate iframe HTML whenever settings, chapters, or zoom changes.
   // Latin engine: Paged.js (sends back "paged-ready" with page count).

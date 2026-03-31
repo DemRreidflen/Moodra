@@ -190,6 +190,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ---- Designer page image upload (stores file on disk, returns URL) ----
+  app.post("/api/books/:id/designer-pages/upload", upload.single("image"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file" });
+      const bookId = req.params.id;
+      const dir = path.join(uploadsDir, "designer-pages", bookId);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const ext = path.extname(req.file.originalname || ".jpg").toLowerCase() || ".jpg";
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+      res.json({ url: `/uploads/designer-pages/${bookId}/${filename}` });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ---- Models pricing (update here when OpenAI changes prices) ----
   // Source: https://platform.openai.com/docs/models — all prices are per 1M tokens (USD)
   app.get("/api/models/pricing", (_req: Request, res: Response) => {

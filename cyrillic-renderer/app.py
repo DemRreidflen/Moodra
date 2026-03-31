@@ -175,7 +175,7 @@ def render_pdf():
 
         # Render via WeasyPrint
         try:
-            doc = weasyprint.HTML(string=html).render()
+            doc = weasyprint.HTML(string=html, base_url="http://127.0.0.1:5000").render()
             pdf_bytes = doc.write_pdf()
         except Exception as exc:
             log.error("WeasyPrint render failed: %s\n%s", exc, traceback.format_exc())
