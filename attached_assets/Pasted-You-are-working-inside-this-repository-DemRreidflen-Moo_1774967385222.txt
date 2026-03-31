@@ -1,0 +1,74 @@
+You are working inside this repository:
+DemRreidflen/Moodra
+Project root of interest:
+Moodra-Space
+
+Task:
+Implement a new fallback path for Russian and Ukrainian PDF export that fixes missing visible hyphens specifically at page breaks.
+
+Important context:
+- The current export is HTML-based and paginated for print/PDF, not a native PDF composition engine.
+- The repository already uses / includes pagedjs.
+- Previous attempts based on general hyphenation preprocessing with soft hyphens did not solve the issue.
+- The actual problem is:
+  when a Cyrillic word is split at the end of a page, the visible hyphen is missing.
+- English and German output is already good and must not be changed.
+
+Goal:
+Create a paged.js-specific fallback for ru/uk that detects when a page break happens inside a text node and ensures a visible hyphen appears at the end of the broken word on the current page.
+
+Strategy:
+Do NOT rewrite the whole export system.
+Do NOT change DOCX or EPUB.
+Do NOT modify EN/DE behavior.
+Implement a dedicated paged.js handler/plugin for RU/UK print export only.
+
+What to implement:
+
+1. Find the HTML template / export route used for:
+   /api/books/:id/export/pdf-html
+
+2. In the exported printable HTML, add a custom script that registers a paged.js handler, for example:
+   class CyrillicPageBreakHyphenFix extends Paged.Handler { ... }
+
+3. Handler behavior:
+   - activate only when document language is `ru` or `uk`
+   - inspect page break tokens / overflow points
+   - if the break happens inside a text node and the split is inside a Cyrillic word,
+     insert a visible hyphen at the end of the fragment that remains on the current page
+   - do not alter words split for English/German
+   - do not add hyphens to headings, TOC, page numbers, running headers, URLs, emails, file paths, or code-like text
+   - do not duplicate content
+   - do not insert two hyphens if one is already present
+
+4. Use a conservative Cyrillic-word check:
+   - treat Russian/Ukrainian letters as the target range
+   - only add a fallback hyphen when both sides of the split are letters
+   - skip very short fragments
+
+5. Keep the visual hyphen local to the paginated output:
+   - do not mutate stored chapter content in the database
+   - do not permanently rewrite source text
+   - apply the fix only during print/export rendering
+
+6. Add CSS only if needed for the fallback:
+   - scope to `html[lang="ru"]` and `html[lang="uk"]`
+   - avoid break-all
+   - keep existing layout unchanged
+
+7. Add debug logging in development mode:
+   - log when the handler detects a Cyrillic page-break split
+   - log the before/after fragments
+   - make logs easy to remove later
+
+8. Return:
+   - exact files changed
+   - short explanation of why soft-hyphen preprocessing was insufficient
+   - final code
+   - notes about limitations
+
+Implementation notes:
+- Prefer a paged.js hook / handler over generic text preprocessing.
+- The fix should target page-break fragmentation, not all line wrapping globally.
+- Be very careful not to duplicate nodes or corrupt the DOM.
+- Keep the patch minimal and isolated.

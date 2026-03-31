@@ -3157,6 +3157,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
+${pdfLang ? '<script src="/paged.polyfill.js"></script>' : ""}
 </head>
 <body lang="${htmlLang}">
 
@@ -3181,11 +3182,140 @@ ${chapters.length > 1 ? `
 <!-- Chapters -->
 ${body}
 
-<script>
-window.addEventListener('load', function() {
-  setTimeout(function() { window.print(); }, 400);
+${pdfLang ? `<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CyrillicPageBreakHyphenFix — pagedjs Handler for RU / UK exports
+   ───────────────────────────────────────────────────────────────────────────
+   Why soft-hyphen preprocessing alone is insufficient:
+     Hypher inserts U+00AD (soft hyphen) at linguistically valid positions.
+     CSS hyphens:manual ONLY renders a visible hyphen when a LINE WRAP happens
+     exactly at a soft-hyphen position. However, pagedjs splits words at PAGE
+     BOUNDARIES using its own overflow algorithm (character-by-character or
+     word-by-word), which may land between two soft-hyphens — at a position
+     that has no U+00AD. In that case, no visible hyphen appears and the word
+     is silently broken at the page edge.
+   This handler runs after each page is laid out. It checks whether the page
+   break happened inside a Cyrillic word and, if so, appends a literal "-" to
+   the last rendered text node on that page.
+   Limitations:
+     • Pagedjs page breaking is deterministic per run but may differ across
+       browsers (Chromium vs Firefox) due to different font metrics.
+     • The charBefore/charAfter heuristic can fail if the last text node in
+       .pagedjs_page_content is not the one truncated at the break (e.g. a
+       running header appearing last in DOM order). The "last char matches"
+       guard minimises false positives.
+     • Does not alter book content in the database — rendering only.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  var CYR          = /[\\u0400-\\u04FF]/;
+  var ALREADY_HYP  = /[-\\u2010\\u2011\\u2012\\u2013\\u00AD]\\s*$/;
+  var SKIP_TAGS    = { H1:1, H2:1, H3:1, H4:1, H5:1, H6:1 };
+  var SKIP_CLS     = [
+    'pagedjs_margin', 'pagedjs_margin_content', 'pagedjs_margin_top',
+    'pagedjs_margin_bottom', 'pagedjs_margin_left', 'pagedjs_margin_right',
+    'toc-page', 'toc-title', 'toc-num', 'toc-heading', 'toc-dots',
+    'chapter-title', 'chapter-num', 'chapter-header-line', 'empty-chapter',
+    'cover', 'cover-title', 'cover-subtitle', 'cover-ornament', 'cover-meta'
+  ];
+  var DEV = (
+    typeof location !== 'undefined' &&
+    (location.hostname === 'localhost' ||
+     location.hostname.endsWith('.replit.dev') ||
+     location.hostname.endsWith('.repl.co'))
+  );
+
+  function isSkipped(node) {
+    var el = node.parentElement;
+    while (el) {
+      if (SKIP_TAGS[el.tagName]) return true;
+      var cls = el.classList;
+      for (var i = 0; i < SKIP_CLS.length; i++) {
+        if (cls.contains(SKIP_CLS[i])) return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  function getLastContentTextNode(pageEl) {
+    var area = pageEl.querySelector('.pagedjs_page_content') || pageEl;
+    var walker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT, null);
+    var last = null, n;
+    while ((n = walker.nextNode())) {
+      if (n.textContent.trim().length > 0) last = n;
+    }
+    return last;
+  }
+
+  class CyrillicPageBreakHyphenFix extends Paged.Handler {
+    afterPageLayout(pageEl, page, breakToken) {
+      // breakToken is null on the very last page — nothing to do
+      if (!breakToken) return;
+
+      var srcNode = breakToken.node;
+      var offset  = breakToken.offset;
+
+      // We only handle breaks inside text nodes
+      if (!srcNode || srcNode.nodeType !== Node.TEXT_NODE) return;
+      if (typeof offset !== 'number' || offset <= 0) return;
+
+      var srcText    = srcNode.textContent || '';
+      var charBefore = srcText[offset - 1]; // last char on THIS page
+      var charAfter  = srcText[offset];     // first char on NEXT page
+
+      // Both sides of the split must be Cyrillic letters
+      if (!charBefore || !charAfter) return;
+      if (!CYR.test(charBefore) || !CYR.test(charAfter)) return;
+
+      // Locate the last visible text node rendered inside this page's content area
+      var lastNode = getLastContentTextNode(pageEl);
+      if (!lastNode) return;
+      if (isSkipped(lastNode)) return;
+
+      var txt = lastNode.textContent;
+      if (!txt || txt.trim().length < 3) return;
+
+      // Guard: the last rendered character must match the expected charBefore.
+      // This confirms we found the right node (not a footer/margin artifact).
+      if (txt[txt.length - 1] !== charBefore) return;
+
+      // Never double-hyphenate
+      if (ALREADY_HYP.test(txt)) return;
+
+      // Insert the visible hyphen
+      lastNode.textContent = txt + '-';
+
+      if (DEV) {
+        console.log('[CyrHyphen] Page break inside Cyrillic word');
+        console.log('[CyrHyphen]  before break:', JSON.stringify(srcText.slice(Math.max(0, offset - 30), offset)));
+        console.log('[CyrHyphen]  after  break:', JSON.stringify(srcText.slice(offset, offset + 20)));
+        console.log('[CyrHyphen]  appended hyphen to node ending with:', JSON.stringify(txt.slice(-10)));
+      }
+    }
+  }
+
+  Paged.registerHandlers(CyrillicPageBreakHyphenFix);
+
+  // Trigger pagedjs rendering, then open the print dialog
+  window.addEventListener('load', function () {
+    var previewer = new Paged.Previewer();
+    previewer.preview().then(function () {
+      // Short delay so pagedjs finishes painting before the print dialog opens
+      setTimeout(function () { window.print(); }, 600);
+    });
+  });
+
+  // Close the tab automatically after the user dismisses the print dialog
+  window.addEventListener('afterprint', function () {
+    setTimeout(function () { window.close(); }, 600);
+  });
+})();
+</script>` : `<script>
+/* EN / DE: native browser @page layout — no pagedjs needed */
+window.addEventListener('load', function () {
+  setTimeout(function () { window.print(); }, 400);
 });
-</script>
+</script>`}
 </body>
 </html>`;
 
