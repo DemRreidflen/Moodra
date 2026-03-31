@@ -1445,12 +1445,17 @@ ${hyphTocCss}
   overflow: hidden;
 }
 
-/* Cover image page */
-.cyrl-cover-page {
+/* Cover image: the JS paginator creates a special no-padding card for this */
+.cyrl-page--cover {
   padding: 0 !important;
-  margin: -${mt}mm -${mr}mm -${mb}mm -${ml}mm;
+  overflow: hidden;
 }
-.cyrl-cover-page img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cyrl-page--cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 
 /* Title page */
 .title-page { padding: 6mm 0; }
@@ -1588,11 +1593,6 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
   const bookTitleJs   = JSON.stringify(book.title);
   const script = `
 (function() {
-  var MM = 96 / 25.4;
-  var PAGE_W    = ${ps.width}  * MM;
-  var PAGE_H    = ${ps.height} * MM;
-  var CONTENT_W = PAGE_W - (${ml} * MM) - (${mr} * MM);
-  var CONTENT_H = PAGE_H - (${mt} * MM) - (${mb} * MM);
   var SHOW_NUM   = ${showFooterNum};
   var SHOW_TITLE = ${showFooterTitle};
   var FOOT_ALIGN = ${JSON.stringify(footerAlign)};
@@ -1606,7 +1606,6 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
   probe.style.position = 'absolute';
   probe.style.left = '-9999px';
   probe.style.top = '0';
-  probe.style.width = CONTENT_W + 'px';
   probe.style.visibility = 'hidden';
   probe.style.pointerEvents = 'none';
   probe.style.fontFamily = FONT_FAMILY;
@@ -1614,6 +1613,29 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
   probe.style.lineHeight = '${lineHeight}';
   probe.style.letterSpacing = '${letterSpacing}em';
   document.body.appendChild(probe);
+
+  // CONTENT_W / CONTENT_H are calibrated from a real page card after boot
+  // so they perfectly match whatever CSS mm resolution the browser uses.
+  var CONTENT_W = 0;
+  var CONTENT_H = 0;
+
+  function calibrate() {
+    var cal = document.createElement('div');
+    cal.className = 'cyrl-page';
+    cal.style.position = 'absolute';
+    cal.style.left = '-9999px';
+    cal.style.visibility = 'hidden';
+    document.body.appendChild(cal);
+    var cs = window.getComputedStyle(cal);
+    CONTENT_H = cal.clientHeight
+      - parseFloat(cs.paddingTop)
+      - parseFloat(cs.paddingBottom);
+    CONTENT_W = cal.clientWidth
+      - parseFloat(cs.paddingLeft)
+      - parseFloat(cs.paddingRight);
+    document.body.removeChild(cal);
+    probe.style.width = CONTENT_W + 'px';
+  }
 
   function measureH(el) {
     var clone = el.cloneNode(true);
@@ -1673,17 +1695,34 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
     var src = document.getElementById('cyrl-src');
 
     // Front matter pages (.cyrl-fm-page) → each gets its own full page card
-    // Chapter sections (.cyrl-chapter) → block-packed
+    // Chapter sections (.cyrl-chapter) → block-packed into pages
     var sections = Array.from(src.querySelectorAll('.cyrl-fm-page, .cyrl-chapter'));
 
     var page = newPage();
     var usedH = 0;
 
     sections.forEach(function(section) {
+      var isCover   = section.classList.contains('cyrl-cover-page');
       var isFm      = section.classList.contains('cyrl-fm-page');
       var isChapter = section.classList.contains('cyrl-chapter');
 
-      // Front matter: full-page card, no footer (cover/title/copyright/dedication/TOC)
+      // Cover image page: special no-padding card, extract img directly
+      if (isCover) {
+        if (page.children.length > 0) { page = pushPage(page); usedH = 0; }
+        var coverCard = document.createElement('div');
+        coverCard.className = 'cyrl-page cyrl-page--cover';
+        var imgEl = section.querySelector('img');
+        if (imgEl) {
+          var imgClone = imgEl.cloneNode(true);
+          coverCard.appendChild(imgClone);
+        }
+        pageEls.push(coverCard);
+        canvas.appendChild(coverCard);
+        page = newPage(); usedH = 0;
+        return;
+      }
+
+      // Other front matter pages (title/copyright/dedication/TOC): full page, no footer
       if (isFm) {
         if (page.children.length > 0) { page = pushPage(page); usedH = 0; }
         var fp = newPage();
@@ -1693,25 +1732,56 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
         return;
       }
 
-      // Chapter: always starts on a new page
+      // Chapter: always starts on a new page; blocks packed with wrapping
       if (isChapter) {
         if (usedH > 0) { page = pushPage(page); usedH = 0; }
 
         var ci = section.getAttribute('data-ci');
         if (ci !== null) chapterPageMap[parseInt(ci, 10)] = pageEls.length;
 
+        // Chapter title goes first on the new page
         var titleEl = section.querySelector('.chapter-title');
-        if (titleEl) { page.appendChild(titleEl.cloneNode(true)); usedH += measureH(titleEl); }
+        if (titleEl) {
+          page.appendChild(titleEl.cloneNode(true));
+          usedH += measureH(titleEl);
+        }
 
+        // Content blocks: wrap each page's blocks in a .chapter-content div
+        // so that p:first-child and other CSS rules cascade correctly.
         var contentEl = section.querySelector('.chapter-content');
         if (contentEl) {
-          Array.from(contentEl.children).forEach(function(block) {
+          var blocks = Array.from(contentEl.children);
+          var wrapper = document.createElement('div');
+          wrapper.className = 'chapter-content';
+          var isFirstOnPage = true;
+
+          blocks.forEach(function(block) {
             var h = measureH(block);
-            if (usedH > 0 && usedH + h > CONTENT_H) { page = pushPage(page); usedH = 0; }
-            page.appendChild(block.cloneNode(true));
+
+            if (usedH > 0 && usedH + h > CONTENT_H) {
+              // Flush current wrapper + page, start fresh
+              if (wrapper.children.length > 0) page.appendChild(wrapper);
+              page = pushPage(page); usedH = 0;
+              wrapper = document.createElement('div');
+              wrapper.className = 'chapter-content';
+              isFirstOnPage = true;
+            }
+
+            wrapper.appendChild(block.cloneNode(true));
             usedH += h;
-            if (usedH > CONTENT_H) { page = pushPage(page); usedH = 0; }
+            isFirstOnPage = false;
+
+            if (usedH > CONTENT_H) {
+              if (wrapper.children.length > 0) page.appendChild(wrapper);
+              page = pushPage(page); usedH = 0;
+              wrapper = document.createElement('div');
+              wrapper.className = 'chapter-content';
+              isFirstOnPage = true;
+            }
           });
+
+          // Flush remaining wrapper to current page
+          if (wrapper.children.length > 0) page.appendChild(wrapper);
         }
         return;
       }
@@ -1745,12 +1815,15 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
     );
   }
 
-  // ── Boot: wait for fonts before measuring ─────────────────
+  // ── Boot: wait for fonts + one rAF before measuring ───────
+  // We need an extra rAF after fonts.ready so the browser has committed
+  // the font metrics before we calibrate and measure element heights.
   function boot() {
+    function run() { requestAnimationFrame(function() { calibrate(); buildPages(); }); }
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(function() { requestAnimationFrame(buildPages); });
+      document.fonts.ready.then(run);
     } else {
-      requestAnimationFrame(function() { requestAnimationFrame(function() { requestAnimationFrame(buildPages); }); });
+      requestAnimationFrame(function() { requestAnimationFrame(run); });
     }
   }
 

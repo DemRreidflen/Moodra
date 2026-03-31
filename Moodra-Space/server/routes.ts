@@ -3451,13 +3451,13 @@ window.addEventListener('load', function () {
       const sp     = tp.elementSpacing  ?? 1.2;
       const lh     = tp.titleLineHeight ?? 1.2;
       return `
-<div class="cyrl-fm-page title-page title-align-${align}" style="--t-fs:${tfs}pt;--s-fs:${sfs}pt;--a-fs:${afs}pt;--sp:${sp}em;--lh:${lh}">
+<div class="cyrl-fm-page title-page title-align-${align}">
   ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
   ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
-  <h1 class="title-main">${escHtml(titleText)}</h1>
-  ${tp.subtitle ? `<div class="title-sub">${escHtml(tp.subtitle)}</div>` : ""}
+  <h1 class="title-main" style="font-size:${tfs}pt;line-height:${lh};margin-bottom:${sp}em">${escHtml(titleText)}</h1>
+  ${tp.subtitle ? `<div class="title-sub" style="font-size:${sfs}pt;margin-bottom:${sp * 0.5}em">${escHtml(tp.subtitle)}</div>` : ""}
   ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
-  ${tp.author ? `<div class="title-author">${escHtml(tp.author)}</div>` : ""}
+  ${tp.author ? `<div class="title-author" style="font-size:${afs}pt">${escHtml(tp.author)}</div>` : ""}
   <div class="title-bottom-block">
     ${tp.publisherName ? `<div class="title-publisher">${escHtml(tp.publisherName)}</div>` : ""}
     ${(tp.city || tp.year) ? `<div class="title-cityYear">${[tp.city, tp.year].filter(Boolean).map((v: any) => escHtml(String(v))).join(" · ")}</div>` : ""}
@@ -3473,7 +3473,7 @@ window.addEventListener('load', function () {
       const cpFs  = cp.fontSize   ?? 9;
       const cpLh  = cp.lineHeight ?? 1.5;
       return `
-<div class="cyrl-fm-page copyright-page copyright-align-${align}" style="--cp-fs:${cpFs}pt;--cp-lh:${cpLh}">
+<div class="cyrl-fm-page copyright-page copyright-align-${align}" style="font-size:${cpFs}pt;line-height:${cpLh}">
   ${cp.rights ? `<div class="cp-rights">${escHtml(cp.rights)}</div>` : ""}
   <div class="cp-spacer"></div>
   <div class="cp-bottom">
@@ -3494,8 +3494,8 @@ window.addEventListener('load', function () {
       const dedFs = dp.fontSize         ?? 12;
       const dedLh = dp.lineHeight       ?? 1.8;
       return `
-<div class="cyrl-fm-page dedication-page dedication-v-${vpos} dedication-align-${align}" style="--ded-fs:${dedFs}pt;--ded-lh:${dedLh}">
-  <div class="dedication-text">${escHtml(dp.text ?? "")}</div>
+<div class="cyrl-fm-page dedication-page dedication-v-${vpos} dedication-align-${align}">
+  <div class="dedication-text" style="font-size:${dedFs}pt;line-height:${dedLh}">${escHtml(dp.text ?? "")}</div>
 </div>`;
     })();
 
@@ -3622,15 +3622,15 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
   .title-top-line { width: 40px; height: 2px; background: #d4c5b0; margin-bottom: 1em; }
   .title-mid-line { width: 40px; height: 1px; background: #d4c5b0; margin: 0.5em 0; }
-  .title-main { font-family: ${headingFontFam}; font-size: var(--t-fs, ${h1Size}pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; }
-  .title-sub  { font-size: var(--s-fs, ${h2Size}pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
-  .title-author { font-size: var(--a-fs, 12pt); color: #555; letter-spacing: 0.05em; }
+  .title-main { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; }
+  .title-sub  { font-size: ${h2Size}pt; color: #888; font-style: italic; margin-bottom: 0.3em; }
+  .title-author { font-size: 12pt; color: #555; letter-spacing: 0.05em; }
   .title-bottom-block { margin-top: auto; padding-top: 1em; }
   .title-publisher { font-size: ${Math.max(7, fontSize - 1)}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
   .title-cityYear  { font-size: ${Math.max(7, fontSize - 1)}pt; color: #aaa; margin-top: 4pt; }
 
   /* Copyright page */
-  .copyright-page { font-size: var(--cp-fs, 9pt); color: #555; line-height: var(--cp-lh, 1.7); padding: 20mm 0; }
+  .copyright-page { font-size: 9pt; color: #555; line-height: 1.7; padding: 20mm 0; }
   .copyright-align-left   { align-items: flex-start; text-align: left; }
   .copyright-align-center { align-items: center; text-align: center; }
   .copyright-align-right  { align-items: flex-end; text-align: right; }
@@ -3649,7 +3649,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .dedication-align-left   { align-items: flex-start; text-align: left; }
   .dedication-align-center { align-items: center; text-align: center; }
   .dedication-align-right  { align-items: flex-end; text-align: right; }
-  .dedication-text { font-size: var(--ded-fs, 12pt); font-style: italic; color: #555; line-height: var(--ded-lh, 1.8); max-width: 80%; }
+  .dedication-text { font-size: 12pt; font-style: italic; color: #555; line-height: 1.8; max-width: 80%; }
 
   /* TOC page */
   .cyrl-toc-page { padding-top: 10mm; }

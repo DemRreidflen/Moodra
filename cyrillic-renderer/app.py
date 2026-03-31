@@ -50,6 +50,71 @@ SUPPORTED_LANGUAGES = {"ru", "uk"}
 
 PYPHEN_DICTS = {}
 
+# Absolute path to bundled fonts directory (next to this file)
+_FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+
+def _font_path(name: str) -> str:
+    """Return file:// URI for a font file in the bundled fonts directory."""
+    return "file://" + os.path.join(_FONTS_DIR, name)
+
+def _inject_font_faces(html: str) -> str:
+    """
+    Inject @font-face rules into the HTML <head> so WeasyPrint can render
+    fonts by name even when they are not installed system-wide.
+    Liberation Serif is metric-compatible with Times New Roman / Georgia.
+    DejaVu Serif (system-installed) is the final fallback.
+    """
+    lib_r  = _font_path("LiberationSerif-Regular.ttf")
+    lib_b  = _font_path("LiberationSerif-Bold.ttf")
+    lib_i  = _font_path("LiberationSerif-Italic.ttf")
+    lib_bi = _font_path("LiberationSerif-BoldItalic.ttf")
+
+    # Font families that map to Liberation Serif (serif, Cyrillic-capable)
+    serif_families = [
+        "Georgia",
+        "Times New Roman",
+        "Times",
+        "Palatino Linotype",
+        "Palatino",
+        "Book Antiqua",
+        "Liberation Serif",
+        "Noto Serif",
+    ]
+
+    faces = []
+    for family in serif_families:
+        faces.append(f"""
+@font-face {{
+  font-family: '{family}';
+  src: url('{lib_r}') format('truetype');
+  font-weight: normal; font-style: normal;
+}}
+@font-face {{
+  font-family: '{family}';
+  src: url('{lib_b}') format('truetype');
+  font-weight: bold; font-style: normal;
+}}
+@font-face {{
+  font-family: '{family}';
+  src: url('{lib_i}') format('truetype');
+  font-weight: normal; font-style: italic;
+}}
+@font-face {{
+  font-family: '{family}';
+  src: url('{lib_bi}') format('truetype');
+  font-weight: bold; font-style: italic;
+}}""")
+
+    font_css = "<style>/* bundled font-faces */\n" + "\n".join(faces) + "\n</style>\n"
+
+    # Insert immediately before the first <style> or at start of <head>
+    if "<head>" in html:
+        html = html.replace("<head>", "<head>\n" + font_css, 1)
+    elif "<HEAD>" in html:
+        html = html.replace("<HEAD>", "<HEAD>\n" + font_css, 1)
+
+    return html
+
 
 def _get_pyphen(lang: str):
     if lang not in PYPHEN_DICTS:
@@ -103,6 +168,10 @@ def render_pdf():
 
         # Pre-load Pyphen dict to confirm availability
         _get_pyphen(language)
+
+        # Inject @font-face rules so WeasyPrint can find fonts by their
+        # CSS family name even when they're not installed system-wide.
+        html = _inject_font_faces(html)
 
         # Render via WeasyPrint
         try:
