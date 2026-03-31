@@ -721,6 +721,10 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                 <p>В превью текст может распределяться не совсем пропорционально — внизу страниц бывает больше пустого пространства, чем должно быть.</p>
                 <p className="font-medium mt-1">В итоговом PDF-файле этого нет — всё выглядит корректно.</p>
               </div>
+              <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3 text-xs text-orange-800 dark:text-orange-300 space-y-1">
+                <p className="font-semibold">Дизайн-страницы (Designer Pages):</p>
+                <p>Добавление дизайн-страниц в Cyrillic Engine может работать некорректно. Если страница не попала в нужное место — вставьте её вручную в структуру PDF после скачивания с помощью любого PDF-редактора.</p>
+              </div>
             </div>
             <button
               onClick={() => setShowCyrillicBeta(false)}
