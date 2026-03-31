@@ -55,6 +55,11 @@ async function buildAll() {
     define: {
       "process.env.NODE_ENV": '"production"',
     },
+    // Inject a require() shim so bundled CJS dependencies (express, pg, etc.)
+    // can call require() at runtime inside an ESM module.
+    banner: {
+      js: `import { createRequire } from "module"; import { fileURLToPath } from "url"; import { dirname } from "path"; const require = createRequire(import.meta.url); const __filename = fileURLToPath(import.meta.url); const __dirname = dirname(__filename);`,
+    },
     minify: true,
     external: externals,
     logLevel: "info",
