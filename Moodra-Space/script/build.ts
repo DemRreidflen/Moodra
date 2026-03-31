@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import { execSync } from "child_process";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -66,7 +67,24 @@ async function buildAll() {
   });
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+async function installPythonDeps() {
+  console.log("installing cyrillic renderer python dependencies...");
+  try {
+    execSync("python3 -m pip install -r ../cyrillic-renderer/requirements.txt --quiet", {
+      stdio: "inherit",
+      cwd: process.cwd(),
+    });
+    console.log("python dependencies installed.");
+  } catch (err) {
+    // Non-fatal: warn but don't fail the build.
+    // The Node.js server will still work; only Cyrillic PDF export will be unavailable.
+    console.warn("⚠️  Could not install Python dependencies for Cyrillic Renderer:", (err as Error).message);
+  }
+}
+
+buildAll()
+  .then(installPythonDeps)
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
