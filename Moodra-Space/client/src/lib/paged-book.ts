@@ -1144,7 +1144,7 @@ export function generatePrintHtml(opts: PagedBookOptions): string {
  *   - Sends the same postMessage protocol as Paged.js (paged-ready, goto-page, etc.)
  */
 export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
-  const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1 } = opts;
+  const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1, designerPages } = opts;
 
   // ── Settings (mirror server-side route defaults exactly) ──────────────
   const docLang    = ((s as any).documentLanguage ?? book.language ?? "ru") as "ru" | "uk";
@@ -1616,12 +1616,14 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
   // Uses JSON.stringify for safe embedding of strings (avoids quote injection bugs)
   const fontFamilyJs  = JSON.stringify(s.fontFamily);
   const bookTitleJs   = JSON.stringify(book.title);
+  const cyrDpJson = JSON.stringify((designerPages ?? []).map(dp => ({ afterPage: dp.afterPage, imageUrl: dp.imageUrl })));
   const script = `
 (function() {
   var SHOW_NUM   = ${showFooterNum};
   var SHOW_TITLE = ${showFooterTitle};
   var FOOT_ALIGN = ${JSON.stringify(footerAlign)};
   var BOOK_TITLE = ${bookTitleJs};
+  var DESIGNER_PAGES = ${cyrDpJson};
   var pageEls = [];
   var chapterPageMap = {};
 
@@ -1817,6 +1819,25 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
     });
 
     if (page.children.length > 0) pushPage(page);
+
+    // ── Inject designer pages ───────────────────────────────────────────
+    if (DESIGNER_PAGES.length > 0) {
+      var dpSortedCyr = DESIGNER_PAGES.slice().sort(function(a, b) { return b.afterPage - a.afterPage; });
+      var canvas2 = document.getElementById('cyrl-canvas');
+      dpSortedCyr.forEach(function(dp) {
+        var idx = dp.afterPage - 1;
+        if (idx < 0 || idx >= pageEls.length) return;
+        var dpCard = document.createElement('div');
+        dpCard.className = 'cyrl-page cyrl-page--designer';
+        dpCard.style.overflow = 'hidden';
+        var img = document.createElement('img');
+        img.src = dp.imageUrl; img.alt = '';
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+        dpCard.appendChild(img);
+        pageEls[idx].insertAdjacentElement('afterend', dpCard);
+        pageEls.splice(idx + 1, 0, dpCard);
+      });
+    }
 
     // 1-based chapter page map
     var chapterPages = {};

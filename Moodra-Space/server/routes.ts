@@ -3535,8 +3535,38 @@ ${chapters.map((ch, i) => `    <div class="toc-row"><a href="#chapter-${i}"><spa
     // Build front matter block
     const frontMatterHtml = [coverHtml, titlePageHtml, copyrightPageHtml, dedicationPageHtml, tocPageHtml].filter(Boolean).join("\n");
 
+    // ── Designer pages ────────────────────────────────────────────────
+    // afterPage is a 1-based page index in the full document.
+    // We compute how many front-matter pages are enabled, then map the
+    // remainder to a 0-based chapter index for insertion.
+    const dpRaw: { afterPage: number; imageUrl: string }[] = Array.isArray(body.designerPages)
+      ? body.designerPages : [];
+    const fmPageCount = [
+      !!(book.coverImage && book.coverImage.startsWith("data:")),
+      !!(fm.titlePage?.enabled),
+      !!(fm.copyrightPage?.enabled),
+      !!(fm.dedicationPage?.enabled),
+      fm.tocPage?.enabled !== false,
+    ].filter(Boolean).length;
+
+    // For each designer page, determine after which chapter index (0-based) it falls.
+    // afterChapter = afterPage - fmPageCount  (1-based chapter position)
+    // Insert the designer page div after chapter[afterChapter - 1], clamped to [0, chapters.length].
+    type DpEntry = { afterChapter: number; imageUrl: string };
+    const dpByChapter: Map<number, DpEntry[]> = new Map();
+    for (const dp of dpRaw) {
+      if (!dp.imageUrl) continue;
+      const afterCh = Math.max(0, Math.min(chapters.length, dp.afterPage - fmPageCount));
+      if (!dpByChapter.has(afterCh)) dpByChapter.set(afterCh, []);
+      dpByChapter.get(afterCh)!.push({ afterChapter: afterCh, imageUrl: dp.imageUrl });
+    }
+    const dpPageHtml = (images: DpEntry[] | undefined) => (images ?? [])
+      .map(dp => `<div class="cyrl-designer-page"><img src="${dp.imageUrl}" alt=""/></div>`)
+      .join("\n");
+
     // ── Chapter bodies (no "Глава X", title centered) ────────────────
-    let bodyHtml = "";
+    // Designer pages that fall before all chapters (afterChapter = 0):
+    let bodyHtml = dpPageHtml(dpByChapter.get(0));
     for (let ci = 0; ci < chapters.length; ci++) {
       const ch = chapters[ci];
       let blocks: any[] = [];
@@ -3549,6 +3579,8 @@ ${chapters.map((ch, i) => `    <div class="toc-row"><a href="#chapter-${i}"><spa
 ${contentHtml || '<p class="empty-chapter">—</p>'}
   </div>
 </section>`;
+      // Inject any designer pages that belong after chapter ci+1 (1-based)
+      bodyHtml += "\n" + dpPageHtml(dpByChapter.get(ci + 1));
     }
 
     const hyphBody = `
@@ -3594,6 +3626,28 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     margin: 0; padding: 0; overflow: hidden; display: block;
   }
   .cyrl-cover-img-page img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+
+  /* ── Designer (full-page image) pages ── */
+  @page cyrl-designer {
+    size: ${pageSizeCSS};
+    margin: 0;
+    @bottom-left   { content: none; }
+    @bottom-center { content: none; }
+    @bottom-right  { content: none; }
+    @top-left      { content: none; }
+    @top-center    { content: none; }
+    @top-right     { content: none; }
+  }
+  .cyrl-designer-page {
+    page: cyrl-designer;
+    page-break-before: always;
+    page-break-after: always;
+    width: ${psW}mm; height: ${psH}mm;
+    margin: 0; padding: 0; overflow: hidden; display: block;
+  }
+  .cyrl-designer-page img {
     width: 100%; height: 100%; object-fit: cover; display: block;
   }
 
