@@ -1078,7 +1078,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                 <NumInput value={settings.fontSize} onChange={v => update({ fontSize: v })} min={8} max={18} step={0.5} unit="pt" />
               </Row>
               <Row label={lp.lineHeight}>
-                <NumInput value={settings.lineHeight} onChange={v => update({ lineHeight: v })} min={1} max={3} step={0.05} />
+                <NumInput value={settings.lineHeight} onChange={v => update({ lineHeight: v })} min={0.5} max={3} step={0.1} />
               </Row>
               <Row label={lp.paragraphIndent}>
                 <NumInput value={settings.paragraphSpacing} onChange={v => update({ paragraphSpacing: v })} min={0} max={3} step={0.1} unit="em" />
