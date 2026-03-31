@@ -3434,23 +3434,92 @@ window.addEventListener('load', function () {
       }
     };
 
-    // Build TOC
-    const tocRows = chapters.map((ch, i) => `
-      <tr>
-        <td class="toc-num">${i + 1}.</td>
-        <td class="toc-title">${escHtml(ch.title)}</td>
-      </tr>`).join("");
+    // Parse frontMatter settings from request
+    const fm: any = body.frontMatter ?? {};
+    const tocLangLabel = docLang === "uk" ? "Зміст" : "Содержание";
 
-    // Build chapter bodies
+    // ── Title page ──────────────────────────────────────────────────────
+    const titlePageHtml = (() => {
+      const tp = fm.titlePage;
+      if (!tp?.enabled) return "";
+      const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
+      const align  = tp.alignment       ?? "center";
+      const deco   = tp.decorativeStyle ?? "none";
+      const tfs    = tp.titleFontSize   ?? 28;
+      const sfs    = tp.subtitleFontSize ?? 13;
+      const afs    = tp.authorFontSize  ?? 12;
+      const sp     = tp.elementSpacing  ?? 1.2;
+      const lh     = tp.titleLineHeight ?? 1.2;
+      return `
+<div class="cyrl-fm-page title-page title-align-${align}" style="--t-fs:${tfs}pt;--s-fs:${sfs}pt;--a-fs:${afs}pt;--sp:${sp}em;--lh:${lh}">
+  ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
+  ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
+  <h1 class="title-main">${escHtml(titleText)}</h1>
+  ${tp.subtitle ? `<div class="title-sub">${escHtml(tp.subtitle)}</div>` : ""}
+  ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
+  ${tp.author ? `<div class="title-author">${escHtml(tp.author)}</div>` : ""}
+  <div class="title-bottom-block">
+    ${tp.publisherName ? `<div class="title-publisher">${escHtml(tp.publisherName)}</div>` : ""}
+    ${(tp.city || tp.year) ? `<div class="title-cityYear">${[tp.city, tp.year].filter(Boolean).map((v: any) => escHtml(String(v))).join(" · ")}</div>` : ""}
+  </div>
+</div>`;
+    })();
+
+    // ── Copyright page ──────────────────────────────────────────────────
+    const copyrightPageHtml = (() => {
+      const cp = fm.copyrightPage;
+      if (!cp?.enabled) return "";
+      const align = cp.alignment ?? "left";
+      const cpFs  = cp.fontSize   ?? 9;
+      const cpLh  = cp.lineHeight ?? 1.5;
+      return `
+<div class="cyrl-fm-page copyright-page copyright-align-${align}" style="--cp-fs:${cpFs}pt;--cp-lh:${cpLh}">
+  ${cp.rights ? `<div class="cp-rights">${escHtml(cp.rights)}</div>` : ""}
+  <div class="cp-spacer"></div>
+  <div class="cp-bottom">
+    ${cp.isbn          ? `<div class="cp-isbn">ISBN ${escHtml(cp.isbn)}</div>` : ""}
+    ${cp.editor        ? `<div class="cp-line">${escHtml(cp.editor)}</div>` : ""}
+    ${cp.coverDesigner ? `<div class="cp-line">${escHtml(cp.coverDesigner)}</div>` : ""}
+    ${(cp.copyrightYear || cp.copyrightHolder) ? `<div class="cp-line cp-copyright">© ${[cp.copyrightYear, cp.copyrightHolder].filter(Boolean).map((v: any) => escHtml(String(v))).join(", ")}</div>` : ""}
+  </div>
+</div>`;
+    })();
+
+    // ── Dedication page ─────────────────────────────────────────────────
+    const dedicationPageHtml = (() => {
+      const dp = fm.dedicationPage;
+      if (!dp?.enabled) return "";
+      const vpos  = dp.verticalPosition ?? "center";
+      const align = dp.alignment        ?? "center";
+      const dedFs = dp.fontSize         ?? 12;
+      const dedLh = dp.lineHeight       ?? 1.8;
+      return `
+<div class="cyrl-fm-page dedication-page dedication-v-${vpos} dedication-align-${align}" style="--ded-fs:${dedFs}pt;--ded-lh:${dedLh}">
+  <div class="dedication-text">${escHtml(dp.text ?? "")}</div>
+</div>`;
+    })();
+
+    // ── TOC page ────────────────────────────────────────────────────────
+    const tocPageHtml = fm.tocEnabled !== false ? `
+<div class="cyrl-fm-page cyrl-toc-page">
+  <h2 class="toc-heading">${tocLangLabel}</h2>
+  <div class="toc-list">
+${chapters.map((ch, i) => `    <div class="toc-row"><span class="toc-num">${i + 1}</span><span class="toc-title">${escHtml(ch.title)}</span></div>`).join("\n")}
+  </div>
+</div>` : "";
+
+    // Build front matter block
+    const frontMatterHtml = [titlePageHtml, copyrightPageHtml, dedicationPageHtml, tocPageHtml].filter(Boolean).join("\n");
+
+    // ── Chapter bodies (no "Глава X", title centered) ────────────────
     let bodyHtml = "";
     for (let ci = 0; ci < chapters.length; ci++) {
       const ch = chapters[ci];
       let blocks: any[] = [];
       try { blocks = typeof ch.content === "string" ? JSON.parse(ch.content) : (ch.content || []); } catch {}
-      const contentHtml = blocks.map(b => cyrBlockToHtml(b)).filter(Boolean).join("\n");
+      const contentHtml = blocks.map((b: any) => cyrBlockToHtml(b)).filter(Boolean).join("\n");
       bodyHtml += `
 <section class="chapter${chapterBreak ? " chapter-break" : ""}">
-  <div class="chapter-header-line"><span class="chapter-num">${docLang === "uk" ? "Розділ" : "Глава"} ${ci + 1}</span></div>
   <h1 class="chapter-title">${escHtml(ch.title)}</h1>
   <div class="chapter-content">
 ${contentHtml || '<p class="empty-chapter">—</p>'}
@@ -3471,10 +3540,11 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
 
     const hyphHeadings = enableHyphHeadings ? "" : `
   h1, h2, h3, h4, h5, h6,
-  .chapter-title, .chapter-num, .chapter-header-line { hyphens: none !important; }`;
+  .chapter-title, .toc-heading,
+  .title-main, .title-sub, .title-author { hyphens: none !important; }`;
 
     const hyphToc = enableHyphToc ? "" : `
-  .toc, .toc *, .toc-heading, .toc-title, .toc-num { hyphens: none !important; }`;
+  .toc-list, .toc-heading, .toc-row, .toc-title, .toc-num { hyphens: none !important; }`;
 
     const cyrHtml = `<!DOCTYPE html>
 <html lang="${htmlLang}" class="cyrillic-engine">
@@ -3508,8 +3578,8 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
 
   /* ── Headings: no hyphenation ── */
   h1, h2, h3, h4, h5, h6,
-  .chapter-title, .chapter-num, .chapter-header-line,
-  .cover-title, .cover-subtitle, .cover-meta,
+  .chapter-title, .toc-heading,
+  .title-main, .title-sub, .title-author,
   a, code, pre, .url, .email, .filepath {
     hyphens: none;
     word-break: keep-all;
@@ -3535,42 +3605,72 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   }
   ` : ""}
 
-  /* ── Cover page ── */
-  .cover-page {
+  /* ── Front matter page base ── */
+  .cyrl-fm-page {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
     min-height: 100vh;
-    text-align: center;
     page-break-after: always;
-    padding: 20mm 15mm;
+    overflow: hidden;
   }
-  .cover-title { font-family: ${headingFontFam}; font-size: ${Math.min(h1Size + 6, 40)}pt; font-weight: 700; margin-bottom: 0.4em; line-height: 1.2; letter-spacing: -0.01em; }
-  .cover-subtitle { font-size: ${h2Size}pt; color: #666; margin-bottom: 1.5em; }
-  .cover-ornament { font-size: 18pt; margin: 1em 0; color: #aaa; }
-  .cover-meta { font-size: 10pt; color: #888; margin-top: auto; }
 
-  /* ── TOC ── */
-  .toc-page { page-break-after: always; padding-top: 10mm; }
-  .toc-heading { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 8mm; text-align: center; letter-spacing: -0.01em; }
-  .toc table { width: 100%; border-collapse: collapse; }
-  .toc-num { width: 2em; color: #888; font-size: 9pt; vertical-align: top; padding-top: 2pt; white-space: nowrap; }
-  .toc-title { font-size: 10pt; padding-bottom: 4pt; }
+  /* Title page */
+  .title-page { padding: 20mm 0; }
+  .title-align-center { align-items: center; text-align: center; }
+  .title-align-left   { align-items: flex-start; text-align: left; }
+  .title-align-right  { align-items: flex-end; text-align: right; }
+  .title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
+  .title-top-line { width: 40px; height: 2px; background: #d4c5b0; margin-bottom: 1em; }
+  .title-mid-line { width: 40px; height: 1px; background: #d4c5b0; margin: 0.5em 0; }
+  .title-main { font-family: ${headingFontFam}; font-size: var(--t-fs, ${h1Size}pt); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; }
+  .title-sub  { font-size: var(--s-fs, ${h2Size}pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
+  .title-author { font-size: var(--a-fs, 12pt); color: #555; letter-spacing: 0.05em; }
+  .title-bottom-block { margin-top: auto; padding-top: 1em; }
+  .title-publisher { font-size: ${Math.max(7, fontSize - 1)}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
+  .title-cityYear  { font-size: ${Math.max(7, fontSize - 1)}pt; color: #aaa; margin-top: 4pt; }
+
+  /* Copyright page */
+  .copyright-page { font-size: var(--cp-fs, 9pt); color: #555; line-height: var(--cp-lh, 1.7); padding: 20mm 0; }
+  .copyright-align-left   { align-items: flex-start; text-align: left; }
+  .copyright-align-center { align-items: center; text-align: center; }
+  .copyright-align-right  { align-items: flex-end; text-align: right; }
+  .cp-rights { max-width: 92%; line-height: 1.65; margin-bottom: 1.6em; }
+  .cp-spacer { flex: 1; }
+  .cp-bottom { padding-bottom: 20pt; }
+  .cp-isbn { margin-bottom: 1em; }
+  .cp-line { margin-bottom: 2pt; line-height: 1.65; }
+  .cp-copyright { color: #333; font-weight: 500; margin-top: 0.3em; }
+
+  /* Dedication page */
+  .dedication-page { padding: 20mm 0; }
+  .dedication-v-top    { justify-content: flex-start; padding-top: 40mm; }
+  .dedication-v-center { justify-content: center; }
+  .dedication-v-bottom { justify-content: flex-end; padding-bottom: 40mm; }
+  .dedication-align-left   { align-items: flex-start; text-align: left; }
+  .dedication-align-center { align-items: center; text-align: center; }
+  .dedication-align-right  { align-items: flex-end; text-align: right; }
+  .dedication-text { font-size: var(--ded-fs, 12pt); font-style: italic; color: #555; line-height: var(--ded-lh, 1.8); max-width: 80%; }
+
+  /* TOC page */
+  .cyrl-toc-page { padding-top: 10mm; }
+  .toc-heading { font-family: ${headingFontFam}; font-size: ${h2Size}pt; font-weight: 600; text-align: center; margin-bottom: 8mm; letter-spacing: 0.05em; color: #333; }
+  .toc-list { display: flex; flex-direction: column; gap: 4pt; }
+  .toc-row { display: flex; align-items: baseline; gap: 4pt; font-size: ${fontSize}pt; }
+  .toc-num { color: #bbb; font-size: ${Math.max(7, fontSize - 1)}pt; min-width: 1.8em; }
+  .toc-title { color: #333; }
 
   /* ── Chapter ── */
   .chapter { padding-top: 8mm; }
   .chapter-break { page-break-before: always; }
-  .chapter-header-line { margin-bottom: 3mm; }
-  .chapter-num { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; color: #888; font-weight: 400; font-family: ${fontFamily}; }
   .chapter-title {
     font-family: ${headingFontFam};
     font-size: ${h1Size}pt;
     font-weight: 700;
-    margin-bottom: 6mm;
+    margin-bottom: 8mm;
     line-height: 1.2;
     color: #1a0d06;
     letter-spacing: -0.01em;
+    text-align: center;
     page-break-after: avoid;
   }
   .chapter-content { }
@@ -3655,21 +3755,8 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
 </head>
 <body class="book-export cyrillic-engine">
 
-  <!-- Cover -->
-  <div class="cover-page">
-    <div class="cover-title">${escHtml(book.title)}</div>
-    ${book.description ? `<div class="cover-subtitle">${escHtml(book.description.slice(0, 120))}</div>` : ""}
-    <div class="cover-ornament">&#10022; &#10022; &#10022;</div>
-    <div class="cover-meta">${new Date().getFullYear()}</div>
-  </div>
-
-  <!-- TOC -->
-  <div class="toc-page">
-    <div class="toc">
-      <div class="toc-heading">${docLang === "uk" ? "Зміст" : "Содержание"}</div>
-      <table>${tocRows}</table>
-    </div>
-  </div>
+  <!-- Front matter (title/copyright/dedication/TOC) -->
+  ${frontMatterHtml}
 
   <!-- Chapters -->
   ${bodyHtml}

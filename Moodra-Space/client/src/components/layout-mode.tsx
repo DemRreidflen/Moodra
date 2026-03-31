@@ -136,6 +136,7 @@ function ExportModal({
           cyrillicHyphenHeadings: settings.cyrillicHyphenHeadings,
           cyrillicHyphenToc: settings.cyrillicHyphenToc,
           cyrillicHyphenLinks: settings.cyrillicHyphenLinks,
+          frontMatter,
         };
         const resp = await fetch(`/api/books/${bookId}/export/pdf-cyrillic`, {
           method: "POST",
