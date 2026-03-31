@@ -202,12 +202,12 @@ function settingsToCss(input: PagedBookInput): string {
     if (footerAlign === "mirror") return "";
     const box = footerAlign === "left" ? "@bottom-left" :
                 footerAlign === "right" ? "@bottom-right" : "@bottom-center";
-    return `${box} { content: ${footerContent}; font-family: ${s.fontFamily}; font-size: 8pt; color: #999; }`;
+    return `${box} { content: ${footerContent}; font-family: ${s.fontFamily}; font-size: 9.5pt; color: #999; }`;
   })();
 
   const mirrorFooterRules = hasFooter && footerAlign === "mirror" ? `
-@page :left  { @bottom-left  { content: ${footerContent}; font-family: ${s.fontFamily}; font-size: 8pt; color: #999; } }
-@page :right { @bottom-right { content: ${footerContent}; font-family: ${s.fontFamily}; font-size: 8pt; color: #999; } }` : "";
+@page :left  { @bottom-left  { content: ${footerContent}; font-family: ${s.fontFamily}; font-size: 9.5pt; color: #999; } }
+@page :right { @bottom-right { content: ${footerContent}; font-family: ${s.fontFamily}; font-size: 9.5pt; color: #999; } }` : "";
 
   const headerMarginBoxes = !hasHeader ? "" : `
     @top-left  { content: ${headerLeftContent};  font-family: ${s.fontFamily}; font-size: 7pt; color: #bbb; }
@@ -1401,7 +1401,7 @@ html[data-view="spread"] #cyrl-canvas {
   bottom: ${Math.round(mb * 0.38)}mm;
   left: ${ml}mm;
   right: ${mr}mm;
-  font-size: 8pt;
+  font-size: 9.5pt;
   color: #888;
   line-height: 1;
   letter-spacing: 0;

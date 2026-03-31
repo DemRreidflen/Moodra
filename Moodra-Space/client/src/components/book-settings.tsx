@@ -414,6 +414,16 @@ export function BookSettings({ book }: { book: Book }) {
                 className="bg-background rounded-xl resize-none border-border"
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">{s.aboutAuthorLabel}</Label>
+              <Textarea
+                value={aboutAuthor}
+                onChange={e => { setAboutAuthor(e.target.value); mark(); }}
+                rows={4}
+                placeholder={s.aboutAuthorPlaceholder}
+                className="bg-background rounded-xl resize-none border-border text-sm"
+              />
+            </div>
           </div>
 
           {/* Mode & Genre */}
@@ -683,21 +693,6 @@ export function BookSettings({ book }: { book: Book }) {
                     : "Filled fields are embedded in every AI prompt — helping the co-author, text analysis, drafts, and idea board understand the essence of your book."}
                 </p>
               </div>
-            </div>
-          </div>
-
-          {/* About the author */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-widest">{s.aboutAuthorSection}</h3>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">{s.aboutAuthorLabel}</Label>
-              <Textarea
-                value={aboutAuthor}
-                onChange={e => { setAboutAuthor(e.target.value); mark(); }}
-                rows={5}
-                placeholder={s.aboutAuthorPlaceholder}
-                className="bg-background rounded-xl resize-none border-border text-sm"
-              />
             </div>
           </div>
 

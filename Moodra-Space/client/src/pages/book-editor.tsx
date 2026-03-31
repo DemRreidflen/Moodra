@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useLang } from "@/contexts/language-context";
 
 export type EditorTab = "editor" | "characters" | "notes" | "research" | "board" | "layout" | "settings";
 
@@ -42,6 +43,8 @@ function CoverDot({ book }: { book: Book }) {
 }
 
 export default function BookEditor() {
+  const { t } = useLang();
+  const lp = t.layoutPanel as Record<string, string>;
   const [, params] = useRoute("/book/:id");
   const [, navigate] = useLocation();
   const bookId = Number(params?.id);
@@ -120,13 +123,13 @@ export default function BookEditor() {
   }
 
   const navItems = [
-    { id: "editor" as EditorTab, icon: BookOpen, label: "Редактор" },
-    ...(book.mode === "fiction" ? [{ id: "characters" as EditorTab, icon: Users, label: "Персонажи" }] : []),
-    { id: "notes" as EditorTab, icon: FileText, label: "Заметки" },
-    { id: "research" as EditorTab, icon: PenLine, label: "Черновики" },
-    { id: "board" as EditorTab, icon: Brain, label: "Доска идей" },
-    { id: "layout" as EditorTab, icon: Columns2, label: "Верстка" },
-    { id: "settings" as EditorTab, icon: Settings, label: "Настройки" },
+    { id: "editor" as EditorTab, icon: BookOpen, label: lp.navEditor || "Editor" },
+    ...(book.mode === "fiction" ? [{ id: "characters" as EditorTab, icon: Users, label: lp.navCharacters || "Characters" }] : []),
+    { id: "notes" as EditorTab, icon: FileText, label: lp.navNotes || "Notes" },
+    { id: "research" as EditorTab, icon: PenLine, label: lp.navResearch || "Drafts" },
+    { id: "board" as EditorTab, icon: Brain, label: lp.navBoard || "Idea Board" },
+    { id: "layout" as EditorTab, icon: Columns2, label: lp.navLayout || "Layout" },
+    { id: "settings" as EditorTab, icon: Settings, label: lp.navSettings || "Settings" },
   ];
 
   return (

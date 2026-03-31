@@ -2952,8 +2952,8 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   @page {
     size: ${pageSizeCSS};
     margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
-    @top-center { content: string(chapter-name); font-family: ${fontFamily}; font-size: 8pt; color: #888; }
-    @bottom-center { content: counter(page); font-family: ${fontFamily}; font-size: 8pt; color: #888; }
+    @top-center { content: string(chapter-name); font-family: ${fontFamily}; font-size: 9.5pt; color: #888; }
+    @bottom-center { content: counter(page); font-family: ${fontFamily}; font-size: 9.5pt; color: #888; }
   }
   @page :first { @top-center { content: ""; } @bottom-center { content: ""; } }
 
@@ -3617,12 +3617,12 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   /* ── Page footer (WeasyPrint @page margin boxes) ── */
   ${footerPageNumber || footerBookTitle ? `
   @page {
-    ${footerAlignment === "left"   ? `@bottom-left   { ${footerPageNumber ? `content: counter(page);` : ""} font-size: 8pt; color: #888; font-family: ${fontFamily}; }` : ""}
-    ${footerAlignment === "center" ? `@bottom-center { content: ${footerPageNumber && footerBookTitle ? `"${escHtml(book.title).replace(/"/g,"'")} · " counter(page)` : footerPageNumber ? `counter(page)` : `"${escHtml(book.title).replace(/"/g,"'")}"`}; font-size: 8pt; color: #888; font-family: ${fontFamily}; }` : ""}
-    ${footerAlignment === "right"  ? `@bottom-right  { ${footerPageNumber ? `content: counter(page);` : ""} font-size: 8pt; color: #888; font-family: ${fontFamily}; }` : ""}
+    ${footerAlignment === "left"   ? `@bottom-left   { ${footerPageNumber ? `content: counter(page);` : ""} font-size: 9.5pt; color: #888; font-family: ${fontFamily}; }` : ""}
+    ${footerAlignment === "center" ? `@bottom-center { content: ${footerPageNumber && footerBookTitle ? `"${escHtml(book.title).replace(/"/g,"'")} · " counter(page)` : footerPageNumber ? `counter(page)` : `"${escHtml(book.title).replace(/"/g,"'")}"`}; font-size: 9.5pt; color: #888; font-family: ${fontFamily}; }` : ""}
+    ${footerAlignment === "right"  ? `@bottom-right  { ${footerPageNumber ? `content: counter(page);` : ""} font-size: 9.5pt; color: #888; font-family: ${fontFamily}; }` : ""}
     ${footerAlignment === "mirror" ? `
-    @bottom-left  { content: counter(page); font-size: 8pt; color: #888; font-family: ${fontFamily}; }
-    @bottom-right { content: "${footerBookTitle ? escHtml(book.title).replace(/"/g,"'") : ""}"; font-size: 8pt; color: #888; font-family: ${fontFamily}; }
+    @bottom-left  { content: counter(page); font-size: 9.5pt; color: #888; font-family: ${fontFamily}; }
+    @bottom-right { content: "${footerBookTitle ? escHtml(book.title).replace(/"/g,"'") : ""}"; font-size: 9.5pt; color: #888; font-family: ${fontFamily}; }
     ` : ""}
   }
   @page :first {
@@ -3688,7 +3688,14 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .toc-list { display: flex; flex-direction: column; gap: 3pt; }
   .toc-row { display: block; font-size: ${fontSize}pt; line-height: 1.8; }
   .toc-row a { color: inherit; text-decoration: none; display: block; }
-  .toc-num { color: #bbb; font-size: ${Math.max(7, fontSize - 1)}pt; }
+  .toc-num {
+    display: inline-block;
+    min-width: 2.2em;
+    margin-right: 4pt;
+    color: #bbb;
+    font-size: ${Math.max(7, fontSize - 1)}pt;
+    vertical-align: baseline;
+  }
   .toc-title { color: #222; }
   /* WeasyPrint: leader dots + page number from anchor target */
   .toc-row a::after {

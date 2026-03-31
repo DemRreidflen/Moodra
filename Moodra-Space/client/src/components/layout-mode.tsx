@@ -915,7 +915,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
         <div className="flex-1 overflow-y-auto px-3 pb-4">
 
           {/* Layout Engine */}
-          <SecHead label="Layout Engine" open={open.engine} toggle={() => tog("engine")} />
+          <SecHead label={lp.engineSection || "Layout Engine"} open={open.engine} toggle={() => tog("engine")} />
           {open.engine && (
             <div className="space-y-2 pb-3 border-b border-border/30">
               {/* Engine selector */}
@@ -937,14 +937,14 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
               </div>
               <p className="text-[10px] text-muted-foreground leading-snug px-0.5">
                 {settings.layoutEngine === "cyrillic"
-                  ? "Кириллический движок: WeasyPrint + Pyphen. Оптимизирован для RU/UK. PDF скачается как файл."
-                  : "Latin Engine: Paged.js в браузере. Для EN/DE. Откроется диалог печати."}
+                  ? (lp.engineCyrillicDesc || "Cyrillic Engine: WeasyPrint + Pyphen. Optimised for RU/UK.")
+                  : (lp.engineLatinDesc || "Latin Engine: Paged.js in browser. For EN/DE.")}
               </p>
 
               {/* Cyrillic Engine settings */}
               {settings.layoutEngine === "cyrillic" && (
                 <div className="space-y-1.5 pt-1 border-t border-border/20">
-                  <Row label="Язык документа">
+                  <Row label={lp.documentLanguageLabel || "Document language"}>
                     <select
                       value={settings.documentLanguage}
                       onChange={e => update({ documentLanguage: e.target.value as "ru" | "uk" })}
