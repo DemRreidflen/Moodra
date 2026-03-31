@@ -3362,16 +3362,25 @@ window.addEventListener('load', function () {
     const marginBottom = Math.max(5, Math.min(50, Number(body.marginBottom ?? 22)));
     const marginLeft   = Math.max(5, Math.min(50, Number(body.marginLeft   ?? 20)));
     const marginRight  = Math.max(5, Math.min(50, Number(body.marginRight  ?? 16)));
-    const fontFamily   = body.fontFamily ?? "Georgia, \"Times New Roman\", serif";
-    const fontSize     = Math.max(7, Math.min(18, Number(body.fontSize     ?? 11)));
-    const lineHeight   = Math.max(1, Math.min(3,  Number(body.lineHeight   ?? 1.6)));
-    const paraSpacing  = Math.max(0, Math.min(3,  Number(body.paragraphSpacing ?? 0.5)));
-    const firstLineIndent = Math.max(0, Math.min(5, Number(body.firstLineIndent ?? 1.2)));
-    const textAlign    = body.textAlign === "left" ? "left" : "justify";
-    const h1Size       = Math.max(10, Math.min(36, Number(body.h1Size ?? 22)));
-    const h2Size       = Math.max(8,  Math.min(30, Number(body.h2Size ?? 16)));
-    const h3Size       = Math.max(7,  Math.min(24, Number(body.h3Size ?? 13)));
-    const chapterBreak = body.chapterBreak !== false;
+    const fontFamily      = body.fontFamily ?? "Georgia, \"Times New Roman\", serif";
+    const headingFontFam  = (body.headingFontFamily && String(body.headingFontFamily).trim())
+                              ? String(body.headingFontFamily)
+                              : fontFamily;
+    const fontSize        = Math.max(7, Math.min(18, Number(body.fontSize        ?? 11)));
+    const lineHeight      = Math.max(1, Math.min(3,  Number(body.lineHeight      ?? 1.6)));
+    const letterSpacing   = Math.max(-0.1, Math.min(0.5, Number(body.letterSpacing ?? 0)));
+    const paraSpacing     = Math.max(0, Math.min(3,  Number(body.paragraphSpacing ?? 0.5)));
+    const firstLineIndent = Math.max(0, Math.min(5,  Number(body.firstLineIndent  ?? 1.2)));
+    const textAlign       = body.textAlign === "left" ? "left" : "justify";
+    const h1Size          = Math.max(10, Math.min(36, Number(body.h1Size ?? 22)));
+    const h2Size          = Math.max(8,  Math.min(30, Number(body.h2Size ?? 16)));
+    const h3Size          = Math.max(7,  Math.min(24, Number(body.h3Size ?? 13)));
+    const chapterBreak    = body.chapterBreak !== false;
+    const footerPageNumber = body.footerPageNumber !== false;
+    const footerBookTitle  = body.footerBookTitle === true;
+    const footerAlignment  = ["left","center","right","mirror"].includes(body.footerAlignment)
+                              ? (body.footerAlignment as string)
+                              : "center";
     const enableHyphHeadings = body.cyrillicHyphenHeadings !== false;
     const enableHyphToc      = body.cyrillicHyphenToc !== false;
 
@@ -3488,6 +3497,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     font-family: ${fontFamily};
     font-size: ${fontSize}pt;
     line-height: ${lineHeight};
+    letter-spacing: ${letterSpacing}em;
     color: #1a1209;
     background: #fff;
     text-rendering: optimizeLegibility;
@@ -3507,6 +3517,24 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   ${hyphHeadings}
   ${hyphToc}
 
+  /* ── Page footer (WeasyPrint @page margin boxes) ── */
+  ${footerPageNumber || footerBookTitle ? `
+  @page {
+    ${footerAlignment === "left"   ? `@bottom-left   { ${footerPageNumber ? `content: counter(page);` : ""} font-size: 8pt; color: #888; font-family: ${fontFamily}; }` : ""}
+    ${footerAlignment === "center" ? `@bottom-center { content: ${footerPageNumber && footerBookTitle ? `"${escHtml(book.title).replace(/"/g,"'")} · " counter(page)` : footerPageNumber ? `counter(page)` : `"${escHtml(book.title).replace(/"/g,"'")}"`}; font-size: 8pt; color: #888; font-family: ${fontFamily}; }` : ""}
+    ${footerAlignment === "right"  ? `@bottom-right  { ${footerPageNumber ? `content: counter(page);` : ""} font-size: 8pt; color: #888; font-family: ${fontFamily}; }` : ""}
+    ${footerAlignment === "mirror" ? `
+    @bottom-left  { content: counter(page); font-size: 8pt; color: #888; font-family: ${fontFamily}; }
+    @bottom-right { content: "${footerBookTitle ? escHtml(book.title).replace(/"/g,"'") : ""}"; font-size: 8pt; color: #888; font-family: ${fontFamily}; }
+    ` : ""}
+  }
+  @page :first {
+    @bottom-left { content: none; }
+    @bottom-center { content: none; }
+    @bottom-right { content: none; }
+  }
+  ` : ""}
+
   /* ── Cover page ── */
   .cover-page {
     display: flex;
@@ -3518,14 +3546,14 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     page-break-after: always;
     padding: 20mm 15mm;
   }
-  .cover-title { font-size: ${Math.min(h1Size + 6, 40)}pt; font-weight: 700; margin-bottom: 0.4em; line-height: 1.2; }
+  .cover-title { font-family: ${headingFontFam}; font-size: ${Math.min(h1Size + 6, 40)}pt; font-weight: 700; margin-bottom: 0.4em; line-height: 1.2; letter-spacing: -0.01em; }
   .cover-subtitle { font-size: ${h2Size}pt; color: #666; margin-bottom: 1.5em; }
   .cover-ornament { font-size: 18pt; margin: 1em 0; color: #aaa; }
   .cover-meta { font-size: 10pt; color: #888; margin-top: auto; }
 
   /* ── TOC ── */
   .toc-page { page-break-after: always; padding-top: 10mm; }
-  .toc-heading { font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 8mm; text-align: center; }
+  .toc-heading { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 8mm; text-align: center; letter-spacing: -0.01em; }
   .toc table { width: 100%; border-collapse: collapse; }
   .toc-num { width: 2em; color: #888; font-size: 9pt; vertical-align: top; padding-top: 2pt; white-space: nowrap; }
   .toc-title { font-size: 10pt; padding-bottom: 4pt; }
@@ -3534,13 +3562,15 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .chapter { padding-top: 8mm; }
   .chapter-break { page-break-before: always; }
   .chapter-header-line { margin-bottom: 3mm; }
-  .chapter-num { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; color: #888; font-weight: 400; }
+  .chapter-num { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; color: #888; font-weight: 400; font-family: ${fontFamily}; }
   .chapter-title {
+    font-family: ${headingFontFam};
     font-size: ${h1Size}pt;
     font-weight: 700;
     margin-bottom: 6mm;
     line-height: 1.2;
     color: #1a0d06;
+    letter-spacing: -0.01em;
     page-break-after: avoid;
   }
   .chapter-content { }
@@ -3559,6 +3589,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .chapter-content > p:first-child { text-indent: 0; }
 
   h2.section-h1 {
+    font-family: ${headingFontFam};
     font-size: ${h2Size}pt;
     font-weight: 700;
     margin: 20px 0 8px;
@@ -3567,6 +3598,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     page-break-after: avoid;
   }
   h3.section-h2 {
+    font-family: ${headingFontFam};
     font-size: ${h3Size}pt;
     font-weight: 700;
     font-style: italic;
@@ -3576,6 +3608,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     page-break-after: avoid;
   }
   h4.section-h3 {
+    font-family: ${headingFontFam};
     font-size: ${Math.max(7, h3Size - 1)}pt;
     font-weight: 600;
     margin: 14px 0 4px;

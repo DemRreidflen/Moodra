@@ -1146,6 +1146,7 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
 
   const fontSize    = s.fontSize    ?? 11;
   const lineHeight  = s.lineHeight  ?? 1.6;
+  const letterSpacing = s.letterSpacing ?? 0;
   const paraSpacing = s.paragraphSpacing ?? 0.5;
   const firstLineIndent = s.firstLineIndent ?? 1.2;
   const textAlign   = s.textAlign === "left" ? "left" : "justify";
@@ -1153,6 +1154,15 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
   const h2Size      = s.h2Size ?? 16;
   const h3Size      = s.h3Size ?? 13;
   const chapterBreak = (s as any).chapterBreak !== false;
+  const headingFont = (s as any).headingFontFamily
+                        ? String((s as any).headingFontFamily)
+                        : s.fontFamily;
+  const showFooterNum   = (s as any).footerPageNumber !== false;
+  const showFooterTitle = (s as any).footerBookTitle  === true;
+  const footerAlign     = (["left","center","right","mirror"] as const)
+                            .includes((s as any).footerAlignment)
+                          ? (s as any).footerAlignment as "left"|"center"|"right"|"mirror"
+                          : "center";
 
   const enableHyphBody     = (s as any).cyrillicHyphenation    !== false;
   const enableHyphHeadings = (s as any).cyrillicHyphenHeadings !== false;
@@ -1264,6 +1274,7 @@ html, body { margin: 0; padding: 0; background: #cdc7bf; }
   font-family: ${s.fontFamily};
   font-size: ${fontSize}pt;
   line-height: ${lineHeight};
+  letter-spacing: ${letterSpacing}em;
   color: #1a1209;
 }
 
@@ -1295,12 +1306,30 @@ html[data-view="spread"] #cyrl-canvas {
   padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
   font-family: ${s.fontFamily};
   font-size: ${fontSize}pt;
   line-height: ${lineHeight};
+  letter-spacing: ${letterSpacing}em;
   color: #1a1209;
-  background: #fff;
 }
+/* ── Page footer ──────────────────────────────────────────── */
+.cyrl-footer {
+  position: absolute;
+  bottom: ${Math.round(mb * 0.38)}mm;
+  left: ${ml}mm;
+  right: ${mr}mm;
+  font-size: 8pt;
+  color: #888;
+  line-height: 1;
+  letter-spacing: 0;
+  font-family: ${s.fontFamily};
+}
+.cyrl-footer.align-left   { text-align: left; }
+.cyrl-footer.align-center { text-align: center; }
+.cyrl-footer.align-right  { text-align: right; }
+.cyrl-footer.align-mirror-left  { text-align: left; }
+.cyrl-footer.align-mirror-right { text-align: right; }
 html[data-view="spread"] .cyrl-page { zoom: ${Math.min(1, zoom * 0.72)}; }
 html[data-view="single"]  .cyrl-page { zoom: ${zoom}; }
 
@@ -1335,14 +1364,14 @@ ${hyphTocCss}
   height: 100%;
   text-align: center;
 }
-.cover-title { font-size: ${Math.min(h1Size + 6, 40)}pt; font-weight: 700; margin-bottom: 0.4em; line-height: 1.2; }
+.cover-title { font-family: ${headingFont}; font-size: ${Math.min(h1Size + 6, 40)}pt; font-weight: 700; margin-bottom: 0.4em; line-height: 1.2; letter-spacing: -0.01em; }
 .cover-subtitle { font-size: ${h2Size}pt; color: #666; margin-bottom: 1.5em; }
 .cover-ornament { font-size: 18pt; margin: 1em 0; color: #aaa; }
 .cover-meta { font-size: 10pt; color: #888; margin-top: auto; }
 
 /* ── TOC page ─────────────────────────────────────────────── */
 .toc-page { padding-top: 10mm; }
-.toc-heading { font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 8mm; text-align: center; }
+.toc-heading { font-family: ${headingFont}; font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 8mm; text-align: center; letter-spacing: -0.01em; }
 .toc table { width: 100%; border-collapse: collapse; }
 .toc-num { width: 2em; color: #888; font-size: 9pt; vertical-align: top; padding-top: 2pt; white-space: nowrap; }
 .toc-title { font-size: 10pt; padding-bottom: 4pt; }
@@ -1350,10 +1379,10 @@ ${hyphTocCss}
 /* ── Chapter ──────────────────────────────────────────────── */
 .chapter { padding-top: 8mm; }
 .chapter-header-line { margin-bottom: 3mm; }
-.chapter-num { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; color: #888; font-weight: 400; }
+.chapter-num { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; color: #888; font-weight: 400; font-family: ${s.fontFamily}; }
 .chapter-title {
-  font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 6mm;
-  line-height: 1.2; color: #1a0d06;
+  font-family: ${headingFont}; font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 6mm;
+  line-height: 1.2; color: #1a0d06; letter-spacing: -0.01em;
 }
 .chapter-content { }
 
@@ -1370,15 +1399,15 @@ p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
 /* ── Headings in body ─────────────────────────────────────── */
 h2.section-h1 {
-  font-size: ${h2Size}pt; font-weight: 700; margin: 20px 0 8px;
+  font-family: ${headingFont}; font-size: ${h2Size}pt; font-weight: 700; margin: 20px 0 8px;
   color: #1a0d06; text-indent: 0;
 }
 h3.section-h2 {
-  font-size: ${h3Size}pt; font-weight: 700; font-style: italic;
+  font-family: ${headingFont}; font-size: ${h3Size}pt; font-weight: 700; font-style: italic;
   margin: 16px 0 6px; color: #3d2e26; text-indent: 0;
 }
 h4.section-h3 {
-  font-size: ${Math.max(7, h3Size - 1)}pt; font-weight: 600;
+  font-family: ${headingFont}; font-size: ${Math.max(7, h3Size - 1)}pt; font-weight: 600;
   margin: 14px 0 4px; color: #3d2e26; text-indent: 0;
 }
 
@@ -1417,46 +1446,93 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
   // 2. Chapter sections: header always on a new page, body blocks
   //    packed into pages by measuring height in the ghost container
   // 3. postMessage protocol identical to Paged.js bridge
+  const bookTitleJs = JSON.stringify(book.title);
   const script = `
 (function() {
   var MM = 96 / 25.4;
-  var PAGE_H = ${ps.height} * MM;
+  var PAGE_H  = ${ps.height} * MM;
   var CONTENT_H = PAGE_H - (${mt} * MM) - (${mb} * MM);
+  var SHOW_NUM   = ${showFooterNum};
+  var SHOW_TITLE = ${showFooterTitle};
+  var FOOT_ALIGN = ${JSON.stringify(footerAlign)};
+  var BOOK_TITLE = ${bookTitleJs};
   var pageEls = [];
   var chapterPageMap = {};
 
+  // ── Measurement probe ──────────────────────────────────────
+  // Dedicated empty probe element (avoids measuring inside content)
+  var probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;left:-9999px;top:0;width:${ps.width - ml - mr}mm;' +
+    'visibility:hidden;pointer-events:none;' +
+    'font-family:${s.fontFamily.replace(/'/g, "\\\\'")}!important;' +
+    'font-size:${fontSize}pt;line-height:${lineHeight};letter-spacing:${letterSpacing}em;';
+  document.body.appendChild(probe);
+
+  function measureH(el) {
+    var clone = el.cloneNode(true);
+    probe.appendChild(clone);
+    var cs = window.getComputedStyle(clone);
+    var h = clone.offsetHeight
+            + (parseFloat(cs.marginTop) || 0)
+            + (parseFloat(cs.marginBottom) || 0);
+    probe.removeChild(clone);
+    return h;
+  }
+
+  // ── Footer builder ─────────────────────────────────────────
+  function makeFooter(pageNum) {
+    if (!SHOW_NUM && !SHOW_TITLE) return null;
+    var div = document.createElement('div');
+    var cls = 'cyrl-footer ';
+    if (FOOT_ALIGN === 'mirror') {
+      cls += (pageNum % 2 === 0) ? 'align-mirror-left' : 'align-mirror-right';
+    } else {
+      cls += 'align-' + FOOT_ALIGN;
+    }
+    div.className = cls;
+    var parts = [];
+    if (FOOT_ALIGN === 'mirror') {
+      if (pageNum % 2 === 0) {
+        parts.push(String(pageNum));
+        if (SHOW_TITLE) parts.push(BOOK_TITLE);
+      } else {
+        if (SHOW_TITLE) parts.push(BOOK_TITLE);
+        parts.push(String(pageNum));
+      }
+      div.textContent = parts.join(' · ');
+    } else {
+      if (SHOW_TITLE) parts.push(BOOK_TITLE);
+      if (SHOW_NUM)   parts.push(String(pageNum));
+      div.textContent = parts.join(' · ');
+    }
+    return div;
+  }
+
+  // ── Page factory ───────────────────────────────────────────
   function newPage() {
     var p = document.createElement('div');
     p.className = 'cyrl-page';
     return p;
   }
 
-  // Measure an element height (including margins) in the ghost inner wrapper
-  function measureH(el) {
-    var inner = document.getElementById('cyrl-src-inner');
-    var clone = el.cloneNode(true);
-    inner.appendChild(clone);
-    var cs = window.getComputedStyle(clone);
-    var h = clone.offsetHeight
-            + (parseFloat(cs.marginTop) || 0)
-            + (parseFloat(cs.marginBottom) || 0);
-    inner.removeChild(clone);
-    return h;
-  }
-
-  function pushPage(page) {
+  function pushPage(page, skipFooter) {
     if (page.children.length > 0) {
+      var pgNum = pageEls.length + 1;
+      if (!skipFooter) {
+        var footer = makeFooter(pgNum);
+        if (footer) page.appendChild(footer);
+      }
       pageEls.push(page);
       document.getElementById('cyrl-canvas').appendChild(page);
     }
     return newPage();
   }
 
+  // ── Build all pages ────────────────────────────────────────
   function buildPages() {
     var canvas = document.getElementById('cyrl-canvas');
     if (!canvas) return;
 
-    // Collect all source sections
     var src = document.getElementById('cyrl-src');
     var sections = Array.from(src.querySelectorAll(
       '.cover-page, .toc-page, .chapter'
@@ -1466,16 +1542,16 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
     var usedH = 0;
 
     sections.forEach(function(section) {
-      var isCover  = section.classList.contains('cover-page');
-      var isToc    = section.classList.contains('toc-page');
+      var isCover   = section.classList.contains('cover-page');
+      var isToc     = section.classList.contains('toc-page');
       var isChapter = section.classList.contains('chapter');
 
-      // Cover and TOC each occupy exactly one full page card
+      // Cover and TOC: each occupies exactly one full page card (no footer)
       if (isCover || isToc) {
         if (page.children.length > 0) { page = pushPage(page); usedH = 0; }
         var fp = newPage();
         fp.appendChild(section.cloneNode(true));
-        pushPage(fp);
+        pushPage(fp, true);  // skip footer on cover/TOC
         page = newPage(); usedH = 0;
         return;
       }
@@ -1485,12 +1561,12 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
         if (usedH > 0) { page = pushPage(page); usedH = 0; }
 
         var ci = section.getAttribute('data-ci');
-        if (ci !== null) chapterPageMap[parseInt(ci, 10)] = pageEls.length; // 0-based
+        if (ci !== null) chapterPageMap[parseInt(ci, 10)] = pageEls.length;
 
-        // Put chapter header (chapter-header-line + chapter-title) on the new page
-        var header = section.querySelector('.chapter-header-line');
+        // Chapter header on the new page
+        var header  = section.querySelector('.chapter-header-line');
         var titleEl = section.querySelector('.chapter-title');
-        if (header) { page.appendChild(header.cloneNode(true)); usedH += measureH(header); }
+        if (header)  { page.appendChild(header.cloneNode(true));  usedH += measureH(header); }
         if (titleEl) { page.appendChild(titleEl.cloneNode(true)); usedH += measureH(titleEl); }
 
         // Pack chapter-content children block by block
@@ -1504,7 +1580,6 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
             }
             page.appendChild(block.cloneNode(true));
             usedH += h;
-            // If the block itself exceeds a page, keep going
             if (usedH > CONTENT_H) {
               page = pushPage(page); usedH = 0;
             }
@@ -1513,7 +1588,7 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
         return;
       }
 
-      // Fallback: treat as a block
+      // Fallback block
       var h = measureH(section);
       if (usedH > 0 && usedH + h > CONTENT_H) { page = pushPage(page); usedH = 0; }
       page.appendChild(section.cloneNode(true));
@@ -1534,14 +1609,27 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
     );
   }
 
-  window.addEventListener('load', function() {
-    // Triple rAF: wait for fonts + layout to stabilise
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
+  // ── Boot: wait for fonts to load before measuring ──────────
+  function boot() {
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function() {
         requestAnimationFrame(buildPages);
       });
-    });
-  });
+    } else {
+      // Fallback for browsers without fonts.ready
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          requestAnimationFrame(buildPages);
+        });
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('load', boot);
+  } else {
+    boot();
+  }
 
   window.addEventListener('message', function(e) {
     if (!e.data || !e.data.type) return;
