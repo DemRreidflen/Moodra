@@ -3463,16 +3463,16 @@ window.addEventListener('load', function () {
       const afs    = tp.authorFontSize  ?? 12;
       const sp     = tp.elementSpacing  ?? 1.2;
       const lh     = tp.titleLineHeight ?? 1.2;
-      // Auto-cap: ensure title fits on one line by limiting font size to page text width.
-      // 0.56 = empirical avg character width fraction for bold Cyrillic serif.
+      // Auto-cap: ensure title fits on one line.
+      // 0.50 = conservative avg char width fraction for bold Cyrillic serif in WeasyPrint.
       const titlePageTextWidthPt = (psW - marginLeft - marginRight) * (72 / 25.4);
-      const maxTfsByWidth = Math.floor(titlePageTextWidthPt / (titleText.length * 0.56));
+      const maxTfsByWidth = Math.floor(titlePageTextWidthPt / (titleText.length * 0.50));
       const tfs = Math.min(tfsRaw, Math.max(12, maxTfsByWidth));
       return `
 <div class="cyrl-fm-page title-page title-align-${align}">
   ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
   ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
-  <h1 class="title-main" style="font-size:${tfs}pt;line-height:${lh};margin-bottom:${sp}em;hyphens:none;overflow-wrap:normal">${escHtml(titleText)}</h1>
+  <h1 class="title-main" style="font-size:${tfs}pt;line-height:${lh};margin-bottom:${sp}em;hyphens:none;overflow-wrap:normal;white-space:nowrap">${escHtml(titleText)}</h1>
   ${tp.subtitle ? `<div class="title-sub" style="font-size:${sfs}pt;margin-bottom:${sp * 0.5}em">${escHtml(tp.subtitle)}</div>` : ""}
   ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
   ${tp.author ? `<div class="title-author" style="font-size:${afs}pt">${escHtml(tp.author)}</div>` : ""}
@@ -3683,7 +3683,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
   .title-top-line { width: 40px; height: 2pt; background: #d4c5b0; margin-bottom: 1em; }
   .title-mid-line { width: 40px; height: 1pt; background: #d4c5b0; margin: 0.5em 0; }
-  .title-main { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none !important; word-break: keep-all; }
+  .title-main { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none !important; word-break: keep-all; white-space: nowrap; }
   .title-sub  { font-size: ${h2Size}pt; color: #888; font-style: italic; margin-bottom: 0.3em; }
   .title-author { font-size: 12pt; color: #555; letter-spacing: 0.05em; }
   /* flex: 1 on title-spacer pushes bottom block to the bottom of the explicit-height flex container */
