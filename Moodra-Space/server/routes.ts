@@ -3700,10 +3700,10 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .cp-copyright { color: #333; font-weight: 500; margin-top: 0.3em; }
 
   /* Dedication page */
-  .dedication-page { padding: 16mm 0 8mm; }
-  .dedication-v-top    { justify-content: flex-start; padding-top: 35mm; }
+  .dedication-page { padding: 16mm 0 16mm; }
+  .dedication-v-top    { justify-content: flex-start; }
   .dedication-v-center { justify-content: center; }
-  .dedication-v-bottom { justify-content: flex-end; padding-bottom: 35mm; }
+  .dedication-v-bottom { justify-content: flex-end; padding-bottom: 16mm; }
   .dedication-align-left   { align-items: flex-start; text-align: left; }
   .dedication-align-center { align-items: center; text-align: center; }
   .dedication-align-right  { align-items: flex-end; text-align: right; }

@@ -471,12 +471,12 @@ hr.bdiv {
 .title-publisher { font-size: ${s.fontSize - 1}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
 .title-cityYear  { font-size: ${s.fontSize - 1}pt; color: #aaa; margin-top: 4pt; }
 
-/* Copyright page */
+/* Copyright page — same top/bottom padding as title page for visual alignment */
 .copyright-page {
   font-size: var(--cp-fs, ${s.fontSize - 1}pt);
   color: #555;
   line-height: var(--cp-lh, 1.7);
-  padding: 4% 0;
+  padding: 8% 0 6%;
 }
 .copyright-align-left { align-items: flex-start; text-align: left; }
 .copyright-align-center { align-items: center; text-align: center; }
@@ -488,11 +488,11 @@ hr.bdiv {
 .cp-line { margin-bottom: 2pt; line-height: 1.65; }
 .cp-copyright { color: #333; font-weight: 500; margin-top: 0.3em; }
 
-/* Dedication page */
+/* Dedication page — same top/bottom padding as title page */
 .dedication-page {
-  padding: 4% 0;
+  padding: 8% 0 6%;
 }
-.dedication-v-top    { justify-content: flex-start; padding-top: 20%; }
+.dedication-v-top    { justify-content: flex-start; }
 .dedication-v-center { justify-content: center; }
 .dedication-v-bottom { justify-content: flex-end; padding-bottom: 20%; }
 .dedication-align-left   { align-items: flex-start; text-align: left; }
@@ -1506,10 +1506,10 @@ ${hyphTocCss}
 .cp-copyright { color: #333; font-weight: 500; margin-top: 0.3em; }
 
 /* Dedication page */
-.dedication-page { padding: 4% 0; }
-.dedication-v-top    { justify-content: flex-start; padding-top: 20%; }
+.dedication-page { padding: 16mm 0 16mm; }
+.dedication-v-top    { justify-content: flex-start; }
 .dedication-v-center { justify-content: center; }
-.dedication-v-bottom { justify-content: flex-end; padding-bottom: 20%; }
+.dedication-v-bottom { justify-content: flex-end; padding-bottom: 16mm; }
 .dedication-align-left   { align-items: flex-start; text-align: left; }
 .dedication-align-center { align-items: center; text-align: center; }
 .dedication-align-right  { align-items: flex-end; text-align: right; }
