@@ -1438,6 +1438,8 @@ html[data-view="spread"] #cyrl-canvas {
 .cyrl-footer.align-mirror-right { text-align: right; }
 html[data-view="spread"] .cyrl-page { zoom: ${Math.min(1, zoom * 0.72)}; }
 html[data-view="single"]  .cyrl-page { zoom: ${zoom}; }
+/* ── Designer (full-bleed image) page card ── */
+.cyrl-page--designer { padding: 0 !important; }
 
 /* ── Badge ────────────────────────────────────────────────── */
 #cyrl-badge {
@@ -1820,16 +1822,23 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
 
     if (page.children.length > 0) pushPage(page);
 
+    // 1-based chapter page map — computed BEFORE designer page injection
+    // so layout-mode receives original chapter→page mapping for correct
+    // afterChapterIdx calculation at export time.
+    var chapterPages = {};
+    Object.keys(chapterPageMap).forEach(function(ci) {
+      chapterPages[parseInt(ci, 10)] = chapterPageMap[ci] + 1;
+    });
+
     // ── Inject designer pages ───────────────────────────────────────────
+    // Sort descending so earlier insertions don't shift later indices.
     if (DESIGNER_PAGES.length > 0) {
       var dpSortedCyr = DESIGNER_PAGES.slice().sort(function(a, b) { return b.afterPage - a.afterPage; });
-      var canvas2 = document.getElementById('cyrl-canvas');
       dpSortedCyr.forEach(function(dp) {
         var idx = dp.afterPage - 1;
         if (idx < 0 || idx >= pageEls.length) return;
         var dpCard = document.createElement('div');
         dpCard.className = 'cyrl-page cyrl-page--designer';
-        dpCard.style.overflow = 'hidden';
         var img = document.createElement('img');
         img.src = dp.imageUrl; img.alt = '';
         img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
@@ -1838,12 +1847,6 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
         pageEls.splice(idx + 1, 0, dpCard);
       });
     }
-
-    // 1-based chapter page map
-    var chapterPages = {};
-    Object.keys(chapterPageMap).forEach(function(ci) {
-      chapterPages[parseInt(ci, 10)] = chapterPageMap[ci] + 1;
-    });
 
     // ── Update TOC page numbers & add click handlers ────────
     document.querySelectorAll('.toc-row[data-ci]').forEach(function(row) {

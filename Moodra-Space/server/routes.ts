@@ -3536,37 +3536,24 @@ ${chapters.map((ch, i) => `    <div class="toc-row"><a href="#chapter-${i}"><spa
     const frontMatterHtml = [coverHtml, titlePageHtml, copyrightPageHtml, dedicationPageHtml, tocPageHtml].filter(Boolean).join("\n");
 
     // ── Designer pages ────────────────────────────────────────────────
-    // afterPage is a 1-based page index in the full document.
-    // We compute how many front-matter pages are enabled, then map the
-    // remainder to a 0-based chapter index for insertion.
-    const dpRaw: { afterPage: number; imageUrl: string }[] = Array.isArray(body.designerPages)
+    // The frontend pre-resolves afterPage → afterChapterIdx using the live
+    // chapterPages map, so we just use the index directly here.
+    // afterChapterIdx = -1 means before all chapters; N = after chapter N (0-based).
+    const dpRaw: { afterChapterIdx: number; imageUrl: string }[] = Array.isArray(body.designerPages)
       ? body.designerPages : [];
-    const fmPageCount = [
-      !!(book.coverImage && book.coverImage.startsWith("data:")),
-      !!(fm.titlePage?.enabled),
-      !!(fm.copyrightPage?.enabled),
-      !!(fm.dedicationPage?.enabled),
-      fm.tocPage?.enabled !== false,
-    ].filter(Boolean).length;
 
-    // For each designer page, determine after which chapter index (0-based) it falls.
-    // afterChapter = afterPage - fmPageCount  (1-based chapter position)
-    // Insert the designer page div after chapter[afterChapter - 1], clamped to [0, chapters.length].
-    type DpEntry = { afterChapter: number; imageUrl: string };
-    const dpByChapter: Map<number, DpEntry[]> = new Map();
+    const dpByChapter: Map<number, string[]> = new Map();
     for (const dp of dpRaw) {
       if (!dp.imageUrl) continue;
-      const afterCh = Math.max(0, Math.min(chapters.length, dp.afterPage - fmPageCount));
-      if (!dpByChapter.has(afterCh)) dpByChapter.set(afterCh, []);
-      dpByChapter.get(afterCh)!.push({ afterChapter: afterCh, imageUrl: dp.imageUrl });
+      const key = Math.max(-1, Math.min(chapters.length - 1, dp.afterChapterIdx));
+      if (!dpByChapter.has(key)) dpByChapter.set(key, []);
+      dpByChapter.get(key)!.push(`<div class="cyrl-designer-page"><img src="${dp.imageUrl}" alt=""/></div>`);
     }
-    const dpPageHtml = (images: DpEntry[] | undefined) => (images ?? [])
-      .map(dp => `<div class="cyrl-designer-page"><img src="${dp.imageUrl}" alt=""/></div>`)
-      .join("\n");
+    const dpHtml = (key: number) => (dpByChapter.get(key) ?? []).join("\n");
 
     // ── Chapter bodies (no "Глава X", title centered) ────────────────
-    // Designer pages that fall before all chapters (afterChapter = 0):
-    let bodyHtml = dpPageHtml(dpByChapter.get(0));
+    // Designer pages before all chapters go at key = -1:
+    let bodyHtml = dpHtml(-1);
     for (let ci = 0; ci < chapters.length; ci++) {
       const ch = chapters[ci];
       let blocks: any[] = [];
@@ -3579,8 +3566,8 @@ ${chapters.map((ch, i) => `    <div class="toc-row"><a href="#chapter-${i}"><spa
 ${contentHtml || '<p class="empty-chapter">—</p>'}
   </div>
 </section>`;
-      // Inject any designer pages that belong after chapter ci+1 (1-based)
-      bodyHtml += "\n" + dpPageHtml(dpByChapter.get(ci + 1));
+      // Designer pages after chapter ci:
+      bodyHtml += "\n" + dpHtml(ci);
     }
 
     const hyphBody = `

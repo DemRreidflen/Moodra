@@ -137,7 +137,20 @@ function ExportModal({
           cyrillicHyphenToc: settings.cyrillicHyphenToc,
           cyrillicHyphenLinks: settings.cyrillicHyphenLinks,
           frontMatter,
-          designerPages,
+          // Map each designer page's afterPage to a chapter index using the live
+          // chapterPages map (chapter index → first page number of that chapter).
+          // afterChapterIdx = the 0-based index of the chapter after which the
+          // designer page should appear (-1 = before all chapters).
+          designerPages: designerPages.map(dp => {
+            const entries = Object.entries(chapterPages)
+              .map(([ci, pg]) => ({ ci: Number(ci), pg: Number(pg) }))
+              .sort((a, b) => b.pg - a.pg);
+            let afterChapterIdx = -1;
+            for (const { ci, pg } of entries) {
+              if (pg <= dp.afterPage) { afterChapterIdx = ci; break; }
+            }
+            return { imageUrl: dp.imageUrl, afterChapterIdx };
+          }),
         };
         const resp = await fetch(`/api/books/${bookId}/export/pdf-cyrillic`, {
           method: "POST",
