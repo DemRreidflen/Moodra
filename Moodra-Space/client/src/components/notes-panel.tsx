@@ -1026,11 +1026,11 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, collections, al
               </span>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
-              <button disabled={!prevNote} onClick={() => { if (prevNote) { onClose(); setTimeout(() => { /* will be reopened externally */ }, 50); } }}
+              <button disabled={!prevNote}
                 title={prevNote?.title}
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors disabled:opacity-30"
                 style={{ color: primaryChain.color, background: `${primaryChain.color}12` }}
-                onClick={() => prevNote && window.dispatchEvent(new CustomEvent("moodra:open-note", { detail: prevNote }))}>
+                onClick={() => { if (prevNote) { onClose(); window.dispatchEvent(new CustomEvent("moodra:open-note", { detail: prevNote })); } }}>
                 <ArrowLeft className="h-3 w-3" />
                 {s.prevNote}
               </button>
