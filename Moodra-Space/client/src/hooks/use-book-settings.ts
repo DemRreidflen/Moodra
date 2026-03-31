@@ -26,6 +26,12 @@ export interface BookTypographySettings {
   footerAlignment: "left" | "center" | "right" | "mirror";
   textDensity: number;
   layoutPreset: "classic" | "vibe" | "mono" | "modern";
+  layoutEngine: "latin" | "cyrillic";
+  documentLanguage: "en" | "de" | "ru" | "uk";
+  cyrillicHyphenation: boolean;
+  cyrillicHyphenHeadings: boolean;
+  cyrillicHyphenToc: boolean;
+  cyrillicHyphenLinks: boolean;
 }
 
 export const DEFAULT_BOOK_SETTINGS: BookTypographySettings = {
@@ -54,6 +60,12 @@ export const DEFAULT_BOOK_SETTINGS: BookTypographySettings = {
   footerAlignment: "center",
   textDensity: 0.88,
   layoutPreset: "classic",
+  layoutEngine: "latin",
+  documentLanguage: "ru",
+  cyrillicHyphenation: true,
+  cyrillicHyphenHeadings: true,
+  cyrillicHyphenToc: true,
+  cyrillicHyphenLinks: true,
 };
 
 export type LayoutPreset = BookTypographySettings["layoutPreset"];

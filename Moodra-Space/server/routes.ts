@@ -3340,6 +3340,362 @@ window.addEventListener('load', function () {
     res.send(html);
   });
 
+  // ─── Cyrillic Engine PDF export ───────────────────────────────────────────
+  // Generates clean WeasyPrint-optimised HTML and forwards it to the Python
+  // cyrillic-renderer service (port 3001). Returns the PDF binary directly.
+  app.post("/api/books/:id/export/pdf-cyrillic", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    const bookId = Number(req.params.id);
+    if (isNaN(bookId)) return res.status(400).json({ error: "Invalid id" });
+    const book = await storage.getBook(bookId);
+    if (!book || book.userId !== userId) return res.status(404).json({ error: "Not found" });
+    const chapters = await storage.getChapters(bookId);
+
+    const body = req.body as Record<string, any>;
+    const docLang: "ru" | "uk" = body.documentLanguage === "uk" ? "uk" : "ru";
+    const htmlLang = docLang === "uk" ? "uk" : "ru";
+
+    // Layout settings from request body with safe defaults
+    const psKey = (body.pageSize || "A5").toUpperCase();
+    const pageSizeCSS = psKey === "A4" ? "A4" : psKey === "B5" ? "176mm 250mm" : "A5";
+    const marginTop    = Math.max(5, Math.min(50, Number(body.marginTop    ?? 20)));
+    const marginBottom = Math.max(5, Math.min(50, Number(body.marginBottom ?? 22)));
+    const marginLeft   = Math.max(5, Math.min(50, Number(body.marginLeft   ?? 20)));
+    const marginRight  = Math.max(5, Math.min(50, Number(body.marginRight  ?? 16)));
+    const fontFamily   = body.fontFamily ?? "Georgia, \"Times New Roman\", serif";
+    const fontSize     = Math.max(7, Math.min(18, Number(body.fontSize     ?? 11)));
+    const lineHeight   = Math.max(1, Math.min(3,  Number(body.lineHeight   ?? 1.6)));
+    const paraSpacing  = Math.max(0, Math.min(3,  Number(body.paragraphSpacing ?? 0.5)));
+    const firstLineIndent = Math.max(0, Math.min(5, Number(body.firstLineIndent ?? 1.2)));
+    const textAlign    = body.textAlign === "left" ? "left" : "justify";
+    const h1Size       = Math.max(10, Math.min(36, Number(body.h1Size ?? 22)));
+    const h2Size       = Math.max(8,  Math.min(30, Number(body.h2Size ?? 16)));
+    const h3Size       = Math.max(7,  Math.min(24, Number(body.h3Size ?? 13)));
+    const chapterBreak = body.chapterBreak !== false;
+    const enableHyphHeadings = body.cyrillicHyphenHeadings !== false;
+    const enableHyphToc      = body.cyrillicHyphenToc !== false;
+
+    const escHtml = (s: string) => String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+    const sanitize = (html: string) => (html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+      .replace(/on\w+="[^"]*"/gi, "");
+
+    const cyrBlockToHtml = (b: any): string => {
+      const raw = b.content || b.text || "";
+      if (!raw && b.type !== "divider") return "";
+      const content = sanitize(raw);
+      const indentLevel = Math.max(0, Math.min(8, Number(b.metadata?.indentLevel ?? 0)));
+      const indentEm = indentLevel * 1.8;
+      const nestBorder = indentLevel > 0 ? ";border-left:2px solid rgba(0,0,0,0.10);padding-left:0.5em" : "";
+      const indentAttr = indentLevel > 0
+        ? ` style="margin-left:${indentEm}em;text-indent:0${nestBorder}"`
+        : "";
+
+      switch (b.type) {
+        case "h1": return `<h2 class="section-h1">${content}</h2>`;
+        case "h2": return `<h3 class="section-h2">${content}</h3>`;
+        case "h3": return `<h4 class="section-h3">${content}</h4>`;
+        case "heading": return `<h2 class="section-h1">${content}</h2>`;
+        case "quote": return `<blockquote style="margin-left:${indentEm}em${nestBorder}">${content}</blockquote>`;
+        case "bullet_item": {
+          const ml = (indentLevel + 1) * 1.8;
+          return `<p class="list-bullet" style="margin-left:${ml}em;text-indent:-1.4em;padding-left:0${nestBorder}">&#8226;&nbsp;${content}</p>`;
+        }
+        case "numbered_item": {
+          const ml = (indentLevel + 1) * 1.8;
+          return `<p class="list-numbered" style="margin-left:${ml}em;text-indent:0${nestBorder}">${content}</p>`;
+        }
+        case "check_item": {
+          const ml = (indentLevel + 1) * 1.8;
+          const checked = b.metadata?.checked ? "&#9745;" : "&#9744;";
+          return `<p class="list-check" style="margin-left:${ml}em;text-indent:-1.4em;padding-left:0${nestBorder}">${checked}&nbsp;${content}</p>`;
+        }
+        case "hypothesis": return `<div class="callout callout-hypothesis" style="margin-left:${indentEm}em"><span class="callout-icon">&#9670;</span><div>${content}</div></div>`;
+        case "argument": return `<div class="callout callout-argument" style="margin-left:${indentEm}em"><span class="callout-icon">&#10003;</span><div>${content}</div></div>`;
+        case "counterargument": return `<div class="callout callout-counter" style="margin-left:${indentEm}em"><span class="callout-icon">&#10007;</span><div>${content}</div></div>`;
+        case "idea": return `<div class="callout callout-idea" style="margin-left:${indentEm}em"><span class="callout-icon">&#9861;</span><div>${content}</div></div>`;
+        case "question": return `<div class="callout callout-question" style="margin-left:${indentEm}em"><span class="callout-icon">?</span><div>${content}</div></div>`;
+        case "observation": return `<div class="callout callout-idea" style="margin-left:${indentEm}em"><span class="callout-icon">&#128065;</span><div>${content}</div></div>`;
+        case "divider": return `<hr class="divider"/>`;
+        default: return `<p${indentAttr}>${content}</p>`;
+      }
+    };
+
+    // Build TOC
+    const tocRows = chapters.map((ch, i) => `
+      <tr>
+        <td class="toc-num">${i + 1}.</td>
+        <td class="toc-title">${escHtml(ch.title)}</td>
+      </tr>`).join("");
+
+    // Build chapter bodies
+    let bodyHtml = "";
+    for (let ci = 0; ci < chapters.length; ci++) {
+      const ch = chapters[ci];
+      let blocks: any[] = [];
+      try { blocks = typeof ch.content === "string" ? JSON.parse(ch.content) : (ch.content || []); } catch {}
+      const contentHtml = blocks.map(b => cyrBlockToHtml(b)).filter(Boolean).join("\n");
+      bodyHtml += `
+<section class="chapter${chapterBreak ? " chapter-break" : ""}">
+  <div class="chapter-header-line"><span class="chapter-num">${docLang === "uk" ? "Розділ" : "Глава"} ${ci + 1}</span></div>
+  <h1 class="chapter-title">${escHtml(ch.title)}</h1>
+  <div class="chapter-content">
+${contentHtml || '<p class="empty-chapter">—</p>'}
+  </div>
+</section>`;
+    }
+
+    const hyphBody = `
+  html[lang="ru"] p, html[lang="uk"] p,
+  html[lang="ru"] blockquote, html[lang="uk"] blockquote,
+  html[lang="ru"] .callout div, html[lang="uk"] .callout div,
+  html[lang="ru"] li, html[lang="uk"] li {
+    hyphens: auto;
+    hyphenate-character: "-";
+    hyphenate-limit-chars: 6 3 3;
+    hyphenate-limit-zone: 8%;
+  }`;
+
+    const hyphHeadings = enableHyphHeadings ? "" : `
+  h1, h2, h3, h4, h5, h6,
+  .chapter-title, .chapter-num, .chapter-header-line { hyphens: none !important; }`;
+
+    const hyphToc = enableHyphToc ? "" : `
+  .toc, .toc *, .toc-heading, .toc-title, .toc-num { hyphens: none !important; }`;
+
+    const cyrHtml = `<!DOCTYPE html>
+<html lang="${htmlLang}" class="cyrillic-engine">
+<head>
+<meta charset="UTF-8">
+<title>${escHtml(book.title)}</title>
+<style>
+  /* ── Page layout ── */
+  @page {
+    size: ${pageSizeCSS};
+    margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
+  }
+  @page :first { margin-top: ${marginTop + 5}mm; }
+
+  /* ── Reset ── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Body ── */
+  body {
+    font-family: ${fontFamily};
+    font-size: ${fontSize}pt;
+    line-height: ${lineHeight};
+    color: #1a1209;
+    background: #fff;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ── Cyrillic hyphenation (WeasyPrint + Pyphen) ── */
+  ${hyphBody}
+
+  /* ── Headings: no hyphenation ── */
+  h1, h2, h3, h4, h5, h6,
+  .chapter-title, .chapter-num, .chapter-header-line,
+  .cover-title, .cover-subtitle, .cover-meta,
+  a, code, pre, .url, .email, .filepath {
+    hyphens: none;
+    word-break: keep-all;
+  }
+  ${hyphHeadings}
+  ${hyphToc}
+
+  /* ── Cover page ── */
+  .cover-page {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+    page-break-after: always;
+    padding: 20mm 15mm;
+  }
+  .cover-title { font-size: ${Math.min(h1Size + 6, 40)}pt; font-weight: 700; margin-bottom: 0.4em; line-height: 1.2; }
+  .cover-subtitle { font-size: ${h2Size}pt; color: #666; margin-bottom: 1.5em; }
+  .cover-ornament { font-size: 18pt; margin: 1em 0; color: #aaa; }
+  .cover-meta { font-size: 10pt; color: #888; margin-top: auto; }
+
+  /* ── TOC ── */
+  .toc-page { page-break-after: always; padding-top: 10mm; }
+  .toc-heading { font-size: ${h1Size}pt; font-weight: 700; margin-bottom: 8mm; text-align: center; }
+  .toc table { width: 100%; border-collapse: collapse; }
+  .toc-num { width: 2em; color: #888; font-size: 9pt; vertical-align: top; padding-top: 2pt; white-space: nowrap; }
+  .toc-title { font-size: 10pt; padding-bottom: 4pt; }
+
+  /* ── Chapter ── */
+  .chapter { padding-top: 8mm; }
+  .chapter-break { page-break-before: always; }
+  .chapter-header-line { margin-bottom: 3mm; }
+  .chapter-num { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; color: #888; font-weight: 400; }
+  .chapter-title {
+    font-size: ${h1Size}pt;
+    font-weight: 700;
+    margin-bottom: 6mm;
+    line-height: 1.2;
+    color: #1a0d06;
+    page-break-after: avoid;
+  }
+  .chapter-content { }
+
+  /* ── Typography ── */
+  p {
+    margin-bottom: ${paraSpacing > 0 ? paraSpacing + "em" : "0"};
+    text-align: ${textAlign};
+    text-indent: ${firstLineIndent > 0 ? firstLineIndent + "em" : "0"};
+    orphans: 3;
+    widows: 3;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+  p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
+  .chapter-content > p:first-child { text-indent: 0; }
+
+  h2.section-h1 {
+    font-size: ${h2Size}pt;
+    font-weight: 700;
+    margin: 20px 0 8px;
+    color: #1a0d06;
+    text-indent: 0;
+    page-break-after: avoid;
+  }
+  h3.section-h2 {
+    font-size: ${h3Size}pt;
+    font-weight: 700;
+    font-style: italic;
+    margin: 16px 0 6px;
+    color: #3d2e26;
+    text-indent: 0;
+    page-break-after: avoid;
+  }
+  h4.section-h3 {
+    font-size: ${Math.max(7, h3Size - 1)}pt;
+    font-weight: 600;
+    margin: 14px 0 4px;
+    color: #3d2e26;
+    text-indent: 0;
+    page-break-after: avoid;
+  }
+
+  blockquote {
+    border-left: 2.5px solid #d4a96a;
+    padding: 6px 0 6px 14px;
+    margin: 14px 8px;
+    font-style: italic;
+    color: #5a4a3a;
+    text-indent: 0;
+  }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid #e0d4c4;
+    margin: 18px 40px;
+  }
+
+  .callout {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 12px;
+    margin: 12px 0;
+    border-radius: 4px;
+    font-size: 9.5pt;
+    text-indent: 0;
+  }
+  .callout-icon { font-size: 8pt; padding-top: 2px; flex-shrink: 0; }
+  .callout-hypothesis { background: #f5f0ea; border-left: 2px solid #d4a96a; }
+  .callout-argument { background: #f0f5ee; border-left: 2px solid #7aad6a; }
+  .callout-counter { background: #f5f0ee; border-left: 2px solid #c4756a; }
+  .callout-idea { background: #f0f2f8; border-left: 2px solid #7a8ac4; }
+  .callout-question { background: #faf5e8; border-left: 2px solid #c8af6a; }
+
+  .list-bullet, .list-numbered, .list-check { margin-bottom: 0.3em; }
+  .empty-chapter { color: #bbb; font-style: italic; text-indent: 0; }
+</style>
+</head>
+<body class="book-export cyrillic-engine">
+
+  <!-- Cover -->
+  <div class="cover-page">
+    <div class="cover-title">${escHtml(book.title)}</div>
+    ${book.description ? `<div class="cover-subtitle">${escHtml(book.description.slice(0, 120))}</div>` : ""}
+    <div class="cover-ornament">&#10022; &#10022; &#10022;</div>
+    <div class="cover-meta">${new Date().getFullYear()}</div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc-page">
+    <div class="toc">
+      <div class="toc-heading">${docLang === "uk" ? "Зміст" : "Содержание"}</div>
+      <table>${tocRows}</table>
+    </div>
+  </div>
+
+  <!-- Chapters -->
+  ${bodyHtml}
+
+</body>
+</html>`;
+
+    // Forward to Python Cyrillic Renderer service
+    const RENDERER_URL = process.env.CYRILLIC_RENDERER_URL || "http://localhost:3001";
+    const fontName = fontFamily.split(",")[0].trim().replace(/['"]/g, "");
+
+    let pdfBuffer: Buffer;
+    try {
+      const response = await fetch(`${RENDERER_URL}/render-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          html: cyrHtml,
+          language: docLang,
+          page: {
+            format: pageSizeCSS,
+            margins: {
+              top: `${marginTop}mm`,
+              right: `${marginRight}mm`,
+              bottom: `${marginBottom}mm`,
+              left: `${marginLeft}mm`,
+            },
+          },
+          fonts: [{ family: fontName }],
+          meta: { bookId: String(bookId), title: book.title },
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({ error: "Unknown renderer error" }));
+        console.error("[CyrillicExport] Renderer error:", response.status, errBody);
+        return res.status(502).json({
+          error: errBody.error || "Cyrillic renderer failed",
+          hint: "Make sure the Cyrillic Renderer service is running.",
+        });
+      }
+
+      const arrayBuf = await response.arrayBuffer();
+      pdfBuffer = Buffer.from(arrayBuf);
+    } catch (err: any) {
+      console.error("[CyrillicExport] Failed to reach renderer:", err?.message);
+      return res.status(503).json({
+        error: "Кириллический PDF-рендерер временно недоступен. Попробуйте позже или переключитесь на Latin Engine.",
+        hint: "Cyrillic Renderer service is not running on port 3001.",
+      });
+    }
+
+    const safeTitle = book.title.replace(/[^\w\s-]/g, "").trim() || "book";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.pdf"`);
+    res.setHeader("X-Engine", "weasyprint-cyrillic");
+    res.send(pdfBuffer);
+  });
+
   app.post("/api/grammar/fix", async (req, res) => {
     try {
       const { text, language } = req.body as { text: string; language?: string };

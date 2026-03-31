@@ -1,9 +1,10 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16", "python-3.12"]
 [agent]
 expertMode = true
 
 [nix]
 channel = "stable-25_05"
+packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "pango"]
 
 [workflows]
 runButton = "Project"
@@ -17,6 +18,10 @@ author = "agent"
 task = "workflow.run"
 args = "Start application"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Cyrillic Renderer"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -28,6 +33,22 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "Cyrillic Renderer"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "CYRILLIC_RENDERER_PORT=3001 python3 cyrillic-renderer/app.py"
+waitForPort = 3001
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
 
 [[ports]]
 localPort = 5000

@@ -1,0 +1,647 @@
+ТЗ: Dual Layout Engine для Moodra Studio
+Проект
+
+Внедрение двух независимых режимов верстки и PDF-экспорта:
+
+Latin Engine — оставить текущую логику без изменений
+Cyrillic Engine — новый отдельный движок для ru и uk
+1. Зачем это делаем
+
+Текущий pipeline хорошо работает для латиницы, но нестабилен для кириллицы, особенно в автоматических переносах слов в PDF. Вместо попыток чинить один универсальный движок для всех языков нужно разделить режимы и дать кириллице отдельный специализированный путь рендера. Это соответствует тому, как реально устроены print/PDF-стеки: поддержка переносов зависит от движка, языка документа и словарей hyphenation. WeasyPrint как раз рассчитан на HTML/CSS-to-PDF и поддерживает автоматические переносы через Pyphen.
+
+2. Главная цель
+
+Сделать так, чтобы пользователь в разделе верстки мог выбрать режим:
+
+Latin — для английского и немецкого
+Cyrillic — для русского и украинского
+
+И чтобы при выборе Cyrillic:
+
+PDF рендерился через отдельный backend
+переносы слов работали по кириллическим словарям
+логика не зависела от текущего browser/Paged.js пути
+текущая латинская логика вообще не ломалась
+3. Что считаем успехом
+
+Фича считается успешной, если:
+
+Пользователь явно выбирает движок в UI.
+Книга с ru/uk экспортируется не через текущий paged.js-режим, а через новый cyrillic renderer.
+Длинные слова в основном тексте получают корректные переносы с видимым дефисом.
+Заголовки, TOC, URL, email, code-like строки и пути файлов не “ломаются” переносами.
+en/de продолжают экспортироваться старым способом без регрессии.
+Пользователь видит, каким движком сейчас рендерится книга.
+4. Что не входит в первую версию
+
+Не делать в v1:
+
+единый универсальный движок для всех языков
+live WYSIWYG parity 1:1 между editor preview и PDF
+DOCX/EPUB rewrite
+сложные микротипографические фичи уровня InDesign
+автоматический умный выбор движка без подтверждения пользователя
+5. UI/UX ТЗ
+5.1. Новый блок в разделе верстки
+
+Добавить в Layout / Export Settings отдельную секцию:
+
+Layout Engine
+
+Latin Engine (EN/DE)
+Cyrillic Engine (RU/UK)
+
+Под селектором — маленький поясняющий текст:
+
+Для книг на английском и немецком используйте Latin Engine.
+Для книг на русском и украинском используйте Cyrillic Engine — он использует отдельный PDF-рендерер с поддержкой кириллических переносов.
+
+5.2. Поведение селектора
+Если выбран Latin Engine
+всё работает как сейчас
+UI текущих настроек не меняется
+экспорт идёт через текущий /export/pdf-html или его текущий equivalent
+Если выбран Cyrillic Engine
+экспорт идёт через новый endpoint, например /export/pdf-cyrillic
+отображается badge:
+Cyrillic PDF Renderer active
+появляются дополнительные настройки кириллической верстки
+5.3. Дополнительные настройки для Cyrillic Engine
+
+Поля:
+
+Document language
+
+Russian (ru)
+Ukrainian (uk)
+
+Hyphenation
+
+Auto hyphenation — включено по умолчанию
+Disable hyphenation in headings — включено
+Disable hyphenation in TOC — включено
+Disable hyphenation in links / emails / code — включено
+
+Page format
+
+A5
+A4
+Custom later
+
+Margins
+
+top
+right
+bottom
+left
+
+Body typography
+
+font family
+font size
+line height
+paragraph spacing
+first-line indent on/off
+
+PDF rendering note
+
+“Кириллический движок оптимизирован под русский и украинский экспорт. Визуальный preview в редакторе может не совпадать с финальным PDF.”
+5.4. Safe UX-защита
+
+Если пользователь выбирает Cyrillic Engine, но язык книги en или de, показать non-blocking warning:
+
+“Выбран кириллический движок для книги не на русском/украинском. Рекомендуется Latin Engine.”
+
+Если пользователь выбирает Latin Engine, а язык книги ru или uk, показать:
+
+“Для русского и украинского рекомендуется Cyrillic Engine для более стабильных переносов в PDF.”
+
+6. Backend архитектура
+6.1. Новая сущность в данных книги
+
+Добавить в модель книги:
+
+layoutEngine: "latin" | "cyrillic"
+documentLanguage: "en" | "de" | "ru" | "uk"
+pdfRendererVersion?: string
+6.2. Новый экспортный маршрут
+
+Создать новый route:
+
+POST /api/books/:id/export/pdf-cyrillic
+
+или
+
+GET /api/books/:id/export/pdf-cyrillic
+
+Рекомендуется POST, если настройки передаются телом.
+
+Route делает следующее:
+Получает книгу и layout settings
+Проверяет, что layoutEngine === "cyrillic"
+Проверяет, что documentLanguage = ru или uk
+Генерирует HTML для печати
+Передаёт HTML в отдельный rendering service
+Получает PDF binary
+Возвращает PDF пользователю
+7. Новый сервис рендера
+7.1. Технология
+
+Создать отдельный сервис:
+
+Python + WeasyPrint + Pyphen
+
+Это не потому, что Python “модный”, а потому что WeasyPrint уже заточен под HTML/CSS-to-PDF и работает с hyphenation через Pyphen.
+
+7.2. Почему отдельный сервис
+
+Чтобы:
+
+не ломать текущий Node export pipeline
+не смешивать кириллицу и латиницу в одном рендерере
+иметь отдельную независимую логику
+легче дебажить экспорт
+7.3. Формат интеграции
+
+Node-приложение Moodra отправляет в Python service JSON:
+
+{
+  "html": "<!doctype html>...</html>",
+  "language": "ru",
+  "pageFormat": "A5",
+  "margins": {
+    "top": "20mm",
+    "right": "18mm",
+    "bottom": "22mm",
+    "left": "18mm"
+  },
+  "meta": {
+    "bookId": "123",
+    "title": "Book Title"
+  }
+}
+
+Python service возвращает:
+
+application/pdf
+или JSON с ошибкой
+8. HTML-генерация для Cyrillic Engine
+8.1. Базовые правила
+
+HTML для cyrillic engine должен:
+
+иметь корректный <html lang="ru"> или <html lang="uk">
+иметь clean semantic structure
+не использовать paged.js polyfill
+не внедрять JS для переносов
+не мутировать сам текст книги в базе
+8.2. Структура HTML
+
+Минимально:
+
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>{{bookTitle}}</title>
+  <style>{{compiledPrintCss}}</style>
+</head>
+<body class="book-export cyrillic-engine">
+  <section class="frontmatter">...</section>
+  <section class="toc">...</section>
+  <section class="chapter">...</section>
+</body>
+</html>
+8.3. Блочная разметка
+
+Поддержать:
+
+paragraph
+heading 1/2/3
+quote
+list
+image with caption
+divider
+chapter break
+pull quote optionally later
+9. CSS-правила для кириллического PDF
+9.1. Для body text
+
+Для основного текста:
+
+html[lang="ru"] body,
+html[lang="uk"] body {
+  hyphens: auto;
+  hyphenate-character: "-";
+  hyphenate-limit-chars: 6 3 3;
+  hyphenate-limit-zone: 8%;
+}
+
+WeasyPrint поддерживает эти свойства, если язык задан и поддерживается Pyphen.
+
+9.2. Для блоков без переноса
+h1, h2, h3,
+.toc,
+.toc * ,
+code,
+pre,
+a,
+.email,
+.url,
+.filepath,
+.running-header,
+.page-number {
+  hyphens: manual;
+}
+
+В документации WeasyPrint указано, что автоматический перенос можно отключать значением manual.
+
+9.3. Что запрещено
+
+Нельзя использовать на body text:
+
+word-break: break-all
+overflow-wrap: anywhere как дефолт
+грубую JS-вставку дефисов в текст
+soft hyphen preprocessing как основной механизм v1
+10. Типографические механики
+10.1. Что переносим
+
+Переносы разрешены:
+
+только в основном параграфном тексте
+только по словарной логике языка
+только для ru/uk
+10.2. Что не переносим
+
+Не переносить:
+
+заголовки
+оглавление
+ссылки
+email
+код
+пути файлов
+однословные акцентные подписи
+короткие подписи под изображениями при необходимости
+10.3. Абзацы
+
+Поддержать:
+
+line-height configurable
+paragraph spacing after
+optional first-line indent
+no double spacing between adjacent paragraphs unless specified
+10.4. Разрывы страниц
+
+Поддержать:
+
+chapter starts from new page
+avoid breaking heading from first paragraph after it
+avoid isolated short last line if feasible
+avoid image caption separation if feasible
+
+Сразу честно: это уже зона pagination quality, и тут возможны ограничения движка. Но минимальные page-break правила должны быть заложены.
+
+11. Логика выбора движка
+11.1. Явный выбор пользователя
+
+Автовыбор не делать главным режимом v1.
+Пользователь должен видеть и понимать:
+
+сейчас используется Latin
+сейчас используется Cyrillic
+11.2. Рекомендации
+
+Система может рекомендовать движок по языку, но не должна насильно переключать его без действия пользователя.
+
+12. Ошибки и fallback
+12.1. Если Cyrillic service не ответил
+
+Показать пользователю:
+“Кириллический PDF-рендерер временно недоступен. Попробуйте позже или переключитесь на Latin Engine.”
+
+12.2. Если пользователь экспортирует ru/uk через Latin
+
+Разрешить, но с warning.
+
+12.3. Если WeasyPrint не смог обработать шрифт
+
+Отдельная ошибка:
+“Не удалось встроить выбранный шрифт в кириллический PDF. Попробуйте стандартный кириллический шрифт.”
+
+13. Шрифты
+
+Это критично.
+
+Для Cyrillic Engine использовать только шрифты, которые:
+
+реально имеют кириллический glyph coverage
+проверены на ru и uk
+поддерживаются в PDF embedding
+
+Нужен whitelist шрифтов:
+
+Noto Serif
+Noto Sans
+Source Serif if coverage confirmed
+Inter if для sans layouts
+другой набор после проверки
+
+Нельзя позволять любому случайному шрифту ломать экспорт молча.
+
+14. API ТЗ для rendering service
+Endpoint
+
+POST /render-pdf
+
+Input
+{
+  "html": "...",
+  "language": "ru",
+  "page": {
+    "format": "A5",
+    "margins": {
+      "top": "20mm",
+      "right": "18mm",
+      "bottom": "22mm",
+      "left": "18mm"
+    }
+  },
+  "fonts": [
+    {
+      "family": "Noto Serif",
+      "path": "/fonts/NotoSerif-Regular.ttf"
+    }
+  ]
+}
+Output
+200 + PDF binary
+4xx/5xx + JSON error
+Service behavior
+validates input
+validates language is ru or uk
+renders HTML to PDF through WeasyPrint
+logs render time
+logs failed font resolution
+logs page count
+does not persist text mutations
+15. QA и тест-кейсы
+Базовые тесты
+Русский романизированный длинный абзац
+Украинский длинный абзац
+Много длинных слов подряд
+Заголовок + параграф
+Оглавление
+URL и email в тексте
+Сноска или подпись
+Книга на 100+ страниц
+Книга со смешанными ru + en
+Книга со шрифтом, который не поддерживает кириллицу
+Критерии проверки
+
+Проверяем:
+
+есть ли видимый дефис при переносе
+не ломаются ли слова странно
+не вставляются ли дефисы в заголовки
+не рвутся ли URL
+не изменился ли layout латинского экспорта
+Golden files
+
+Нужно сделать эталонные PDF-примеры:
+
+sample-ru-a5.pdf
+sample-uk-a5.pdf
+sample-en-latin.pdf
+
+И сравнивать глазами и, где возможно, структурно.
+
+16. Порядок внедрения
+Этап 1
+
+UI selector + storage field layoutEngine
+
+Этап 2
+
+Новый backend route /export/pdf-cyrillic
+
+Этап 3
+
+Python rendering service с WeasyPrint
+
+Этап 4
+
+HTML/CSS шаблон для кириллицы
+
+Этап 5
+
+Проверка шрифтов и page rules
+
+Этап 6
+
+QA на реальных текстах ru/uk
+
+Этап 7
+
+Rollout behind feature flag:
+ENABLE_CYRILLIC_ENGINE=true
+
+17. Что сказать разработчику заранее
+
+Ключевая мысль:
+не чинить старый paged.js путь под кириллицу.
+Нужно сделать:
+
+новый export mode
+новый route
+новый renderer
+отдельный CSS-profile
+отдельный шрифтовой whitelist
+
+Это и есть суть.
+
+18. Готовый промт для Replit / dev AI
+You are working on Moodra Studio.
+
+Task:
+Implement a dual layout engine architecture for PDF export:
+
+1) Latin Engine
+- keep the current export pipeline unchanged
+- use it for EN/DE
+- do not refactor or “improve” it unless required for compatibility
+
+2) Cyrillic Engine
+- create a brand new dedicated PDF export path for RU/UK
+- do NOT use the current paged.js/browser-based PDF pipeline for this engine
+- create a separate rendering backend using Python + WeasyPrint + Pyphen
+- this engine is specialized only for Russian and Ukrainian book export
+
+Business goal:
+The user must be able to explicitly switch between Latin and Cyrillic layout engines in the UI.
+Latin remains the current stable engine.
+Cyrillic becomes a new isolated engine optimized for RU/UK hyphenation and print output.
+
+Requirements:
+
+A. Data model
+- add `layoutEngine: "latin" | "cyrillic"` to the book/export settings
+- add `documentLanguage: "en" | "de" | "ru" | "uk"`
+
+B. UI
+In the Layout / Export settings panel add a new section:
+- Layout Engine
+  - Latin Engine (EN/DE)
+  - Cyrillic Engine (RU/UK)
+
+Show helper text:
+- Latin Engine is recommended for English and German
+- Cyrillic Engine is recommended for Russian and Ukrainian and uses a dedicated PDF renderer for Cyrillic hyphenation
+
+When Cyrillic Engine is selected, show:
+- document language selector: ru / uk
+- page format
+- margins
+- body font family
+- body font size
+- line height
+- paragraph spacing
+- first line indent toggle
+
+Show warning if:
+- Cyrillic Engine is selected with EN/DE
+- Latin Engine is selected with RU/UK
+
+C. New backend export route
+Create a new route:
+POST /api/books/:id/export/pdf-cyrillic
+
+Behavior:
+- validate layoutEngine === "cyrillic"
+- validate documentLanguage is ru or uk
+- generate printable HTML for the book
+- send HTML to the Cyrillic rendering service
+- return the rendered PDF
+
+D. Cyrillic rendering service
+Create a separate Python service with:
+- WeasyPrint
+- Pyphen
+
+Service endpoint:
+POST /render-pdf
+
+Input JSON:
+{
+  "html": "...",
+  "language": "ru" or "uk",
+  "page": {
+    "format": "A5",
+    "margins": {
+      "top": "20mm",
+      "right": "18mm",
+      "bottom": "22mm",
+      "left": "18mm"
+    }
+  },
+  "fonts": [...]
+}
+
+Output:
+- application/pdf on success
+- JSON error on failure
+
+E. HTML generation for Cyrillic engine
+Generate a separate printable HTML template for the cyrillic engine.
+Requirements:
+- set correct <html lang="ru"> or <html lang="uk">
+- no paged.js
+- no browser polyfill dependency
+- no JS hyphenation hacks
+- preserve book semantics (chapters, headings, paragraphs, lists, quotes, images, captions, TOC)
+
+F. CSS rules for Cyrillic engine
+For paragraph-like body text use:
+- hyphens: auto
+- hyphenate-character: "-"
+- hyphenate-limit-chars: 6 3 3
+- hyphenate-limit-zone: 8%
+
+Disable or avoid hyphenation in:
+- h1/h2/h3
+- TOC
+- code/pre
+- URLs
+- email addresses
+- file paths
+- running headers
+- page numbers
+
+Never use:
+- word-break: break-all
+- overflow-wrap: anywhere as default body behavior
+- generic soft-hyphen text mutation as the main solution
+
+G. Fonts
+Implement a whitelist of fonts that are confirmed to support Cyrillic.
+Do not silently allow unsupported fonts.
+Return a clear error if the chosen font does not support Cyrillic export.
+
+H. Print rules
+- each chapter starts on a new page
+- avoid breaking heading from the next paragraph
+- keep captions near images when possible
+- keep layout stable and book-like
+
+I. Safety / scope limits
+- do not rewrite DOCX or EPUB export
+- do not change the editor preview architecture
+- do not attempt to unify Latin and Cyrillic engines
+- keep Latin engine behavior unchanged
+- do not persist any text mutation back into the database
+
+J. Deliverables
+Return:
+1. exact files changed
+2. new files created
+3. summary of architecture
+4. migration notes
+5. environment variables needed
+6. setup instructions for local development
+7. how to run the Python renderer locally
+8. test scenarios for RU and UK exports
+
+Important:
+This is not a patch to the existing Latin engine.
+This is a clean second export mode dedicated to Cyrillic.
+Prioritize isolation, predictability, and maintainability.
+19. Что ещё стоит добавить сразу
+
+Я бы сразу потребовал от разработчика ещё 3 вещи:
+
+1. Render debug panel
+В dev-режиме показывать:
+
+engine used
+language
+font used
+page count
+render time
+
+2. Export comparison
+Кнопка:
+
+Export with Latin
+Export with Cyrillic
+
+Чтобы можно было сравнивать.
+
+3. Engine lock
+Опция:
+
+Auto
+Force Latin
+Force Cyrillic
+
+Но Auto можно оставить на потом.

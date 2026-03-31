@@ -6,7 +6,7 @@ import {
   Download, ZoomIn, ZoomOut, BookOpen, ChevronRight,
   FileText, Settings2, AlignLeft, AlignJustify, AlignCenter, AlignRight,
   ChevronDown, ChevronUp, Columns2, Square,
-  ChevronLeft, X, FileDown, Printer, ImagePlus, Trash2,
+  ChevronLeft, X, FileDown, Printer, ImagePlus, Trash2, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/language-context";
@@ -61,6 +61,17 @@ function anchorDownload(href: string, filename: string) {
 }
 
 // ─── Export Modal ────────────────────────────────────────────────────
+// Cyrillic-safe font names (must match server-side whitelist in cyrillic-renderer/app.py)
+const CYRILLIC_SAFE_FONT_NAMES = new Set([
+  "georgia", "times new roman", "times", "palatino linotype", "palatino",
+  "book antiqua", "arial", "helvetica", "inter", "source sans pro",
+  "courier new", "courier", "noto serif", "noto sans",
+]);
+function isCyrillicSafeFont(fontFamily: string): boolean {
+  const first = fontFamily.split(",")[0].trim().replace(/'/g, "").replace(/"/g, "").toLowerCase();
+  return CYRILLIC_SAFE_FONT_NAMES.has(first);
+}
+
 function ExportModal({
   bookId,
   book,
@@ -83,14 +94,62 @@ function ExportModal({
   const [exportFormat, setExportFormat] = useState<"pdf" | "epub">("pdf");
   const [epubAuthor, setEpubAuthor] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [cyrillicError, setCyrillicError] = useState<string | null>(null);
 
   const safeTitle = book.title.replace(/[^\w\s-]/g, "").trim() || "book";
+  const isCyrillic = settings.layoutEngine === "cyrillic";
+  const bookLang = (book.language || "ru").toLowerCase();
+  const isCyrillicBookLang = bookLang === "ru" || bookLang === "uk" || bookLang === "ua";
+  const engineMismatch = isCyrillic && !isCyrillicBookLang;
+  const latinMismatch = !isCyrillic && isCyrillicBookLang;
+  const fontSafe = isCyrillicSafeFont(settings.fontFamily);
 
   const doExport = async () => {
+    setCyrillicError(null);
     setExporting(true);
     try {
-      if (exportFormat === "pdf") {
-        // PDF: open in new tab — Paged.js auto-triggers the print dialog
+      if (exportFormat === "pdf" && isCyrillic) {
+        // Cyrillic Engine: POST to server → WeasyPrint → PDF binary download
+        const payload = {
+          documentLanguage: settings.documentLanguage,
+          pageSize: settings.pageSize,
+          marginTop: settings.marginTop,
+          marginBottom: settings.marginBottom,
+          marginLeft: settings.marginLeft,
+          marginRight: settings.marginRight,
+          fontFamily: settings.fontFamily,
+          fontSize: settings.fontSize,
+          lineHeight: settings.lineHeight,
+          paragraphSpacing: settings.paragraphSpacing,
+          firstLineIndent: settings.firstLineIndent,
+          textAlign: settings.textAlign,
+          h1Size: settings.h1Size,
+          h2Size: settings.h2Size,
+          h3Size: settings.h3Size,
+          chapterBreak: settings.chapterBreak,
+          cyrillicHyphenation: settings.cyrillicHyphenation,
+          cyrillicHyphenHeadings: settings.cyrillicHyphenHeadings,
+          cyrillicHyphenToc: settings.cyrillicHyphenToc,
+          cyrillicHyphenLinks: settings.cyrillicHyphenLinks,
+        };
+        const resp = await fetch(`/api/books/${bookId}/export/pdf-cyrillic`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ error: "Неизвестная ошибка рендерера" }));
+          setCyrillicError(err.error || "Ошибка экспорта PDF");
+          return;
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        anchorDownload(url, `${safeTitle}.pdf`);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        setTimeout(onClose, 600);
+      } else if (exportFormat === "pdf") {
+        // Latin Engine: open in new tab — Paged.js auto-triggers the print dialog
         const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
         const html = generatePrintHtml({ book, chapters, settings, frontMatter, lp, pagedJsUrl, designerPages });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
@@ -101,8 +160,8 @@ function ExportModal({
         } else {
           setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         }
+        setTimeout(onClose, 600);
       } else if (exportFormat === "epub") {
-        // EPUB: anchor download with metadata as query params
         const params = new URLSearchParams();
         params.set("title", book.title);
         if (epubAuthor) params.set("author", epubAuthor);
@@ -111,8 +170,8 @@ function ExportModal({
           `/api/books/${bookId}/export/epub?${params.toString()}`,
           `${safeTitle}.epub`,
         );
+        setTimeout(onClose, 600);
       }
-      setTimeout(onClose, 600);
     } finally {
       setTimeout(() => setExporting(false), 1500);
     }
@@ -124,20 +183,59 @@ function ExportModal({
       style={{ background: "rgba(0,0,0,0.45)" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-background rounded-2xl shadow-2xl w-[360px] overflow-hidden">
+      <div className="bg-background rounded-2xl shadow-2xl w-[380px] overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
           <div className="flex items-center gap-2">
             <FileDown className="h-4 w-4 text-primary" />
             <span className="font-semibold text-sm">{lp.exportBook || "Export Book"}</span>
           </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors">
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {isCyrillic && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+                Cyrillic PDF Renderer
+              </span>
+            )}
+            <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4">
+          {/* Engine mismatch warnings */}
+          {exportFormat === "pdf" && engineMismatch && (
+            <div className="flex items-start gap-2 text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <span className="text-amber-800 dark:text-amber-300">
+                Выбран кириллический движок для книги не на русском/украинском. Рекомендуется Latin Engine.
+              </span>
+            </div>
+          )}
+          {exportFormat === "pdf" && latinMismatch && (
+            <div className="flex items-start gap-2 text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <span className="text-amber-800 dark:text-amber-300">
+                Для русского и украинского рекомендуется Cyrillic Engine — он обеспечивает стабильные переносы в PDF.
+              </span>
+            </div>
+          )}
+          {exportFormat === "pdf" && isCyrillic && !fontSafe && (
+            <div className="flex items-start gap-2 text-xs bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-3">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+              <span className="text-red-800 dark:text-red-300">
+                Выбранный шрифт может не поддерживать кириллицу. Рекомендуется Georgia, Noto Serif или Arial.
+              </span>
+            </div>
+          )}
+          {cyrillicError && (
+            <div className="flex items-start gap-2 text-xs bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-3">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+              <span className="text-red-800 dark:text-red-300">{cyrillicError}</span>
+            </div>
+          )}
+
           {/* Format picker */}
           <div>
             <p className="text-xs text-muted-foreground mb-2 font-medium">{lp.exportFormat || "Format"}</p>
@@ -145,7 +243,7 @@ function ExportModal({
               {(["pdf", "epub"] as const).map(f => (
                 <button
                   key={f}
-                  onClick={() => setExportFormat(f)}
+                  onClick={() => { setExportFormat(f); setCyrillicError(null); }}
                   className={cn(
                     "flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all",
                     exportFormat === f
@@ -174,6 +272,12 @@ function ExportModal({
                 <span className="text-muted-foreground">{lp.fontSize || "Font size"}</span>
                 <span className="font-medium">{settings.fontSize}pt</span>
               </div>
+              {isCyrillic && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Язык</span>
+                  <span className="font-medium">{settings.documentLanguage === "uk" ? "Украинский" : "Русский"}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -205,7 +309,13 @@ function ExportModal({
           )}
 
           {/* PDF note */}
-          {exportFormat === "pdf" && (
+          {exportFormat === "pdf" && isCyrillic && (
+            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-violet-50 dark:bg-violet-950/30 rounded-xl p-3">
+              <MPdf size={13} />
+              <span>Кириллический движок генерирует PDF через WeasyPrint. Файл скачается автоматически.</span>
+            </div>
+          )}
+          {exportFormat === "pdf" && !isCyrillic && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3">
               <Printer className="h-3.5 w-3.5 text-blue-500 shrink-0" />
               <span>{lp.pdfNote || "The print dialog will open automatically. Choose 'Save as PDF' to download."}</span>
@@ -225,7 +335,7 @@ function ExportModal({
             {exporting
               ? (lp.exporting || "Preparing…")
               : exportFormat === "pdf"
-                ? (lp.exportPdf || "Export PDF")
+                ? (isCyrillic ? "Скачать PDF (Cyrillic)" : (lp.exportPdf || "Export PDF"))
                 : (lp.exportEpub || "Download EPUB")}
           </button>
         </div>
@@ -305,7 +415,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [totalPages, setTotalPages] = useState(0);
   const [chapterPages, setChapterPages] = useState<Record<number, number>>({});
   const [activeChapter, setActiveChapter] = useState(0);
-  const [open, setOpen] = useState({ page: true, typography: true, headings: false, hf: false, frontmatter: false });
+  const [open, setOpen] = useState({ engine: true, page: true, typography: true, headings: false, hf: false, frontmatter: false });
   const [showExport, setShowExport] = useState(false);
   const [designerPages, setDesignerPages] = useState<{ id: string; afterPage: number; imageUrl: string }[]>(() => {
     try { return JSON.parse(localStorage.getItem(`moodra_designer_pages_${bookId}`) || "[]"); } catch { return []; }
@@ -703,6 +813,66 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 pb-4">
+
+          {/* Layout Engine */}
+          <SecHead label="Layout Engine" open={open.engine} toggle={() => tog("engine")} />
+          {open.engine && (
+            <div className="space-y-2 pb-3 border-b border-border/30">
+              {/* Engine selector */}
+              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                {(["latin", "cyrillic"] as const).map(eng => (
+                  <button
+                    key={eng}
+                    onClick={() => update({ layoutEngine: eng })}
+                    className={cn(
+                      "py-2 rounded-xl text-xs font-semibold border transition-all",
+                      settings.layoutEngine === eng
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-secondary border-border/50 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {eng === "latin" ? "Latin" : "Cyrillic"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-snug px-0.5">
+                {settings.layoutEngine === "cyrillic"
+                  ? "Кириллический движок: WeasyPrint + Pyphen. Оптимизирован для RU/UK. PDF скачается как файл."
+                  : "Latin Engine: Paged.js в браузере. Для EN/DE. Откроется диалог печати."}
+              </p>
+
+              {/* Cyrillic Engine settings */}
+              {settings.layoutEngine === "cyrillic" && (
+                <div className="space-y-1.5 pt-1 border-t border-border/20">
+                  <Row label="Язык документа">
+                    <select
+                      value={settings.documentLanguage}
+                      onChange={e => update({ documentLanguage: e.target.value as "ru" | "uk" })}
+                      className="h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none"
+                    >
+                      <option value="ru">Русский (ru)</option>
+                      <option value="uk">Украинский (uk)</option>
+                    </select>
+                  </Row>
+                  <Row label="Авто-переносы">
+                    <Toggle on={settings.cyrillicHyphenation} onToggle={() => update({ cyrillicHyphenation: !settings.cyrillicHyphenation })} />
+                  </Row>
+                  <Row label="Не переносить заголовки">
+                    <Toggle on={settings.cyrillicHyphenHeadings} onToggle={() => update({ cyrillicHyphenHeadings: !settings.cyrillicHyphenHeadings })} />
+                  </Row>
+                  <Row label="Не переносить оглавление">
+                    <Toggle on={settings.cyrillicHyphenToc} onToggle={() => update({ cyrillicHyphenToc: !settings.cyrillicHyphenToc })} />
+                  </Row>
+                  <Row label="Не переносить ссылки">
+                    <Toggle on={settings.cyrillicHyphenLinks} onToggle={() => update({ cyrillicHyphenLinks: !settings.cyrillicHyphenLinks })} />
+                  </Row>
+                  <p className="text-[9.5px] text-muted-foreground/70 leading-snug px-0.5 pt-0.5">
+                    Визуальный preview в редакторе может не совпадать с финальным PDF.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Page */}
           <SecHead label={lp.pageSettings} open={open.page} toggle={() => tog("page")} />

@@ -4,6 +4,18 @@ AI-powered desktop-only writing platform for authors. Built with React + TypeScr
 
 ## Recent Changes (March 2026)
 
+- **Dual Layout Engine** — Two independent PDF export modes:
+  - **Latin Engine** (unchanged): Paged.js in browser, for EN/DE. Opens print dialog.
+  - **Cyrillic Engine** (new): Python Flask + WeasyPrint + Pyphen on port 3001. For RU/UK. Direct PDF download.
+  - UI: "Layout Engine" section in layout-mode right sidebar — Latin/Cyrillic toggle, document language selector (ru/uk), hyphenation toggles (headings / TOC / links).
+  - ExportModal shows engine badge, language/engine mismatch warnings, font Cyrillic-safety check.
+  - Backend route: `POST /api/books/:id/export/pdf-cyrillic` — generates clean HTML (no paged.js, no JS) → forwards to Python service → returns PDF binary.
+  - Python service: `cyrillic-renderer/app.py` — Flask, WeasyPrint 68.1, Pyphen. Validates language (ru/uk), font whitelist, returns `application/pdf`.
+  - CSS: `hyphens: auto; hyphenate-character: "-"; hyphenate-limit-chars: 6 3 3; hyphenate-limit-zone: 8%` on body text. `hyphens: none` on headings, TOC, links.
+  - `use-book-settings.ts`: added `layoutEngine`, `documentLanguage`, `cyrillicHyphenation`, `cyrillicHyphenHeadings`, `cyrillicHyphenToc`, `cyrillicHyphenLinks`.
+  - Workflow: `Cyrillic Renderer` runs `python3 cyrillic-renderer/app.py` on port 3001.
+  - Fallback: if renderer is down, returns 503 with user-friendly Russian error message.
+
 - **layout-mode.tsx** — Full rework to page-based layout: individual `div.book-page` blocks (white pages + shadow on grey canvas). Single Page / Book Spread toggle. Prev/Next navigation + page counter. Export modal (PDF + DOCX) with format info. Keyboard ←/→ navigation. New translation keys in all 4 languages.
 
 - **Logo** — Updated to 34px height on habits.tsx, features.tsx, mission.tsx, faq.tsx (was 28px)
