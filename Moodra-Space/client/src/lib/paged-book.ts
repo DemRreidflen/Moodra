@@ -1525,10 +1525,10 @@ ${hyphTocCss}
 .toc-page-ref { color: #888; font-size: ${Math.max(7, fontSize - 0.5)}pt; min-width: 2em; text-align: right; }
 
 /* ── Chapter ──────────────────────────────────────────────── */
-.cyrl-chapter { padding-top: 8mm; }
 .chapter-title {
   font-family: ${headingFont}; font-size: ${h1Size}pt; font-weight: 700;
-  margin-bottom: 8mm; line-height: 1.2; color: #1a0d06;
+  margin-top: 0; margin-bottom: ${lineHeight * 2}em;
+  line-height: 1.2; color: #1a0d06;
   letter-spacing: -0.01em; text-align: center;
 }
 .chapter-content { }
@@ -1541,8 +1541,8 @@ p {
   orphans: 3; widows: 3;
   word-break: normal; overflow-wrap: normal;
 }
-p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
-.chapter-content > p:first-child { text-indent: 0; }
+/* Only remove indent after in-body subheadings, NOT after chapter title */
+h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
 /* ── Headings in body ─────────────────────────────────────── */
 h2.section-h1 {
@@ -1625,6 +1625,7 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
     cal.style.position = 'absolute';
     cal.style.left = '-9999px';
     cal.style.visibility = 'hidden';
+    cal.style.zoom = '1';  // measure at natural (unzoomed) layout size
     document.body.appendChild(cal);
     var cs = window.getComputedStyle(cal);
     CONTENT_H = cal.clientHeight
@@ -1634,6 +1635,9 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
       - parseFloat(cs.paddingLeft)
       - parseFloat(cs.paddingRight);
     document.body.removeChild(cal);
+    // Add ~1 line-height of buffer so trailing paragraph bottom-margins
+    // don't cause the paginator to start new pages prematurely
+    CONTENT_H = CONTENT_H + ${Math.round(lineHeight * fontSize * 96 / 72)};
     probe.style.width = CONTENT_W + 'px';
   }
 

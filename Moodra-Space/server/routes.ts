@@ -3092,8 +3092,8 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     -webkit-hyphenate-limit-before: 3;
     -webkit-hyphenate-limit-after: 3;
   }
-  p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
-  .chapter-content > p:first-child { text-indent: 0; }
+  /* Remove indent only after in-body subheadings, NOT after chapter title */
+  h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
   /* Headings: never hyphenate */
   h1, h2, h3, h4, h5, h6,
@@ -3458,6 +3458,7 @@ window.addEventListener('load', function () {
   ${tp.subtitle ? `<div class="title-sub" style="font-size:${sfs}pt;margin-bottom:${sp * 0.5}em">${escHtml(tp.subtitle)}</div>` : ""}
   ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
   ${tp.author ? `<div class="title-author" style="font-size:${afs}pt">${escHtml(tp.author)}</div>` : ""}
+  <div class="title-spacer"></div>
   <div class="title-bottom-block">
     ${tp.publisherName ? `<div class="title-publisher">${escHtml(tp.publisherName)}</div>` : ""}
     ${(tp.city || tp.year) ? `<div class="title-cityYear">${[tp.city, tp.year].filter(Boolean).map((v: any) => escHtml(String(v))).join(" · ")}</div>` : ""}
@@ -3504,7 +3505,7 @@ window.addEventListener('load', function () {
 <div class="cyrl-fm-page cyrl-toc-page">
   <h2 class="toc-heading">${tocLangLabel}</h2>
   <div class="toc-list">
-${chapters.map((ch, i) => `    <div class="toc-row"><span class="toc-num">${i + 1}</span><span class="toc-title">${escHtml(ch.title)}</span></div>`).join("\n")}
+${chapters.map((ch, i) => `    <div class="toc-row"><a href="#chapter-${i}"><span class="toc-num">${i + 1}</span><span class="toc-title">${escHtml(ch.title)}</span></a></div>`).join("\n")}
   </div>
 </div>` : "";
 
@@ -3519,7 +3520,7 @@ ${chapters.map((ch, i) => `    <div class="toc-row"><span class="toc-num">${i + 
       try { blocks = typeof ch.content === "string" ? JSON.parse(ch.content) : (ch.content || []); } catch {}
       const contentHtml = blocks.map((b: any) => cyrBlockToHtml(b)).filter(Boolean).join("\n");
       bodyHtml += `
-<section class="chapter${chapterBreak ? " chapter-break" : ""}">
+<section id="chapter-${ci}" class="chapter${chapterBreak ? " chapter-break" : ""}">
   <h1 class="chapter-title">${escHtml(ch.title)}</h1>
   <div class="chapter-content">
 ${contentHtml || '<p class="empty-chapter">—</p>'}
@@ -3605,47 +3606,51 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   }
   ` : ""}
 
-  /* ── Front matter page base ── */
+  /* ── Front matter page base ──
+     Use an explicit height so WeasyPrint flexbox (flex:1 spacers, margin-top:auto)
+     works correctly. height = page height - top margin - bottom margin. */
   .cyrl-fm-page {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: ${psKey === "A4" ? (297 - marginTop - marginBottom) : psKey === "B5" ? (250 - marginTop - marginBottom) : (210 - marginTop - marginBottom)}mm;
     page-break-after: always;
     overflow: hidden;
   }
 
   /* Title page */
-  .title-page { padding: 20mm 0; }
+  .title-page { padding: 16mm 0 12mm; }
   .title-align-center { align-items: center; text-align: center; }
   .title-align-left   { align-items: flex-start; text-align: left; }
   .title-align-right  { align-items: flex-end; text-align: right; }
   .title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
-  .title-top-line { width: 40px; height: 2px; background: #d4c5b0; margin-bottom: 1em; }
-  .title-mid-line { width: 40px; height: 1px; background: #d4c5b0; margin: 0.5em 0; }
+  .title-top-line { width: 40px; height: 2pt; background: #d4c5b0; margin-bottom: 1em; }
+  .title-mid-line { width: 40px; height: 1pt; background: #d4c5b0; margin: 0.5em 0; }
   .title-main { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; }
   .title-sub  { font-size: ${h2Size}pt; color: #888; font-style: italic; margin-bottom: 0.3em; }
   .title-author { font-size: 12pt; color: #555; letter-spacing: 0.05em; }
-  .title-bottom-block { margin-top: auto; padding-top: 1em; }
+  /* flex: 1 on title-bottom-block pushes it to the bottom of the explicit-height flex container */
+  .title-spacer { flex: 1; }
+  .title-bottom-block { padding-bottom: 8mm; }
   .title-publisher { font-size: ${Math.max(7, fontSize - 1)}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
   .title-cityYear  { font-size: ${Math.max(7, fontSize - 1)}pt; color: #aaa; margin-top: 4pt; }
 
   /* Copyright page */
-  .copyright-page { font-size: 9pt; color: #555; line-height: 1.7; padding: 20mm 0; }
+  .copyright-page { font-size: 9pt; color: #555; line-height: 1.7; padding: 16mm 0 8mm; }
   .copyright-align-left   { align-items: flex-start; text-align: left; }
   .copyright-align-center { align-items: center; text-align: center; }
   .copyright-align-right  { align-items: flex-end; text-align: right; }
   .cp-rights { max-width: 92%; line-height: 1.65; margin-bottom: 1.6em; }
   .cp-spacer { flex: 1; }
-  .cp-bottom { padding-bottom: 20pt; }
+  .cp-bottom { padding-bottom: 16pt; }
   .cp-isbn { margin-bottom: 1em; }
   .cp-line { margin-bottom: 2pt; line-height: 1.65; }
   .cp-copyright { color: #333; font-weight: 500; margin-top: 0.3em; }
 
   /* Dedication page */
-  .dedication-page { padding: 20mm 0; }
-  .dedication-v-top    { justify-content: flex-start; padding-top: 40mm; }
+  .dedication-page { padding: 16mm 0 8mm; }
+  .dedication-v-top    { justify-content: flex-start; padding-top: 35mm; }
   .dedication-v-center { justify-content: center; }
-  .dedication-v-bottom { justify-content: flex-end; padding-bottom: 40mm; }
+  .dedication-v-bottom { justify-content: flex-end; padding-bottom: 35mm; }
   .dedication-align-left   { align-items: flex-start; text-align: left; }
   .dedication-align-center { align-items: center; text-align: center; }
   .dedication-align-right  { align-items: flex-end; text-align: right; }
@@ -3656,6 +3661,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   .toc-heading { font-family: ${headingFontFam}; font-size: ${h2Size}pt; font-weight: 600; text-align: center; margin-bottom: 8mm; letter-spacing: 0.05em; color: #333; }
   .toc-list { display: flex; flex-direction: column; gap: 4pt; }
   .toc-row { display: flex; align-items: baseline; gap: 4pt; font-size: ${fontSize}pt; }
+  .toc-row a { color: inherit; text-decoration: none; display: flex; align-items: baseline; gap: 4pt; width: 100%; }
   .toc-num { color: #bbb; font-size: ${Math.max(7, fontSize - 1)}pt; min-width: 1.8em; }
   .toc-title { color: #333; }
 
@@ -3666,7 +3672,8 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     font-family: ${headingFontFam};
     font-size: ${h1Size}pt;
     font-weight: 700;
-    margin-bottom: 8mm;
+    margin-top: 0;
+    margin-bottom: ${lineHeight * 2}em;
     line-height: 1.2;
     color: #1a0d06;
     letter-spacing: -0.01em;
@@ -3685,8 +3692,8 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     word-break: normal;
     overflow-wrap: normal;
   }
-  p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
-  .chapter-content > p:first-child { text-indent: 0; }
+  /* Remove indent only after in-body subheadings, NOT after chapter title */
+  h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
   h2.section-h1 {
     font-family: ${headingFontFam};
