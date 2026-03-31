@@ -678,6 +678,16 @@ body[data-view="spread"] .pagedjs_page:nth-child(2n) {
 
 // ── HTML content builder ──────────────────────────────────────────────
 
+const TOC_LABELS: Record<string, string> = {
+  ru: "Оглавление", uk: "Зміст", en: "Table of Contents", de: "Inhaltsverzeichnis",
+};
+const CP_EDITOR_LABELS: Record<string, string> = {
+  ru: "Редактор", uk: "Редактор", en: "Editor", de: "Lektor",
+};
+const CP_COVER_LABELS: Record<string, string> = {
+  ru: "Обложка", uk: "Обкладинка", en: "Cover design", de: "Coverdesign",
+};
+
 function buildFrontMatter(
   book: { title: string; language?: string | null; coverImage?: string | null },
   fm: FrontMatterSettings,
@@ -731,8 +741,8 @@ function buildFrontMatter(
   <div class="cp-spacer"></div>
   <div class="cp-bottom">
     ${cp.isbn       ? `<div class="cp-isbn">ISBN ${esc(cp.isbn)}</div>` : ""}
-    ${cp.editor     ? `<div class="cp-line">${lp.cpEditor || "Editor"}: ${esc(cp.editor)}</div>` : ""}
-    ${cp.coverDesigner ? `<div class="cp-line">${lp.cpCoverDesigner || "Cover design"}: ${esc(cp.coverDesigner)}</div>` : ""}
+    ${cp.editor     ? `<div class="cp-line">${CP_EDITOR_LABELS[lang] ?? "Editor"}: ${esc(cp.editor)}</div>` : ""}
+    ${cp.coverDesigner ? `<div class="cp-line">${CP_COVER_LABELS[lang] ?? "Cover design"}: ${esc(cp.coverDesigner)}</div>` : ""}
     ${(cp.copyrightYear || cp.copyrightHolder) ? `<div class="cp-line cp-copyright">© ${[cp.copyrightYear, cp.copyrightHolder].filter(Boolean).map(esc).join(", ")}</div>` : ""}
   </div>
 </div>`);
@@ -763,7 +773,7 @@ function buildFrontMatter(
 
     parts.push(`
 <div class="front-matter-page toc-page">
-  <h2 class="toc-heading">${lp.tocHeading || "Table of Contents"}</h2>
+  <h2 class="toc-heading">${TOC_LABELS[lang] ?? lp.tocHeading ?? "Table of Contents"}</h2>
   <div class="toc-list">${tocRows}</div>
 </div>`);
   }
@@ -1129,8 +1139,11 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
   const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1 } = opts;
 
   // ── Settings (mirror server-side route defaults exactly) ──────────────
-  const docLang  = ((s as any).documentLanguage ?? book.language ?? "ru") as "ru" | "uk";
-  const htmlLang = toBcp47(docLang);
+  const docLang    = ((s as any).documentLanguage ?? book.language ?? "ru") as "ru" | "uk";
+  const htmlLang   = toBcp47(docLang);
+  const cyrTocLabel      = TOC_LABELS[docLang]    ?? TOC_LABELS[book.language ?? "ru"] ?? "Оглавление";
+  const cyrEditorLabel   = CP_EDITOR_LABELS[docLang] ?? "Редактор";
+  const cyrCoverLabel    = CP_COVER_LABELS[docLang]  ?? "Обложка";
 
   const PAGE_SIZES: Record<string, { width: number; height: number }> = {
     A4: { width: 210, height: 297 },
@@ -1216,7 +1229,6 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
   };
 
   // ── Front matter pages (mirrors Latin engine buildFrontMatter) ───────
-  const tocLang = docLang === "uk" ? "Зміст" : "Содержание";
   const hasCover = !!(book as any).coverImage && ((book as any).coverImage as string).startsWith("data:");
 
   // Title page HTML
@@ -1259,8 +1271,8 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
   <div class="cp-spacer"></div>
   <div class="cp-bottom">
     ${cp.isbn            ? `<div class="cp-isbn">ISBN ${esc(cp.isbn)}</div>` : ""}
-    ${cp.editor          ? `<div class="cp-line">${esc(cp.editor)}</div>` : ""}
-    ${cp.coverDesigner   ? `<div class="cp-line">${esc(cp.coverDesigner)}</div>` : ""}
+    ${cp.editor          ? `<div class="cp-line">${cyrEditorLabel}: ${esc(cp.editor)}</div>` : ""}
+    ${cp.coverDesigner   ? `<div class="cp-line">${cyrCoverLabel}: ${esc(cp.coverDesigner)}</div>` : ""}
     ${(cp.copyrightYear || cp.copyrightHolder) ? `<div class="cp-line cp-copyright">© ${[cp.copyrightYear, cp.copyrightHolder].filter(Boolean).map(v => esc(String(v))).join(", ")}</div>` : ""}
   </div>
 </div>`;
@@ -1291,7 +1303,7 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
 
   const tocPageHtml = fm.tocEnabled !== false ? `
 <div class="cyrl-fm-page cyrl-toc-page">
-  <h2 class="toc-heading">${tocLang}</h2>
+  <h2 class="toc-heading">${cyrTocLabel}</h2>
   <div class="toc-list">${tocRowsHtml}</div>
 </div>` : "";
 
@@ -1398,7 +1410,7 @@ html[data-view="spread"] #cyrl-canvas {
 /* ── Page footer ──────────────────────────────────────────── */
 .cyrl-footer {
   position: absolute;
-  bottom: ${Math.round(mb * 0.38)}mm;
+  bottom: ${Math.round(mb * 0.5)}mm;
   left: ${ml}mm;
   right: ${mr}mm;
   font-size: 9.5pt;
@@ -1458,7 +1470,7 @@ ${hyphTocCss}
 }
 
 /* Title page */
-.title-page { padding: 6mm 0; }
+.title-page { padding: 16mm 0 16mm; }
 .title-align-center { align-items: center; text-align: center; }
 .title-align-left   { align-items: flex-start; text-align: left; }
 .title-align-right  { align-items: flex-end; text-align: right; }
@@ -1470,24 +1482,25 @@ ${hyphTocCss}
   font-size: var(--t-fs, ${h1Size}pt);
   font-weight: 700; line-height: 1.2;
   letter-spacing: -0.01em; margin-bottom: 0.4em;
+  hyphens: none !important; word-break: keep-all;
 }
 .title-sub  { font-size: var(--s-fs, ${h2Size}pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
 .title-author { font-size: var(--a-fs, 12pt); color: #555; letter-spacing: 0.05em; }
-.title-bottom-block { margin-top: auto; padding-top: 1em; }
+.title-bottom-block { margin-top: auto; padding-bottom: 8mm; }
 .title-publisher { font-size: ${Math.max(7, fontSize - 1)}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
 .title-cityYear  { font-size: ${Math.max(7, fontSize - 1)}pt; color: #aaa; margin-top: 4pt; }
 
-/* Copyright page */
+/* Copyright page — same padding as title page for consistent visual alignment */
 .copyright-page {
   font-size: var(--cp-fs, ${Math.max(7, fontSize - 1)}pt);
-  color: #555; line-height: var(--cp-lh, 1.7); padding: 4% 0;
+  color: #555; line-height: var(--cp-lh, 1.7); padding: 16mm 0 16mm;
 }
 .copyright-align-left   { align-items: flex-start; text-align: left; }
 .copyright-align-center { align-items: center; text-align: center; }
 .copyright-align-right  { align-items: flex-end; text-align: right; }
 .cp-rights { max-width: 92%; line-height: 1.65; margin-bottom: 1.6em; }
 .cp-spacer { flex: 1; }
-.cp-bottom { padding-bottom: 20pt; }
+.cp-bottom { padding-bottom: 8mm; }
 .cp-isbn { margin-bottom: 1em; }
 .cp-line { margin-bottom: 2pt; line-height: 1.65; }
 .cp-copyright { color: #333; font-weight: 500; margin-top: 0.3em; }

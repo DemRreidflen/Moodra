@@ -3354,6 +3354,7 @@ window.addEventListener('load', function () {
     const body = req.body as Record<string, any>;
     const docLang: "ru" | "uk" = body.documentLanguage === "uk" ? "uk" : "ru";
     const htmlLang = docLang === "uk" ? "uk" : "ru";
+    const bookLangRaw: string = (book.language ?? docLang).toLowerCase();
 
     // Layout settings from request body with safe defaults
     const psKey = (body.pageSize || "A5").toUpperCase();
@@ -3440,7 +3441,15 @@ window.addEventListener('load', function () {
 
     // Parse frontMatter settings from request
     const fm: any = body.frontMatter ?? {};
-    const tocLangLabel = docLang === "uk" ? "Зміст" : "Оглавление";
+    const tocLangMap: Record<string, string> = {
+      ru: "Оглавление", uk: "Зміст", en: "Table of Contents", de: "Inhaltsverzeichnis",
+    };
+    const tocLangLabel = tocLangMap[bookLangRaw] ?? tocLangMap[docLang] ?? "Оглавление";
+
+    const cpEditorLabels: Record<string, string> = { ru: "Редактор", uk: "Редактор", en: "Editor", de: "Lektor" };
+    const cpCoverLabels:  Record<string, string> = { ru: "Обложка",  uk: "Обкладинка", en: "Cover design", de: "Coverdesign" };
+    const cpEditorLabel = cpEditorLabels[bookLangRaw] ?? cpEditorLabels[docLang] ?? "Редактор";
+    const cpCoverLabel  = cpCoverLabels[bookLangRaw]  ?? cpCoverLabels[docLang]  ?? "Обложка";
 
     // ── Title page ──────────────────────────────────────────────────────
     const titlePageHtml = (() => {
@@ -3483,8 +3492,8 @@ window.addEventListener('load', function () {
   <div class="cp-spacer"></div>
   <div class="cp-bottom">
     ${cp.isbn          ? `<div class="cp-isbn">ISBN ${escHtml(cp.isbn)}</div>` : ""}
-    ${cp.editor        ? `<div class="cp-line">${escHtml(cp.editor)}</div>` : ""}
-    ${cp.coverDesigner ? `<div class="cp-line">${escHtml(cp.coverDesigner)}</div>` : ""}
+    ${cp.editor        ? `<div class="cp-line">${cpEditorLabel}: ${escHtml(cp.editor)}</div>` : ""}
+    ${cp.coverDesigner ? `<div class="cp-line">${cpCoverLabel}: ${escHtml(cp.coverDesigner)}</div>` : ""}
     ${(cp.copyrightYear || cp.copyrightHolder) ? `<div class="cp-line cp-copyright">© ${[cp.copyrightYear, cp.copyrightHolder].filter(Boolean).map((v: any) => escHtml(String(v))).join(", ")}</div>` : ""}
   </div>
 </div>`;
@@ -3569,6 +3578,9 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     @bottom-left   { content: none; }
     @bottom-center { content: none; }
     @bottom-right  { content: none; }
+    @top-left      { content: none; }
+    @top-center    { content: none; }
+    @top-right     { content: none; }
   }
   .cyrl-cover-img-page {
     page: cyrl-cover;
@@ -3578,6 +3590,21 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   }
   .cyrl-cover-img-page img {
     width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+
+  /* ── Front matter pages: counted in numbering but no footer/header shown ── */
+  @page cyrl-fm {
+    size: ${pageSizeCSS};
+    margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
+    @bottom-left   { content: none; }
+    @bottom-center { content: none; }
+    @bottom-right  { content: none; }
+    @top-left      { content: none; }
+    @top-center    { content: none; }
+    @top-right     { content: none; }
+  }
+  .cyrl-fm-page {
+    page: cyrl-fm;
   }
 
   /* ── Page layout ── */
@@ -3644,30 +3671,30 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
   }
 
   /* Title page */
-  .title-page { padding: 16mm 0 12mm; }
+  .title-page { padding: 16mm 0 16mm; }
   .title-align-center { align-items: center; text-align: center; }
   .title-align-left   { align-items: flex-start; text-align: left; }
   .title-align-right  { align-items: flex-end; text-align: right; }
   .title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
   .title-top-line { width: 40px; height: 2pt; background: #d4c5b0; margin-bottom: 1em; }
   .title-mid-line { width: 40px; height: 1pt; background: #d4c5b0; margin: 0.5em 0; }
-  .title-main { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; }
+  .title-main { font-family: ${headingFontFam}; font-size: ${h1Size}pt; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.4em; hyphens: none !important; word-break: keep-all; }
   .title-sub  { font-size: ${h2Size}pt; color: #888; font-style: italic; margin-bottom: 0.3em; }
   .title-author { font-size: 12pt; color: #555; letter-spacing: 0.05em; }
-  /* flex: 1 on title-bottom-block pushes it to the bottom of the explicit-height flex container */
+  /* flex: 1 on title-spacer pushes bottom block to the bottom of the explicit-height flex container */
   .title-spacer { flex: 1; }
   .title-bottom-block { padding-bottom: 8mm; }
   .title-publisher { font-size: ${Math.max(7, fontSize - 1)}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
   .title-cityYear  { font-size: ${Math.max(7, fontSize - 1)}pt; color: #aaa; margin-top: 4pt; }
 
-  /* Copyright page */
-  .copyright-page { font-size: 9pt; color: #555; line-height: 1.7; padding: 16mm 0 8mm; }
+  /* Copyright page — same top/bottom padding as title page for visual alignment */
+  .copyright-page { font-size: 9pt; color: #555; line-height: 1.7; padding: 16mm 0 16mm; }
   .copyright-align-left   { align-items: flex-start; text-align: left; }
   .copyright-align-center { align-items: center; text-align: center; }
   .copyright-align-right  { align-items: flex-end; text-align: right; }
   .cp-rights { max-width: 92%; line-height: 1.65; margin-bottom: 1.6em; }
   .cp-spacer { flex: 1; }
-  .cp-bottom { padding-bottom: 16pt; }
+  .cp-bottom { padding-bottom: 8mm; }
   .cp-isbn { margin-bottom: 1em; }
   .cp-line { margin-bottom: 2pt; line-height: 1.65; }
   .cp-copyright { color: #333; font-weight: 500; margin-top: 0.3em; }

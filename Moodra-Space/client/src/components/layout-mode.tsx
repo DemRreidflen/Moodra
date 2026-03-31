@@ -1171,15 +1171,6 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                         })}
                       </div>
                     </Row>
-                    <Row label={lp.fmDecoration || "Decoration"}>
-                      <select value={frontMatter.titlePage.decorativeStyle} onChange={e => updateTitlePage({ decorativeStyle: e.target.value as any })}
-                        className="h-7 rounded-lg border border-border/60 bg-secondary text-xs px-2 outline-none">
-                        <option value="none">{lp.fmDecoNone || "None"}</option>
-                        <option value="lines">{lp.fmDecoLines || "Lines"}</option>
-                        <option value="ornament">{lp.fmDecoOrnament || "Ornament ✦"}</option>
-                      </select>
-                    </Row>
-
                     {/* Typography fine-tuning */}
                     <div className="pt-1 space-y-1">
                       <p className="text-[10px] text-muted-foreground">{lp.fmTypography || "Typography"}</p>
