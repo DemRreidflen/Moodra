@@ -13,7 +13,8 @@ AI-powered desktop-only writing platform for authors. Built with React + TypeScr
   - Python service: `cyrillic-renderer/app.py` — Flask, WeasyPrint 68.1, Pyphen. Validates language (ru/uk), font whitelist, returns `application/pdf`.
   - CSS: `hyphens: auto; hyphenate-character: "-"; hyphenate-limit-chars: 6 3 3; hyphenate-limit-zone: 8%` on body text. `hyphens: none` on headings, TOC, links.
   - `use-book-settings.ts`: added `layoutEngine`, `documentLanguage`, `cyrillicHyphenation`, `cyrillicHyphenHeadings`, `cyrillicHyphenToc`, `cyrillicHyphenLinks`.
-  - Workflow: `Cyrillic Renderer` runs `python3 cyrillic-renderer/app.py` on port 3001.
+  - Workflow: `Cyrillic Renderer` runs `python3 cyrillic-renderer/app.py` on port 3001 (dev).
+  - **Deployment**: `npm run build` installs Python deps via `python3 -m pip install`. `npm run start` → `bash start.sh` → starts Python service in background, then Node.js in foreground. Cleanup trap kills Python on SIGTERM.
   - Fallback: if renderer is down, returns 503 with user-friendly Russian error message.
 
 - **layout-mode.tsx** — Full rework to page-based layout: individual `div.book-page` blocks (white pages + shadow on grey canvas). Single Page / Book Spread toggle. Prev/Next navigation + page counter. Export modal (PDF + DOCX) with format info. Keyboard ←/→ navigation. New translation keys in all 4 languages.
