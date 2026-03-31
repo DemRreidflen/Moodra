@@ -1060,7 +1060,7 @@ export function generatePagedJsHtml(opts: PagedBookOptions): string {
   const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1, printMode = false, pagedJsUrl, designerPages } = opts;
   const lang    = book.language ?? "ru";   // internal code — used for Hypher dict lookup
   const htmlLang = toBcp47(lang);           // BCP 47 — used for HTML lang="" and CSS hyphens:auto
-  const css  = settingsToCss(opts);
+  const css  = settingsToCss(opts as any);
 
   const frontMatterHtml = buildFrontMatter(book, fm, chapters, lp, s);
   const chaptersHtml    = buildChapters(chapters, s, lang, lp);
@@ -1125,10 +1125,9 @@ export function generatePrintHtml(opts: PagedBookOptions): string {
 export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
   const { book, chapters, settings: s, frontMatter: fm, lp, zoom = 1 } = opts;
 
-  // Document language for hyphens:auto — use documentLanguage if set, else book.language
-  const docLang = (s as any).documentLanguage ?? book.language ?? "ru";
+  const docLang  = (s as any).documentLanguage ?? book.language ?? "ru";
   const htmlLang = toBcp47(docLang);
-  const lang = docLang; // used for Hypher soft-hyphen pre-processing
+  const lang     = docLang;
 
   const PAGE_SIZES: Record<string, { width: number; height: number }> = {
     A4: { width: 210, height: 297 },
@@ -1137,198 +1136,163 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
   };
   const ps = PAGE_SIZES[s.pageSize] ?? PAGE_SIZES["A5"];
 
-  const marginTop    = s.marginTop    ?? 20;
-  const marginBottom = s.marginBottom ?? 22;
-  const marginLeft   = s.marginLeft   ?? 20;
-  const marginRight  = s.marginRight  ?? 16;
+  const mt = s.marginTop    ?? 20;
+  const mb = s.marginBottom ?? 22;
+  const ml = s.marginLeft   ?? 20;
+  const mr = s.marginRight  ?? 16;
 
+  const enableHyphBody     = (s as any).cyrillicHyphenation    !== false;
   const enableHyphHeadings = (s as any).cyrillicHyphenHeadings !== false;
   const enableHyphToc      = (s as any).cyrillicHyphenToc      !== false;
-  const enableHyphBody     = (s as any).cyrillicHyphenation    !== false;
+  const hFont = s.headingFontFamily ? `font-family: ${s.headingFontFamily};` : "";
 
   const hyphBody = enableHyphBody ? `
   html[lang="ru"] p, html[lang="uk"] p,
   html[lang="ru"] blockquote, html[lang="uk"] blockquote,
   html[lang="ru"] .callout div, html[lang="uk"] .callout div {
-    hyphens: auto;
-    -webkit-hyphens: auto;
+    hyphens: auto; -webkit-hyphens: auto;
     hyphenate-character: "-";
     hyphenate-limit-chars: 6 3 3;
     hyphenate-limit-zone: 8%;
   }` : "";
+  const hyphHOff = enableHyphHeadings ? "" : `
+  h1,h2,h3,h4,h5,h6,.ch-title,.chapter-num { hyphens: none !important; }`;
+  const hyphTOff = enableHyphToc ? "" : `
+  .toc-page *,.toc-heading,.toc-title { hyphens: none !important; }`;
 
-  const hyphHeadingsOff = enableHyphHeadings ? "" : `
-  h1, h2, h3, h4, h5, h6, .ch-title, .chapter-num { hyphens: none !important; }`;
-
-  const hyphTocOff = enableHyphToc ? "" : `
-  .toc-page *, .toc-heading, .toc-title { hyphens: none !important; }`;
-
-  const headingFont = s.headingFontFamily ? `font-family: ${s.headingFontFamily};` : "";
+  // ── Shared typography block (same as WeasyPrint export) ────────────
+  const typo = `
+    font-family: ${s.fontFamily};
+    font-size: ${s.fontSize}pt;
+    line-height: ${s.lineHeight};
+    letter-spacing: ${s.letterSpacing ?? 0}em;
+    color: #1a1209;
+    font-kerning: normal;
+    font-feature-settings: "kern" 1,"liga" 1,"calt" 1;
+    text-rendering: optimizeLegibility;
+    widows: 2; orphans: 2;`;
 
   const css = `
-/* ── Canvas ─────────────────────────────────────────────────── */
-html, body {
-  margin: 0;
-  padding: ${Math.round(32 * zoom)}px 0;
-  background: #cdc7bf;
-  min-height: 100vh;
-}
-
-/* ── Page card ───────────────────────────────────────────────── */
-.cyrillic-preview-page {
-  width: ${ps.width}mm;
-  margin: 0 auto ${Math.round(32 * zoom)}px;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12), 0 8px 32px rgba(0,0,0,0.16), 0 1px 3px rgba(0,0,0,0.08);
-  border-radius: 2px;
-  padding: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
-  zoom: ${zoom};
-}
-
-/* ── Engine badge ────────────────────────────────────────────── */
-.cyrillic-engine-badge {
-  position: fixed;
-  bottom: 12px;
-  right: 12px;
-  background: rgba(30,30,40,0.72);
-  color: #fff;
-  font-size: 10px;
-  font-family: system-ui, sans-serif;
-  padding: 4px 8px;
-  border-radius: 6px;
-  letter-spacing: 0.03em;
-  pointer-events: none;
-  z-index: 9999;
-}
-
-/* ── Reset ───────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #cdc7bf; }
 
-/* ── Base typography (matches WeasyPrint export exactly) ─────── */
-.cyrillic-preview-page {
-  font-family: ${s.fontFamily};
-  font-size: ${s.fontSize}pt;
-  line-height: ${s.lineHeight};
-  letter-spacing: ${s.letterSpacing ?? 0}em;
-  color: #1a1209;
-  font-kerning: normal;
-  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
-  text-rendering: optimizeLegibility;
-  widows: 2;
-  orphans: 2;
+/* ── Measurement ghost (hidden, same width as content) ───── */
+#cyrl-src {
+  position: fixed; left: -9999px; top: 0;
+  width: ${ps.width - ml - mr}mm;
+  visibility: hidden; overflow: visible;
+  ${typo}
 }
 
-/* ── Paragraphs ──────────────────────────────────────────────── */
-p {
-  text-indent: ${s.firstLineIndent}em;
-  margin: 0;
-  text-align: ${s.textAlign};
-  word-break: normal;
-  overflow-wrap: normal;
+/* ── Canvas ─────────────────────────────────────────────── */
+#cyrl-canvas {
+  padding: 32px 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
 }
+/* Spread mode: two pages per row */
+html[data-view="spread"] #cyrl-canvas {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px 8px;
+  padding: 32px 16px;
+}
+
+/* ── Page card (identical look to Paged.js pages) ────────── */
+.cyrl-page {
+  width: ${ps.width}mm;
+  min-height: ${ps.height}mm;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12), 0 8px 32px rgba(0,0,0,0.16), 0 1px 3px rgba(0,0,0,0.08);
+  padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
+  overflow: hidden;
+  flex-shrink: 0;
+  ${typo}
+}
+html[data-view="spread"] .cyrl-page { zoom: ${Math.min(1, zoom * 0.72)}; }
+html[data-view="single"] .cyrl-page { zoom: ${zoom}; }
+
+/* ── Badge ───────────────────────────────────────────────── */
+#cyrl-badge {
+  position: fixed; bottom: 12px; right: 12px;
+  background: rgba(30,30,40,0.72); color: #fff;
+  font: 10px/1 system-ui,sans-serif;
+  padding: 4px 8px; border-radius: 6px;
+  letter-spacing: .03em; pointer-events: none; z-index: 9999;
+}
+
+/* ── Paragraphs ──────────────────────────────────────────── */
+p { text-indent: ${s.firstLineIndent}em; margin: 0; text-align: ${s.textAlign}; }
 p + p { margin-top: ${s.paragraphSpacing * s.fontSize}pt; }
 blockquote + p, h2 + p, h3 + p, h4 + p { text-indent: 0; }
 
-/* ── Headings ────────────────────────────────────────────────── */
-.bh1, .bh2, .bh3 { ${headingFont} hyphens: none; -webkit-hyphens: none; }
-.bh1 {
-  font-size: ${s.h1Size}pt;
-  font-weight: 700;
-  line-height: 1.25;
-  margin-top: ${s.lineHeight * 1.8}em;
-  margin-bottom: ${s.lineHeight * 0.5}em;
-}
-.bh2 {
-  font-size: ${s.h2Size}pt;
-  font-weight: 600;
-  line-height: 1.3;
-  margin-top: ${s.lineHeight * 1.4}em;
-  margin-bottom: ${s.lineHeight * 0.4}em;
-}
-.bh3 {
-  font-size: ${s.h3Size}pt;
-  font-weight: 600;
-  line-height: 1.3;
-  margin-top: ${s.lineHeight * 1.2}em;
-  margin-bottom: ${s.lineHeight * 0.3}em;
-}
+/* ── Headings ────────────────────────────────────────────── */
+.bh1,.bh2,.bh3 { ${hFont} hyphens: none; -webkit-hyphens: none; }
+.bh1 { font-size: ${s.h1Size}pt; font-weight: 700; line-height: 1.25;
+       margin-top: ${s.lineHeight * 1.8}em; margin-bottom: ${s.lineHeight * 0.5}em; }
+.bh2 { font-size: ${s.h2Size}pt; font-weight: 600; line-height: 1.3;
+       margin-top: ${s.lineHeight * 1.4}em; margin-bottom: ${s.lineHeight * 0.4}em; }
+.bh3 { font-size: ${s.h3Size}pt; font-weight: 600; line-height: 1.3;
+       margin-top: ${s.lineHeight * 1.2}em; margin-bottom: ${s.lineHeight * 0.3}em; }
 
-/* ── Callouts / Quotes ───────────────────────────────────────── */
+/* ── Callouts / Quotes ───────────────────────────────────── */
 blockquote.bquote {
   margin: ${s.lineHeight}em ${s.firstLineIndent * 1.5}em;
-  font-style: italic;
-  color: #555;
+  font-style: italic; color: #555;
   border-left: 2px solid #d4c5b0;
   padding-left: ${s.firstLineIndent}em;
 }
 .callout {
-  display: flex; gap: 0.5em;
+  display: flex; gap: .5em;
   margin: ${s.lineHeight * 0.6}em 0;
   padding: ${s.lineHeight * 0.4}em ${s.firstLineIndent}em;
-  border-radius: 4px;
-  font-size: ${s.fontSize - 0.5}pt;
+  border-radius: 4px; font-size: ${s.fontSize - 0.5}pt;
 }
-.callout .ci { flex-shrink: 0; font-size: 0.8em; margin-top: 0.15em; }
+.callout .ci { flex-shrink: 0; font-size: .8em; margin-top: .15em; }
 .ch  { background: #faf7f2; border-left: 3px solid #c4a882; }
 .ca  { background: #f4fbf4; border-left: 3px solid #8dbe8d; }
 .cc  { background: #fdf4f4; border-left: 3px solid #be8d8d; }
 .ci_ { background: #f4f7fd; border-left: 3px solid #8da3be; }
 .cq  { background: #fdfaf0; border-left: 3px solid #bebe8d; }
+hr.bdiv { border: none; border-top: 1pt solid #e0ddd8;
+          margin: ${s.lineHeight * 1.2}em ${s.firstLineIndent * 2}em; }
 
-/* ── Divider ─────────────────────────────────────────────────── */
-hr.bdiv {
-  border: none;
-  border-top: 1pt solid #e0ddd8;
-  margin: ${s.lineHeight * 1.2}em ${s.firstLineIndent * 2}em;
-}
-
-/* ── Chapter structure ───────────────────────────────────────── */
-.chapter {
-  margin-top: ${s.lineHeight * 3}em;
-  padding-top: ${s.lineHeight * 2}em;
-  border-top: 1px solid #e0dbd4;
-}
-.chapter:first-child { margin-top: 0; border-top: none; }
+/* ── Chapter structure ───────────────────────────────────── */
+.chapter { padding-top: ${s.lineHeight * 2}em; }
 .ch-header { text-align: center; padding-bottom: ${s.lineHeight * 2}em; }
 .ch-title {
   font-family: ${s.headingFontFamily || s.fontFamily};
-  font-size: ${s.h1Size}pt;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  hyphens: none;
-  -webkit-hyphens: none;
-  color: #1a1209;
-  margin-bottom: 0.3em;
+  font-size: ${s.h1Size}pt; font-weight: 700;
+  line-height: 1.2; letter-spacing: -.01em;
+  hyphens: none; -webkit-hyphens: none; color: #1a1209; margin-bottom: .3em;
 }
 .ch-body > h2 + p, .ch-body > h3 + p, .ch-body > h4 + p { text-indent: 0; }
 
-/* ── Lists ───────────────────────────────────────────────────── */
-.blist-ul, .blist-ol, .blist-checklist {
+/* ── Lists ───────────────────────────────────────────────── */
+.blist-ul,.blist-ol,.blist-checklist {
   margin: ${s.lineHeight * 0.5}em 0;
   padding-left: ${s.firstLineIndent * 2}em;
 }
 .blist-ul { list-style-type: disc; }
 .blist-ol { list-style-type: decimal; }
 .blist-checklist { list-style-type: none; padding-left: ${s.firstLineIndent}em; }
-.blist-item {
-  margin: ${s.lineHeight * 0.15}em 0;
-  font-size: ${s.fontSize}pt;
-  line-height: ${s.lineHeight};
-}
-.blist-checklist .blist-item::before { content: "☐ "; font-size: 0.9em; }
+.blist-item { margin: ${s.lineHeight * 0.15}em 0; font-size: ${s.fontSize}pt; line-height: ${s.lineHeight}; }
+.blist-checklist .blist-item::before { content: "☐ "; font-size: .9em; }
 .blist-checklist .bchecked::before   { content: "☑ "; color: #5a9e5a; }
 .blist-checklist .bchecked           { color: #999; text-decoration: line-through; }
 
-/* ── TOC ─────────────────────────────────────────────────────── */
+/* ── TOC ─────────────────────────────────────────────────── */
 .toc-page { padding: 8pt 0; }
 .toc-heading {
   font-family: ${s.headingFontFamily || s.fontFamily};
-  font-size: ${s.h2Size}pt;
-  text-align: center;
-  margin-bottom: 20pt;
-  font-weight: 600;
-  color: #333;
+  font-size: ${s.h2Size}pt; text-align: center;
+  margin-bottom: 20pt; font-weight: 600; color: #333;
   hyphens: none; -webkit-hyphens: none;
 }
 .toc-list { display: flex; flex-direction: column; gap: 6pt; }
@@ -1337,47 +1301,178 @@ hr.bdiv {
 .toc-title { color: #333; }
 .toc-dots  { flex: 1; border-bottom: 1pt dotted #d8d3cc; margin-bottom: 2pt; }
 .toc-page-ref { color: #888; font-size: ${s.fontSize - 0.5}pt; min-width: 2em; text-align: right; }
+.toc-page-ref::after { content: ""; } /* no target-counter in screen mode */
 
-/* ── Front-matter ────────────────────────────────────────────── */
-.front-matter-page { margin-bottom: ${s.lineHeight * 4}em; }
+/* ── Front-matter ────────────────────────────────────────── */
+.front-matter-page { }
 .cover-page img { max-width: 100%; border-radius: 2px; display: block; margin: 0 auto; }
-.title-main { font-family: ${s.headingFontFamily || s.fontFamily}; font-size: var(--t-fs, 28pt); font-weight: 700; line-height: 1.2; hyphens: none; }
-.title-sub  { font-size: var(--s-fs, 13pt); color: #888; font-style: italic; margin-bottom: 0.3em; }
-.title-author { font-size: var(--a-fs, 12pt); color: #555; letter-spacing: 0.05em; }
+.title-main { font-family: ${s.headingFontFamily || s.fontFamily}; font-size: var(--t-fs,28pt); font-weight: 700; line-height: 1.2; hyphens: none; }
+.title-sub  { font-size: var(--s-fs,13pt); color: #888; font-style: italic; margin-bottom: .3em; }
+.title-author { font-size: var(--a-fs,12pt); color: #555; letter-spacing: .05em; }
 .title-page { text-align: center; padding: 8% 0 6%; }
 .title-align-center { text-align: center; }
 .title-align-left   { text-align: left; }
 .title-align-right  { text-align: right; }
 .title-ornament { font-size: 18pt; color: #d4c5b0; margin-bottom: 1em; }
 .title-top-line { width: 40px; height: 2px; background: #d4c5b0; margin-bottom: 1em; }
-.title-mid-line { width: 40px; height: 1px; background: #d4c5b0; margin: 0.5em 0; }
-.title-publisher { font-size: ${s.fontSize - 1}pt; color: #888; letter-spacing: 0.06em; text-transform: uppercase; }
+.title-mid-line { width: 40px; height: 1px; background: #d4c5b0; margin: .5em 0; }
+.title-publisher { font-size: ${s.fontSize - 1}pt; color: #888; letter-spacing: .06em; text-transform: uppercase; }
 .title-cityYear  { font-size: ${s.fontSize - 1}pt; color: #aaa; margin-top: 4pt; }
 .dedication-text { font-style: italic; color: #555; }
 
-/* ── Cyrillic hyphenation (same rules as WeasyPrint export) ──── */
-${hyphBody}
-${hyphHeadingsOff}
-${hyphTocOff}
+/* ── Hyphenation ─────────────────────────────────────────── */
+${hyphBody}${hyphHOff}${hyphTOff}
+`;
+
+  // ── JS block-packer ─────────────────────────────────────────────────
+  // Measures each content block in a hidden ghost container, then
+  // distributes them into page cards of exactly ps.height mm height.
+  // Reports page count to parent via the same postMessage protocol as Paged.js.
+  const script = `
+(function() {
+  var MM = 96 / 25.4;
+  var PAGE_H  = ${ps.height} * MM;
+  var MT = ${mt} * MM, MB = ${mb} * MM;
+  var CONTENT_H = PAGE_H - MT - MB;
+  var pageEls = [];
+
+  function newPage() {
+    var p = document.createElement('div');
+    p.className = 'cyrl-page';
+    return p;
+  }
+
+  function buildPages() {
+    var src = document.getElementById('cyrl-src');
+    var canvas = document.getElementById('cyrl-canvas');
+    if (!src || !canvas) return;
+
+    var children = Array.from(src.children);
+    pageEls = [];
+    var page = newPage();
+    var usedH = 0;
+    var chapterPageMap = {};
+
+    children.forEach(function(child) {
+      var cs = window.getComputedStyle(child);
+      var mT = parseFloat(cs.marginTop)    || 0;
+      var mB = parseFloat(cs.marginBottom) || 0;
+      var h  = child.offsetHeight + mT + mB;
+
+      // Chapter elements always start on a fresh page
+      var isChapter = child.classList.contains('chapter');
+      if (isChapter && usedH > 0) {
+        pageEls.push(page);
+        canvas.appendChild(page);
+        page = newPage();
+        usedH = 0;
+      }
+
+      // If adding this block overflows the current page, start a new one
+      if (!isChapter && usedH > 0 && usedH + h > CONTENT_H) {
+        pageEls.push(page);
+        canvas.appendChild(page);
+        page = newPage();
+        usedH = 0;
+      }
+
+      // Record chapter → page mapping
+      if (isChapter) {
+        var ci = child.getAttribute('data-ci');
+        if (ci !== null) chapterPageMap[ci] = pageEls.length; // 0-based page index
+      }
+
+      page.appendChild(child.cloneNode(true));
+      usedH += h;
+
+      // Element taller than a full page: it occupies its own page
+      while (usedH > CONTENT_H) {
+        pageEls.push(page);
+        canvas.appendChild(page);
+        page = newPage();
+        usedH = 0;
+        break;
+      }
+    });
+
+    if (page.children.length > 0) {
+      pageEls.push(page);
+      canvas.appendChild(page);
+    }
+
+    // Convert 0-based page index to 1-based for the protocol
+    var chapterPages = {};
+    Object.keys(chapterPageMap).forEach(function(ci) {
+      chapterPages[parseInt(ci, 10)] = chapterPageMap[ci] + 1;
+    });
+
+    // Report to parent (same protocol as Paged.js)
+    window.parent.postMessage(
+      { type: 'paged-ready', total: pageEls.length, chapterPages: chapterPages },
+      '*'
+    );
+  }
+
+  // Run after full layout is complete (double-rAF ensures fonts/images are measured)
+  window.addEventListener('load', function() {
+    requestAnimationFrame(function() {
+      requestAnimationFrame(buildPages);
+    });
+  });
+
+  // Handle messages from the parent React component
+  window.addEventListener('message', function(e) {
+    if (!e.data || !e.data.type) return;
+
+    if (e.data.type === 'goto-page') {
+      var idx = Math.max(0, (e.data.page || 1) - 1);
+      var p = pageEls[idx];
+      if (p) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    if (e.data.type === 'goto-chapter') {
+      var chIdx = e.data.chapterIdx || 0;
+      // Find the chapter card directly
+      var chEl = document.querySelector('.cyrl-page .chapter[data-ci="' + chIdx + '"]');
+      if (chEl) {
+        chEl.closest('.cyrl-page').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    if (e.data.type === 'set-view-mode') {
+      document.documentElement.setAttribute('data-view', e.data.mode || 'single');
+    }
+  });
+})();
 `;
 
   const frontMatterHtml = buildFrontMatter(book, fm, chapters, lp, s);
   const chaptersHtml    = buildChapters(chapters, s, lang, lp);
 
+  // Inject data-ci attributes onto each chapter for the goto-chapter handler.
+  // buildChapters generates <div class="chapter">…</div> — add data-ci="N".
+  let _ci = 0;
+  const chaptersTagged = chaptersHtml.replace(/<div class="chapter">/g, () => {
+    return `<div class="chapter" data-ci="${_ci++}">`;
+  });
+
   return `<!DOCTYPE html>
-<html lang="${htmlLang}">
+<html lang="${htmlLang}" data-view="single">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(book.title)}</title>
 <style>${css}</style>
 </head>
 <body lang="${htmlLang}">
-<div class="cyrillic-preview-page">
+<!-- Measurement ghost: same width as page content, hidden off-screen -->
+<div id="cyrl-src">
 ${frontMatterHtml}
-${chaptersHtml}
+${chaptersTagged}
 </div>
-<div class="cyrillic-engine-badge">Cyrillic Engine · WeasyPrint</div>
+<!-- Page cards are injected here by the JS paginator -->
+<div id="cyrl-canvas"></div>
+<div id="cyrl-badge">Cyrillic Engine · WeasyPrint</div>
+<script>${script}</script>
 </body>
 </html>`;
 }

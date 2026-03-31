@@ -3648,43 +3648,66 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     const RENDERER_URL = process.env.CYRILLIC_RENDERER_URL || "http://localhost:3001";
     const fontName = fontFamily.split(",")[0].trim().replace(/['"]/g, "");
 
-    let pdfBuffer: Buffer;
-    try {
-      const response = await fetch(`${RENDERER_URL}/render-pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          html: cyrHtml,
-          language: docLang,
-          page: {
-            format: pageSizeCSS,
-            margins: {
-              top: `${marginTop}mm`,
-              right: `${marginRight}mm`,
-              bottom: `${marginBottom}mm`,
-              left: `${marginLeft}mm`,
-            },
-          },
-          fonts: [{ family: fontName }],
-          meta: { bookId: String(bookId), title: book.title },
-        }),
-      });
+    // Helper: try to reach the Python renderer with up to RETRIES attempts.
+    // WeasyPrint can take 20-40 s to initialise on a cold container start,
+    // so we retry a few times before giving up.
+    const MAX_RETRIES = 4;
+    const RETRY_DELAY_MS = 4000;
+    const renderPayload = JSON.stringify({
+      html: cyrHtml,
+      language: docLang,
+      page: {
+        format: pageSizeCSS,
+        margins: {
+          top: `${marginTop}mm`,
+          right: `${marginRight}mm`,
+          bottom: `${marginBottom}mm`,
+          left: `${marginLeft}mm`,
+        },
+      },
+      fonts: [{ family: fontName }],
+      meta: { bookId: String(bookId), title: book.title },
+    });
 
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({ error: "Unknown renderer error" }));
-        console.error("[CyrillicExport] Renderer error:", response.status, errBody);
-        return res.status(502).json({
-          error: errBody.error || "Cyrillic renderer failed",
-          hint: "Make sure the Cyrillic Renderer service is running.",
+    let pdfBuffer!: Buffer;
+    let lastErr: any;
+    let attempt = 0;
+    while (attempt < MAX_RETRIES) {
+      attempt++;
+      try {
+        const response = await fetch(`${RENDERER_URL}/render-pdf`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: renderPayload,
+          signal: AbortSignal.timeout(120_000), // 2 min hard timeout
         });
-      }
 
-      const arrayBuf = await response.arrayBuffer();
-      pdfBuffer = Buffer.from(arrayBuf);
-    } catch (err: any) {
-      console.error("[CyrillicExport] Failed to reach renderer:", err?.message);
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({ error: "Unknown renderer error" }));
+          console.error("[CyrillicExport] Renderer error:", response.status, errBody);
+          return res.status(502).json({
+            error: errBody.error || "Cyrillic renderer failed",
+            hint: "Make sure the Cyrillic Renderer service is running.",
+          });
+        }
+
+        const arrayBuf = await response.arrayBuffer();
+        pdfBuffer = Buffer.from(arrayBuf);
+        lastErr = null;
+        break; // success — exit retry loop
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`[CyrillicExport] Attempt ${attempt}/${MAX_RETRIES} failed: ${err?.message}`);
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        }
+      }
+    }
+
+    if (lastErr) {
+      console.error("[CyrillicExport] All attempts failed:", lastErr?.message);
       return res.status(503).json({
-        error: "Кириллический PDF-рендерер временно недоступен. Попробуйте позже или переключитесь на Latin Engine.",
+        error: "Кириллический PDF-рендерер временно недоступен. Сервис запускается, попробуйте через 15–20 секунд.",
         hint: "Cyrillic Renderer service is not running on port 3001.",
       });
     }
