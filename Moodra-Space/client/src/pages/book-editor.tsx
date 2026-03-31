@@ -233,6 +233,8 @@ export default function BookEditor() {
               chapter={selectedChapter || null}
               bookTitle={book.title}
               bookMode={book.mode || "scientific"}
+              bookGenre={book.genre || ""}
+              bookId={bookId}
               onContextChange={setAiContext}
               onInsertReady={cb => setAiInsertCallback(() => cb)}
               isDeepWritingMode={isDeepWritingMode}

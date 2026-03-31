@@ -286,6 +286,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const chapter = await storage.updateChapter(Number(req.params.id), req.body);
       if (!chapter) return res.status(404).json({ error: "Глава не найдена" });
+      if (chapter.bookId) storage.updateBook(chapter.bookId, {}).catch(() => {});
       res.json(chapter);
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -352,8 +353,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/books/:bookId/notes", async (req: Request, res: Response) => {
     try {
-      const data = insertNoteSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const bookId = Number(req.params.bookId);
+      const data = insertNoteSchema.parse({ ...req.body, bookId });
       const note = await storage.createNote(data);
+      storage.updateBook(bookId, {}).catch(() => {});
       res.status(201).json(note);
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -364,6 +367,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const note = await storage.updateNote(Number(req.params.id), req.body);
       if (!note) return res.status(404).json({ error: "Заметка не найдена" });
+      if (note.bookId) storage.updateBook(note.bookId, {}).catch(() => {});
       res.json(note);
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -543,8 +547,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/books/:bookId/drafts", async (req: Request, res: Response) => {
     try {
-      const data = insertDraftSchema.parse({ ...req.body, bookId: Number(req.params.bookId) });
+      const bookId = Number(req.params.bookId);
+      const data = insertDraftSchema.parse({ ...req.body, bookId });
       const draft = await storage.createDraft(data);
+      storage.updateBook(bookId, {}).catch(() => {});
       res.status(201).json(draft);
     } catch (e: any) { res.status(400).json({ error: e.message }); }
   });
@@ -1247,7 +1253,7 @@ ${existing ? "Не дублируй уже имеющиеся источники
   app.post("/api/ai/improve", async (req: Request, res: Response) => {
     try {
       const {
-        text, mode, style, bookTitle, bookMode, customInstruction, targetLang,
+        text, mode, style, bookTitle, bookMode, bookGenre, customInstruction, targetLang,
         // Phase 3: optional author role model context
         bookId, useRoleModels, selectedRoleModelIds,
       } = req.body;
@@ -1356,13 +1362,14 @@ ${existing ? "Не дублируй уже имеющиеся источники
         } catch {}
       }
 
+      const genreNote = bookGenre ? ` Genre: ${bookGenre}.` : "";
       const systemPrompt =
         `You are an expert editor and writer.${masterPromptContext} ${modeInstruction}${styleNote}${customNote}` +
         `${roleModelContext}` +
         ` Return ONLY the result, no preamble or explanation.` +
         ` IMPORTANT: If the input contains blank lines (double newlines) separating paragraphs,` +
         ` you MUST preserve those blank lines in the exact same positions in your output — do not merge paragraphs or remove the blank lines.` +
-        ` ${langInstruction3}\nContext: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "fiction" : "non-fiction"})`;
+        ` ${langInstruction3}\nContext: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "fiction" : "non-fiction"}).${genreNote}`;
 
       const aiModel = await getUserModel(req);
       const completion = await ai.chat.completions.create({

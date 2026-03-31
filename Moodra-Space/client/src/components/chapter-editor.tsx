@@ -56,6 +56,7 @@ interface Props {
   chapter: Chapter | null;
   bookTitle: string;
   bookMode: string;
+  bookGenre?: string;
   bookId?: number;
   onContextChange: (context: string) => void;
   onInsertReady: (cb: (text: string) => void) => void;
@@ -469,6 +470,7 @@ export function ChapterEditor({
   chapter, 
   bookTitle, 
   bookMode,
+  bookGenre,
   bookId,
   onContextChange, 
   onInsertReady,
@@ -1424,6 +1426,7 @@ export function ChapterEditor({
           containerRef={editorAreaRef as React.RefObject<HTMLElement>}
           bookTitle={bookTitle}
           bookMode={bookMode}
+          bookGenre={bookGenre}
           bookId={bookId}
           onResult={handleSelectionResult}
         />
@@ -1501,6 +1504,7 @@ export function ChapterEditor({
               hideControls={isReadingMode}
               bookTitle={bookTitle}
               bookMode={bookMode}
+              bookGenre={bookGenre}
               firstLineIndent={bookSettings.firstLineIndent ?? 1.2}
             />
           </div>

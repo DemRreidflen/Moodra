@@ -93,12 +93,13 @@ interface Props {
   containerRef: React.RefObject<HTMLElement>;
   bookTitle?: string;
   bookMode?: string;
+  bookGenre?: string;
   bookId?: number;
   positionBelow?: boolean;
   onResult: (original: string, improved: string, mode: string, savedRange: Range | null, blockIds: { startId: string; endId: string } | null) => void;
 }
 
-export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookId, positionBelow, onResult }: Props) {
+export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre, bookId, positionBelow, onResult }: Props) {
   const { lang } = useLang();
   const { isFreeMode } = useFreeMode();
   const [, navigate] = useLocation();
@@ -274,6 +275,7 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookId, po
           mode,
           bookTitle: bookTitle || "",
           bookMode: bookMode || "fiction",
+          bookGenre: bookGenre || "",
           customInstruction: extraParams?.customInstruction || "",
           targetLang: extraParams?.targetLang || "",
           // Phase 3: author role model context

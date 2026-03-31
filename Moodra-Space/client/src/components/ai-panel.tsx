@@ -850,7 +850,7 @@ export function AiPanel({ book, chapter, context, chapters = [], onInsert }: Pro
         const resp = await fetch("/api/ai/improve", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: textToEdit, mode: actionMode, bookTitle: book.title, bookMode: book.mode }),
+          body: JSON.stringify({ text: textToEdit, mode: actionMode, bookTitle: book.title, bookMode: book.mode, bookGenre: book.genre }),
         });
         if (!resp.ok) { const e: any = await resp.json().catch(() => ({})); const err: any = new Error(e.error || "Edit error"); err.code = e.code; throw err; }
         const data = await resp.json();
@@ -895,7 +895,7 @@ export function AiPanel({ book, chapter, context, chapters = [], onInsert }: Pro
         const resp = await fetch("/api/ai/improve", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: `${textToFormat}\n\n${lang === "ru" ? "Инструкция по форматированию" : "Formatting instructions"}: ${formatPrompt}`, mode: "format", bookTitle: book.title, bookMode: book.mode }),
+          body: JSON.stringify({ text: `${textToFormat}\n\n${lang === "ru" ? "Инструкция по форматированию" : "Formatting instructions"}: ${formatPrompt}`, mode: "format", bookTitle: book.title, bookMode: book.mode, bookGenre: book.genre }),
         });
         if (!resp.ok) { const e: any = await resp.json().catch(() => ({})); const err: any = new Error(e.error || "Format error"); err.code = e.code; throw err; }
         const data = await resp.json();

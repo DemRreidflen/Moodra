@@ -280,9 +280,7 @@ function BookCard({ book, onDelete, isLastModified }: { book: Book; onDelete: (i
     zIndex: isDragging ? 10 : undefined,
   };
 
-  const borderColor = isLastModified
-    ? (book.coverColor || "#F96D1C")
-    : "transparent";
+  const borderColor = isLastModified ? "#F96D1C" : "transparent";
 
   return (
     <div

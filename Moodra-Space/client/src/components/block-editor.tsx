@@ -705,6 +705,7 @@ interface BlockEditorProps {
   hideFormattingToolbar?: boolean;
   bookTitle?: string;
   bookMode?: string;
+  bookGenre?: string;
   firstLineIndent?: number;
   onMounted?: (api: BlockEditorAPI) => void;
 }
@@ -769,7 +770,7 @@ interface ImprovementResult {
   blockId: string;
 }
 
-export function BlockEditor({ initialContent, onChange, hideControls, hideFormattingToolbar, bookTitle, bookMode, firstLineIndent, onMounted }: BlockEditorProps) {
+export function BlockEditor({ initialContent, onChange, hideControls, hideFormattingToolbar, bookTitle, bookMode, bookGenre, firstLineIndent, onMounted }: BlockEditorProps) {
   const [blocks, setBlocks] = useState<Block[]>(() => parseInitialContent(initialContent));
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const [selectionBar, setSelectionBar] = useState<SelectionBar | null>(null);
@@ -929,6 +930,7 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
           style: selectedStyle,
           bookTitle: bookTitle || "",
           bookMode: bookMode || "scientific",
+          bookGenre: bookGenre || "",
         }),
       });
       const data = await resp.json();

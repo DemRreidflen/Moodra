@@ -553,6 +553,33 @@ export function BookSettings({ book }: { book: Book }) {
             </div>
 
             <div className="space-y-4">
+              {/* Master Prompt — first and highest priority */}
+              <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(249,109,28,0.04)", borderColor: "rgba(249,109,28,0.3)" }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm" style={{ color: "#F96D1C" }}>★</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#F96D1C" }}>
+                    {s.masterPromptSection}
+                  </span>
+                </div>
+                <p className="text-[11px] leading-relaxed" style={{ color: "#8a7a70" }}>
+                  {lang === "ru"
+                    ? "Самый важный контекст: описание стиля, подхода и особенностей книги. Применяется с наивысшим приоритетом во всех ИИ-функциях — коавтор, улучшение текста, генерация черновиков и т.д."
+                    : lang === "ua"
+                    ? "Найважливіший контекст: опис стилю, підходу та особливостей книги. Застосовується з найвищим пріоритетом у всіх ІІ-функціях — співавтор, покращення тексту, генерація чернеток тощо."
+                    : lang === "de"
+                    ? "Der wichtigste Kontext: Beschreibung des Stils, des Ansatzes und der Besonderheiten des Buches. Wird mit höchster Priorität in allen KI-Funktionen eingesetzt."
+                    : "The most important context: style, approach, and unique characteristics of the book. Applied with top priority in all AI functions — co-author, text improvement, draft generation, etc."}
+                </p>
+                <Textarea
+                  value={masterPrompt}
+                  onChange={e => { setMasterPrompt(e.target.value); mark(); }}
+                  rows={6}
+                  placeholder={s.masterPromptPlaceholder}
+                  className="bg-background rounded-xl resize-none border-border text-sm"
+                  style={{ borderColor: masterPrompt ? "rgba(249,109,28,0.4)" : undefined }}
+                />
+              </div>
+
               {/* Core idea — full width */}
               <div className="rounded-2xl border border-border p-4 space-y-3" style={{ background: "rgba(249,109,28,0.025)" }}>
                 <div className="flex items-center gap-2">
@@ -670,33 +697,6 @@ export function BookSettings({ book }: { book: Book }) {
                 rows={5}
                 placeholder={s.aboutAuthorPlaceholder}
                 className="bg-background rounded-xl resize-none border-border text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Master Prompt */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <span style={{ color: "#F96D1C" }}>★</span>
-              {s.masterPromptSection}
-            </h3>
-            <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(249,109,28,0.04)", borderColor: "rgba(249,109,28,0.25)" }}>
-              <p className="text-[11px] leading-relaxed" style={{ color: "#8a7a70" }}>
-                {lang === "ru"
-                  ? "Самый важный контекст: описание стиля, подхода и особенностей книги. Применяется с наивысшим приоритетом во всех ИИ-функциях — коавтор, улучшение текста, генерация черновиков и т.д."
-                  : lang === "ua"
-                  ? "Найважливіший контекст: опис стилю, підходу та особливостей книги. Застосовується з найвищим пріоритетом у всіх ІІ-функціях — співавтор, покращення тексту, генерація чернеток тощо."
-                  : lang === "de"
-                  ? "Der wichtigste Kontext: Beschreibung des Stils, des Ansatzes und der Besonderheiten des Buches. Wird mit höchster Priorität in allen KI-Funktionen eingesetzt."
-                  : "The most important context: style, approach, and unique characteristics of the book. Applied with top priority in all AI functions — co-author, text improvement, draft generation, etc."}
-              </p>
-              <Textarea
-                value={masterPrompt}
-                onChange={e => { setMasterPrompt(e.target.value); mark(); }}
-                rows={7}
-                placeholder={s.masterPromptPlaceholder}
-                className="bg-background rounded-xl resize-none border-border text-sm"
-                style={{ borderColor: masterPrompt ? "rgba(249,109,28,0.4)" : undefined }}
               />
             </div>
           </div>
