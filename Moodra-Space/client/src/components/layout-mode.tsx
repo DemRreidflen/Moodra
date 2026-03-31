@@ -88,6 +88,7 @@ function ExportModal({
   settings: LayoutSettings;
   frontMatter: FrontMatterSettings;
   designerPages: { id: string; afterPage: number; imageUrl: string }[];
+  chapterPages: Record<number, number>;
   onClose: () => void;
   lp: Record<string, string>;
 }) {
@@ -621,6 +622,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           settings={settings}
           frontMatter={frontMatter}
           designerPages={designerPages}
+          chapterPages={chapterPages}
           onClose={() => setShowExport(false)}
           lp={lp}
         />
