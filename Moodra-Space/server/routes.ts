@@ -3084,15 +3084,26 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     text-indent: ${firstLineIndent > 0 ? firstLineIndent + "em" : "0"};
     orphans: 3;
     widows: 3;
-    hyphens: ${pdfLang ? "manual" : "auto"};
-    -webkit-hyphens: ${pdfLang ? "manual" : "auto"};
+    hyphens: auto;
+    -webkit-hyphens: auto;
     word-break: normal;
     overflow-wrap: normal;
-    ${pdfLang ? "" : "hyphenate-limit-chars: 6 3 3;"}
+    hyphenate-limit-chars: 6 3 3;
+    -webkit-hyphenate-limit-before: 3;
+    -webkit-hyphenate-limit-after: 3;
   }
   p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
   .chapter-content > p:first-child { text-indent: 0; }
 
+  /* Headings: never hyphenate */
+  h1, h2, h3, h4, h5, h6,
+  .chapter-title, .chapter-num, .chapter-header-line,
+  .toc-heading, .toc-title, .toc-num,
+  .cover-title, .cover-subtitle, .cover-ornament, .cover-meta {
+    hyphens: none;
+    -webkit-hyphens: none;
+    word-break: keep-all;
+  }
   h2.section-h1 {
     font-size: ${h2Size}pt;
     font-weight: 700;
@@ -3126,6 +3137,9 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     font-style: italic;
     color: #5a4a3a;
     text-indent: 0;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    hyphenate-limit-chars: 6 3 3;
   }
 
   hr.divider {
@@ -3143,6 +3157,9 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     border-radius: 4px;
     font-size: 9.5pt;
     text-indent: 0;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    hyphenate-limit-chars: 6 3 3;
   }
   .callout-icon { font-size: 8pt; padding-top: 2px; flex-shrink: 0; }
   .callout-hypothesis { background: #f5f0ea; border-left: 2px solid #d4a96a; }
