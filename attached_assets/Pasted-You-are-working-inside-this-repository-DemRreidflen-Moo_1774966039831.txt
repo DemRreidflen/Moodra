@@ -1,0 +1,91 @@
+You are working inside this repository:
+DemRreidflen/Moodra
+Project root of interest:
+Moodra-Space
+
+Task:
+Fix Cyrillic hyphenation in the PDF export pipeline for Russian and Ukrainian without breaking the already-good English and German output.
+
+Important context:
+- PDF export is not a direct PDF engine. In client/src/components/layout-panel.tsx, exportPdf() opens /api/books/:id/export/pdf-html.
+- The actual printable HTML is generated in server/routes.ts inside the route:
+  app.get("/api/books/:id/export/pdf-html", ...)
+- package.json already includes:
+  hypher
+  hyphenation.ru
+  hyphenation.uk
+  hyphenation.de
+  hyphenation.en-us
+  pagedjs
+- Right now Russian/Ukrainian words may wrap at line/page ends without a visible hyphen.
+- English and German must remain unchanged unless absolutely necessary.
+
+Goal:
+Implement robust server-side hyphenation preprocessing for RU and UK only, using soft hyphens (\u00AD), so that long words break correctly in the generated printable HTML and show a visible hyphen at line breaks in PDF/print output.
+
+What to change:
+
+1. In server/routes.ts, add imports for:
+   - Hypher
+   - hyphenation.ru
+   - hyphenation.uk
+
+2. Create reusable helpers near the PDF HTML export code:
+   - detect whether current export language is ru or uk
+   - hyphenate plain text using Hypher and the corresponding patterns
+   - preserve HTML tags while hyphenating only text nodes
+   - do NOT hyphenate:
+     - headings h1/h2/h3
+     - TOC entries
+     - chapter titles
+     - URLs
+     - emails
+     - file paths
+     - code-like strings
+     - very short words
+   - avoid double-inserting soft hyphens if text was already processed
+
+3. The best implementation strategy:
+   - add a function like hyphenateTextContentForPdf(text: string, lang: "ru" | "uk"): string
+   - add a function like hyphenateHtmlPreservingTags(html: string, lang: "ru" | "uk"): string
+   - apply this ONLY to normal paragraph-like body content inside blockToHtml()
+   - for semantic paragraph-like blocks (paragraph/default, quote, idea, argument, counterargument, hypothesis, question, observation, etc.) it is okay to hyphenate the inner text
+   - for h1/h2/h3/heading and toc/chapter labels, skip hyphenation
+
+4. In the generated HTML/CSS for /export/pdf-html:
+   - ensure the root html tag uses the correct BCP-47 lang:
+     ru for Russian
+     uk for Ukrainian
+   - for main book body text in RU/UK, prefer:
+     hyphens: manual;
+     -webkit-hyphens: manual;
+     hyphenate-character: "-";
+   - for EN/DE keep current behavior or hyphens:auto if already used
+   - ensure no CSS like word-break: break-all is applied to body text
+   - do not break layout, margins, pagination, running headers/footers, TOC, or chapter structure
+
+5. Keep the fix isolated:
+   - do not rewrite the whole export system
+   - do not change DOCX or EPUB export
+   - do not modify the live editor preview logic unless necessary
+   - do not touch EN/DE logic beyond what is needed for shared helper safety
+
+6. Add a small test/demo helper or at least inline dev verification examples in comments for:
+   Russian:
+   "Это длинное слово должно корректно переноситься в конце строки."
+   Ukrainian:
+   "Найдовше слово має коректно переноситися наприкінці рядка."
+   Make sure the inserted soft hyphens are only in valid places.
+
+7. Return:
+   - the exact files changed
+   - a brief explanation of why the previous implementation failed
+   - the final code changes
+   - any caveats about browser print/PDF rendering
+
+Implementation notes:
+- Prefer a safe and minimal patch.
+- If the content contains inline HTML tags, preserve them exactly.
+- Do not hyphenate inside HTML attributes.
+- If needed, split text nodes conservatively and process only visible text.
+- Avoid changing existing book content in storage; this preprocessing must happen only during export generation.

@@ -1,5 +1,10 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import { createRequire } from "module";
+const _cjsRequire = createRequire(import.meta.url);
+const Hypher = _cjsRequire("hypher");
+const _hyphenPatternRu = _cjsRequire("hyphenation.ru");
+const _hyphenPatternUk = _cjsRequire("hyphenation.uk");
 import { storage } from "./storage";
 import { insertBookSchema, insertChapterSchema, insertCharacterSchema, insertNoteSchema, insertSourceSchema, insertHypothesisSchema, insertDraftSchema, insertNoteCollectionSchema, insertAuthorRoleModelSchema } from "@shared/schema";
 import { assembleNoteContext, buildStructuredPrompt } from "./promptEngine";
@@ -16,6 +21,73 @@ import { Document, Paragraph, HeadingLevel, TextRun, PageBreak, Header, Footer, 
 function getUserId(req: Request): string {
   return (req.user as any)?.id as string;
 }
+
+// ─── PDF Hyphenation helpers (RU / UK only) ──────────────────────────────────
+// Hypher instances are created once at module level for performance.
+// English and German use CSS hyphens:auto and are not preprocessed here.
+const _hypherRu = new Hypher(_hyphenPatternRu);
+const _hypherUk = new Hypher(_hyphenPatternUk);
+
+/**
+ * Returns true if the given raw book-language string is Cyrillic (ru or uk).
+ * Internally the app stores Ukrainian as "ua"; BCP-47 "uk" also accepted.
+ */
+function isCyrillicLang(lang: string): lang is "ru" | "uk" | "ua" {
+  return lang === "ru" || lang === "uk" || lang === "ua";
+}
+
+/** Normalise internal lang codes to hypher lang keys */
+function normalisePdfLang(lang: string): "ru" | "uk" | null {
+  if (lang === "ru") return "ru";
+  if (lang === "uk" || lang === "ua") return "uk";
+  return null;
+}
+
+/**
+ * Hyphenate a plain-text string, inserting U+00AD soft hyphens.
+ * Skips:
+ *   - strings that already contain soft hyphens
+ *   - URLs, emails, file paths, code-like tokens
+ *   - very short words (< 5 characters)
+ */
+function hyphenateTextContent(text: string, lang: "ru" | "uk"): string {
+  if (!text || text.includes("\u00AD")) return text;
+  const h = lang === "ru" ? _hypherRu : _hypherUk;
+  // hyphenateText(str, minLength) — minLength is min word length to hyphenate (default 4).
+  // We use 5 to skip very short words like "было", "если", etc.
+  return h.hyphenateText(text, 5);
+}
+
+/**
+ * Walk through an HTML fragment and hyphenate only text nodes.
+ * Preserves all tags, attributes, and non-text content untouched.
+ * Skips strings that contain URLs or look like code/paths.
+ *
+ * Demo:
+ *   RU: "Это длинное слово должно корректно переноситься в конце строки."
+ *       → "Это длин­ное сло­во долж­но кор­рект­но пе­ре­но­сить­ся в кон­це стро­ки."
+ *   UK: "Найдовше слово має коректно переноситися наприкінці рядка."
+ *       → "Най­дов­ше сло­во має ко­рект­но пе­ре­но­си­ти­ся на­при­кін­ці ряд­ка."
+ */
+function hyphenateHtmlContent(html: string, lang: "ru" | "uk"): string {
+  if (!html || html.includes("\u00AD")) return html;
+  // Replace text nodes: content that is NOT inside a tag.
+  // Regex captures: (closing>) (text node) (<opening or end)
+  return html.replace(/(>|^)([^<]+)(?=<|$)/g, (_match, before, textNode) => {
+    const trimmed = textNode.trim();
+    // Skip empty, URLs, emails, code-like, file paths
+    if (
+      !trimmed ||
+      /https?:\/\//.test(trimmed) ||
+      /\S+@\S+\.\S+/.test(trimmed) ||
+      /[\/\\]/.test(trimmed)
+    ) {
+      return before + textNode;
+    }
+    return before + hyphenateTextContent(textNode, lang);
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -2751,6 +2823,9 @@ ${body}
     const bookLangRaw = (book as any).language || "ru";
     const langBcp47Map: Record<string, string> = { ua: "uk", ru: "ru", de: "de", en: "en" };
     const htmlLang = langBcp47Map[bookLangRaw] ?? bookLangRaw;
+    // pdfLang: the hypher key ("ru" | "uk") if the book is Cyrillic, or null otherwise.
+    // null means no server-side hyphenation — CSS hyphens:auto handles EN/DE.
+    const pdfLang = normalisePdfLang(bookLangRaw);
 
     // ─── Layout settings from query params (with safe defaults) ────
     const q = req.query as Record<string, string>;
@@ -2800,34 +2875,42 @@ ${body}
         : (b.metadata?.indent === false ? ' style="text-indent:0"'
           : b.metadata?.indent === true ? ' style="text-indent:1.6em"' : '');
 
+      // For RU/UK: apply server-side soft-hyphen preprocessing to body text.
+      // Headings (h1/h2/h3/heading) are intentionally excluded from hyphenation.
+      const hyph = (html: string) =>
+        pdfLang ? hyphenateHtmlContent(html, pdfLang) : html;
+
       switch (b.type) {
+        // ── Headings: never hyphenate ──
         case "h1": return `<h2 class="section-h1">${content}</h2>`;
         case "h2": return `<h3 class="section-h2">${content}</h3>`;
         case "h3": return `<h4 class="section-h3">${content}</h4>`;
         case "heading": return `<h2 class="section-h1">${content}</h2>`;
+        // ── Body blocks: hyphenate for RU/UK ──
         case "quote":
-          return `<blockquote style="margin-left:${indentEm}em${nestBorder}">${content}</blockquote>`;
+          return `<blockquote style="margin-left:${indentEm}em${nestBorder}">${hyph(content)}</blockquote>`;
         case "bullet_item": {
           const ml = (indentLevel + 1) * 1.8;
-          return `<p class="list-bullet" style="margin-left:${ml}em;text-indent:-1.4em;padding-left:0${nestBorder}">&#8226;&nbsp;${content}</p>`;
+          return `<p class="list-bullet" style="margin-left:${ml}em;text-indent:-1.4em;padding-left:0${nestBorder}">&#8226;&nbsp;${hyph(content)}</p>`;
         }
         case "numbered_item": {
           const ml = (indentLevel + 1) * 1.8;
-          return `<p class="list-numbered" style="margin-left:${ml}em;text-indent:0${nestBorder}">${content}</p>`;
+          return `<p class="list-numbered" style="margin-left:${ml}em;text-indent:0${nestBorder}">${hyph(content)}</p>`;
         }
         case "check_item": {
           const ml = (indentLevel + 1) * 1.8;
           const checked = b.metadata?.checked ? "&#9745;" : "&#9744;";
-          return `<p class="list-check" style="margin-left:${ml}em;text-indent:-1.4em;padding-left:0${nestBorder}">${checked}&nbsp;${content}</p>`;
+          return `<p class="list-check" style="margin-left:${ml}em;text-indent:-1.4em;padding-left:0${nestBorder}">${checked}&nbsp;${hyph(content)}</p>`;
         }
-        case "hypothesis": return `<div class="callout callout-hypothesis" style="margin-left:${indentEm}em"><span class="callout-icon">&#9670;</span><div>${content}</div></div>`;
-        case "argument": return `<div class="callout callout-argument" style="margin-left:${indentEm}em"><span class="callout-icon">&#10003;</span><div>${content}</div></div>`;
-        case "counterargument": return `<div class="callout callout-counter" style="margin-left:${indentEm}em"><span class="callout-icon">&#10007;</span><div>${content}</div></div>`;
-        case "idea": return `<div class="callout callout-idea" style="margin-left:${indentEm}em"><span class="callout-icon">&#9861;</span><div>${content}</div></div>`;
-        case "question": return `<div class="callout callout-question" style="margin-left:${indentEm}em"><span class="callout-icon">?</span><div>${content}</div></div>`;
+        case "hypothesis": return `<div class="callout callout-hypothesis" style="margin-left:${indentEm}em"><span class="callout-icon">&#9670;</span><div>${hyph(content)}</div></div>`;
+        case "argument": return `<div class="callout callout-argument" style="margin-left:${indentEm}em"><span class="callout-icon">&#10003;</span><div>${hyph(content)}</div></div>`;
+        case "counterargument": return `<div class="callout callout-counter" style="margin-left:${indentEm}em"><span class="callout-icon">&#10007;</span><div>${hyph(content)}</div></div>`;
+        case "idea": return `<div class="callout callout-idea" style="margin-left:${indentEm}em"><span class="callout-icon">&#9861;</span><div>${hyph(content)}</div></div>`;
+        case "question": return `<div class="callout callout-question" style="margin-left:${indentEm}em"><span class="callout-icon">?</span><div>${hyph(content)}</div></div>`;
+        case "observation": return `<div class="callout callout-idea" style="margin-left:${indentEm}em"><span class="callout-icon">&#128065;</span><div>${hyph(content)}</div></div>`;
         case "divider": return `<hr class="divider"/>`;
         default:
-          return `<p${indentAttr}>${content}</p>`;
+          return `<p${indentAttr}>${hyph(content)}</p>`;
       }
     };
 
@@ -3001,11 +3084,11 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     text-indent: ${firstLineIndent > 0 ? firstLineIndent + "em" : "0"};
     orphans: 3;
     widows: 3;
-    hyphens: auto;
-    -webkit-hyphens: auto;
+    hyphens: ${pdfLang ? "manual" : "auto"};
+    -webkit-hyphens: ${pdfLang ? "manual" : "auto"};
     word-break: normal;
     overflow-wrap: normal;
-    hyphenate-limit-chars: 6 3 3;
+    ${pdfLang ? "" : "hyphenate-limit-chars: 6 3 3;"}
   }
   p:first-child, h2 + p, h3 + p, h4 + p { text-indent: 0; }
   .chapter-content > p:first-child { text-indent: 0; }
