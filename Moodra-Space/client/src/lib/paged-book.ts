@@ -709,7 +709,7 @@ function buildFrontMatter(
     const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
     const align = tp.alignment ?? "center";
     const deco  = tp.decorativeStyle ?? "none";
-    const tfs   = tp.titleFontSize   ?? 28;
+    const tfs   = tp.titleFontSize   ?? 22;
     const sfs   = tp.subtitleFontSize ?? 13;
     const afs   = tp.authorFontSize  ?? 12;
     const sp    = tp.elementSpacing  ?? 1.2;
@@ -1238,7 +1238,7 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
     const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
     const align   = tp.alignment       ?? "center";
     const deco    = tp.decorativeStyle ?? "none";
-    const tfs     = tp.titleFontSize   ?? 28;
+    const tfs     = tp.titleFontSize   ?? 22;
     const sfs     = tp.subtitleFontSize ?? 13;
     const afs     = tp.authorFontSize  ?? 12;
     const sp      = tp.elementSpacing  ?? 1.2;

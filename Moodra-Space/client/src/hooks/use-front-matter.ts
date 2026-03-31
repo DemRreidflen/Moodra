@@ -61,7 +61,7 @@ export const TITLE_PAGE_PRESETS: Record<TitlePagePreset, Partial<TitlePageSettin
   classic: {
     alignment: "center",
     decorativeStyle: "lines",
-    titleFontSize: 28,
+    titleFontSize: 22,
     subtitleFontSize: 13,
     authorFontSize: 12,
     annotationFontSize: 10,
@@ -115,7 +115,7 @@ export const DEFAULT_FRONT_MATTER: FrontMatterSettings = {
     alignment: "center",
     decorativeStyle: "lines",
     titlePreset: "classic",
-    titleFontSize: 28,
+    titleFontSize: 22,
     subtitleFontSize: 13,
     authorFontSize: 12,
     annotationFontSize: 10,

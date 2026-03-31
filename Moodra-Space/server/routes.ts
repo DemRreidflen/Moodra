@@ -3458,7 +3458,7 @@ window.addEventListener('load', function () {
       const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
       const align  = tp.alignment       ?? "center";
       const deco   = tp.decorativeStyle ?? "none";
-      const tfs    = tp.titleFontSize   ?? 28;
+      const tfs    = tp.titleFontSize   ?? 22;
       const sfs    = tp.subtitleFontSize ?? 13;
       const afs    = tp.authorFontSize  ?? 12;
       const sp     = tp.elementSpacing  ?? 1.2;
@@ -3467,7 +3467,7 @@ window.addEventListener('load', function () {
 <div class="cyrl-fm-page title-page title-align-${align}">
   ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
   ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
-  <h1 class="title-main" style="font-size:${tfs}pt;line-height:${lh};margin-bottom:${sp}em">${escHtml(titleText)}</h1>
+  <h1 class="title-main" style="font-size:${tfs}pt;line-height:${lh};margin-bottom:${sp}em;hyphens:none;overflow-wrap:normal">${escHtml(titleText)}</h1>
   ${tp.subtitle ? `<div class="title-sub" style="font-size:${sfs}pt;margin-bottom:${sp * 0.5}em">${escHtml(tp.subtitle)}</div>` : ""}
   ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
   ${tp.author ? `<div class="title-author" style="font-size:${afs}pt">${escHtml(tp.author)}</div>` : ""}
