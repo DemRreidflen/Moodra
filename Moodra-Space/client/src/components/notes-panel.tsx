@@ -965,6 +965,37 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, collections, al
     setLinkedNoteIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  // Auto-save with "needs completion" mark when closing without explicitly saving
+  const handleClose = () => {
+    const div = editorRef.current;
+    const contentText = div?.textContent?.trim() || div?.innerHTML?.trim() || "";
+    const hasContent = contentText.length > 3;
+    const hasTitle = titleInput.trim().length > 0;
+
+    if (!note && hasContent && !mutation.isPending) {
+      const autoTitle = hasTitle
+        ? titleInput.trim()
+        : (contentText.slice(0, 40) + (contentText.length > 40 ? "…" : ""));
+      const needsTag = lang === "ru" ? "нужно завершить" : lang === "ua" ? "потрібно завершити" : lang === "de" ? "zu vervollständigen" : "needs-completion";
+      mutation.mutate({
+        title: autoTitle,
+        content: div?.innerHTML || "",
+        type,
+        tags: [tagInput.trim(), needsTag].filter(Boolean).join(", "),
+        status: "inbox",
+        color: noteColor,
+        collection: "",
+        importance: "",
+        isPinned: "false",
+        linkedNoteIds: linkedNoteIds.join(","),
+      });
+      return;
+    }
+    setShowHL(false);
+    setShowLinkDialog(false);
+    onClose();
+  };
+
   const filteredLinkableNotes = allNotes.filter(n =>
     n.id !== note?.id && (!noteSearch || n.title.toLowerCase().includes(noteSearch.toLowerCase()))
   );
@@ -976,7 +1007,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, collections, al
   return createPortal(
     <div className="fixed inset-0 z-[500] flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.42)", backdropFilter: "blur(3px)" }}
-      onClick={() => { setShowHL(false); setShowLinkDialog(false); onClose(); }}>
+      onClick={() => { setShowHL(false); setShowLinkDialog(false); handleClose(); }}>
       <div className="w-full max-w-[640px] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: "92vh", background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
         onClick={e => e.stopPropagation()}>
@@ -1031,7 +1062,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, collections, al
               : <Check className="h-3 w-3" />}
             {s.save}
           </button>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors text-muted-foreground flex-shrink-0">
+          <button onClick={handleClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors text-muted-foreground flex-shrink-0">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1180,10 +1211,11 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, collections, al
 
         {/* Editor area */}
         <div ref={editorScrollRef} className="flex-1 overflow-y-auto">
-          {/* SelectionToolbar scoped to note editor */}
+          {/* SelectionToolbar scoped to note editor — appears below selection */}
           <SelectionToolbar
             containerRef={editorScrollRef as React.RefObject<HTMLElement>}
             bookTitle={bookTitle}
+            positionBelow
             onResult={handleNoteSelectionResult}
           />
           <div ref={editorRef} contentEditable suppressContentEditableWarning
@@ -1191,7 +1223,7 @@ function NoteDialog({ open, onClose, bookId, note, prefillTitle, collections, al
             data-placeholder={lang === "ru" ? "Начни писать мысль…" : lang === "ua" ? "Почни писати думку…" : lang === "de" ? "Schreib deine Gedanken…" : "Start writing your thought…"}
             onPaste={handlePaste}
             onKeyDown={e => {
-              if (e.key === "Escape") onClose();
+              if (e.key === "Escape") handleClose();
               if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSave(); }
             }} />
         </div>

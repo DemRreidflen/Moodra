@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -23,6 +23,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const COVER_COLORS = [
   "#007AFF", "#5856D6", "#AF52DE", "#FF2D55", "#FF3B30",
@@ -245,17 +260,46 @@ function CreateBookDialog({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
-function BookCard({ book, onDelete }: { book: Book; onDelete: (id: number) => void }) {
+function BookCard({ book, onDelete, isLastModified }: { book: Book; onDelete: (id: number) => void; isLastModified?: boolean }) {
   const [, navigate] = useLocation();
   const { t } = useLang();
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: book.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  const borderColor = isLastModified
+    ? (book.coverColor || "#F96D1C")
+    : "transparent";
+
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       data-testid={`book-card-${book.id}`}
       className="group flex flex-col cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
       onClick={() => navigate(`/book/${book.id}`)}
     >
-      <div className="relative rounded-xl overflow-hidden shadow-apple-sm mb-3" style={{ aspectRatio: "148/210" }}>
+      <div
+        className="relative rounded-xl overflow-hidden shadow-apple-sm mb-3"
+        style={{
+          aspectRatio: "148/210",
+          outline: isLastModified ? `3px solid ${borderColor}` : "none",
+          outlineOffset: "2px",
+        }}
+      >
         {book.coverImage ? (
           <img src={book.coverImage} alt={book.title} className="w-full h-full object-cover" />
         ) : (
@@ -268,6 +312,22 @@ function BookCard({ book, onDelete }: { book: Book; onDelete: (id: number) => vo
               : <MFlask size={40} style={{ color: "rgba(255,255,255,0.4)" }} />}
           </div>
         )}
+        {/* Drag handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/20 backdrop-blur-md items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing hidden group-hover:flex"
+          onClick={e => e.stopPropagation()}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="4" cy="3" r="1.2" fill="white" opacity="0.8" />
+            <circle cx="8" cy="3" r="1.2" fill="white" opacity="0.8" />
+            <circle cx="4" cy="6" r="1.2" fill="white" opacity="0.8" />
+            <circle cx="8" cy="6" r="1.2" fill="white" opacity="0.8" />
+            <circle cx="4" cy="9" r="1.2" fill="white" opacity="0.8" />
+            <circle cx="8" cy="9" r="1.2" fill="white" opacity="0.8" />
+          </svg>
+        </div>
         <button
           className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
           onClick={e => { e.stopPropagation(); onDelete(book.id); }}
@@ -380,6 +440,19 @@ function StreakBadge() {
   );
 }
 
+function getBookOrder(books: Book[]): number[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem("moodra_book_order") || "null");
+    if (Array.isArray(stored)) {
+      // Keep stored order but append any new books
+      const known = new Set(stored);
+      const newIds = books.filter(b => !known.has(b.id)).map(b => b.id);
+      return [...stored.filter((id: number) => books.find(b => b.id === id)), ...newIds];
+    }
+  } catch {}
+  return books.map(b => b.id);
+}
+
 export default function Home() {
   const [showCreate, setShowCreate] = useState(false);
   const { toast } = useToast();
@@ -389,6 +462,41 @@ export default function Home() {
   const h = t.home;
 
   const { data: books = [], isLoading } = useQuery<Book[]>({ queryKey: ["/api/books"] });
+  const [bookOrder, setBookOrder] = useState<number[]>([]);
+
+  // Sync bookOrder with fetched books
+  const syncedOrder = useCallback(() => {
+    if (books.length === 0) return [];
+    return getBookOrder(books);
+  }, [books]);
+
+  const orderedBooks = (() => {
+    const order = bookOrder.length > 0 ? bookOrder : syncedOrder();
+    const bookMap = new Map(books.map(b => [b.id, b]));
+    return order.map(id => bookMap.get(id)).filter(Boolean) as Book[];
+  })();
+
+  const lastModifiedId = books.length > 0
+    ? books.reduce((prev, cur) =>
+        new Date(cur.updatedAt).getTime() > new Date(prev.updatedAt).getTime() ? cur : prev
+      ).id
+    : null;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const currentOrder = bookOrder.length > 0 ? bookOrder : syncedOrder();
+      const oldIndex = currentOrder.indexOf(active.id as number);
+      const newIndex = currentOrder.indexOf(over.id as number);
+      const newOrder = arrayMove(currentOrder, oldIndex, newIndex);
+      setBookOrder(newOrder);
+      localStorage.setItem("moodra_book_order", JSON.stringify(newOrder));
+    }
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/books/${id}`),
@@ -539,21 +647,30 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-10">
-            {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex flex-col animate-pulse">
-                  <div className="aspect-[3/4] bg-muted rounded-xl mb-3" />
-                  <div className="h-4 bg-muted rounded w-3/4 mb-2" />
-                  <div className="h-3 bg-muted rounded w-1/2" />
-                </div>
-              ))
-            ) : (
-              books.map(book => (
-                <BookCard key={book.id} book={book} onDelete={id => deleteMutation.mutate(id)} />
-              ))
-            )}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={orderedBooks.map(b => b.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-10">
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex flex-col animate-pulse">
+                      <div className="aspect-[3/4] bg-muted rounded-xl mb-3" />
+                      <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-muted rounded w-1/2" />
+                    </div>
+                  ))
+                ) : (
+                  orderedBooks.map(book => (
+                    <BookCard
+                      key={book.id}
+                      book={book}
+                      onDelete={id => deleteMutation.mutate(id)}
+                      isLastModified={book.id === lastModifiedId}
+                    />
+                  ))
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
       </main>

@@ -94,10 +94,11 @@ interface Props {
   bookTitle?: string;
   bookMode?: string;
   bookId?: number;
+  positionBelow?: boolean;
   onResult: (original: string, improved: string, mode: string, savedRange: Range | null, blockIds: { startId: string; endId: string } | null) => void;
 }
 
-export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookId, onResult }: Props) {
+export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookId, positionBelow, onResult }: Props) {
   const { lang } = useLang();
   const { isFreeMode } = useFreeMode();
   const [, navigate] = useLocation();
@@ -134,9 +135,9 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookId, on
     if (!container) return null;
     const containerRect = container.getBoundingClientRect();
 
-    // Use the first client rect (start of selection) for stable positioning
     const clientRects = range.getClientRects();
     const firstRect = clientRects[0];
+    const lastRect = clientRects[clientRects.length - 1];
     if (!firstRect || !firstRect.width) return null;
 
     // Verify the selection START is within the container (lenient horizontal check only)
@@ -146,16 +147,27 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookId, on
     ) return null;
 
     const toolbarWidth = 580;
-    // Center toolbar horizontally over the first line of the selection
+    // Center toolbar horizontally over the selection
     let left = firstRect.left + firstRect.width / 2 - toolbarWidth / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - toolbarWidth - 8));
-    // Vertical: show above first line when visible, else float at screen midpoint
-    const naturalTop = firstRect.top - 54;
-    const top = naturalTop < 60
-      ? Math.round(window.innerHeight * 0.45)
-      : Math.min(naturalTop, window.innerHeight - 80);
+
+    let top: number;
+    if (positionBelow) {
+      // Position below the last line of the selection
+      const refRect = lastRect || firstRect;
+      const naturalBottom = refRect.bottom + 8;
+      top = naturalBottom + 120 > window.innerHeight
+        ? Math.max(8, refRect.top - 54)
+        : naturalBottom;
+    } else {
+      // Original behavior: above the first line
+      const naturalTop = firstRect.top - 54;
+      top = naturalTop < 60
+        ? Math.round(window.innerHeight * 0.45)
+        : Math.min(naturalTop, window.innerHeight - 80);
+    }
     return { top, left };
-  }, [containerRef]);
+  }, [containerRef, positionBelow]);
 
   const handleSelectionChange = useCallback(() => {
     // Don't react to selection changes while we're clicking inside the toolbar

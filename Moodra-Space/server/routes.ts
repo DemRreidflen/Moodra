@@ -1342,8 +1342,22 @@ ${existing ? "Не дублируй уже имеющиеся источники
       }
       // ────────────────────────────────────────────────────────────────────────
 
+      // Fetch master prompt for the book if bookId is provided
+      let masterPromptContext = "";
+      if (bookId) {
+        try {
+          const numericId = parseInt(bookId, 10);
+          if (!isNaN(numericId)) {
+            const bookData = await storage.getBook(numericId);
+            if (bookData?.masterPrompt?.trim()) {
+              masterPromptContext = `\n\n[MASTER PROMPT — TOP PRIORITY AUTHOR CONTEXT]\n${bookData.masterPrompt.trim()}\n[END MASTER PROMPT]`;
+            }
+          }
+        } catch {}
+      }
+
       const systemPrompt =
-        `You are an expert editor and writer. ${modeInstruction}${styleNote}${customNote}` +
+        `You are an expert editor and writer.${masterPromptContext} ${modeInstruction}${styleNote}${customNote}` +
         `${roleModelContext}` +
         ` Return ONLY the result, no preamble or explanation.` +
         ` IMPORTANT: If the input contains blank lines (double newlines) separating paragraphs,` +

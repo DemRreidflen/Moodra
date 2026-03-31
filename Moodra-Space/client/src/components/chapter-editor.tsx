@@ -1132,6 +1132,7 @@ export function ChapterEditor({
         if (!bookResp.ok) throw new Error("Failed to create book");
         targetBookId = newBook.id;
         targetBookTitle = newTitle;
+        queryClient.invalidateQueries({ queryKey: ["/api/books"] });
       } else {
         targetBookId = selectedExistingBookId!;
         targetBookTitle = allBooks.find(b => b.id === selectedExistingBookId)?.title || "Book";

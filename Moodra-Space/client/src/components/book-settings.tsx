@@ -54,6 +54,9 @@ const BOOKSETTINGS_I18N = {
     aboutAuthorSection: "About the author",
     aboutAuthorLabel: "Author bio",
     aboutAuthorPlaceholder: "A few sentences about the author — displayed in book exports and back matter…",
+    masterPromptSection: "Master Prompt",
+    masterPromptLabel: "Master prompt",
+    masterPromptPlaceholder: "Describe the style, approach, tone, unique features of the book — this context is the top priority for all AI functions on the platform…",
     dangerZone: "Danger zone",
     deleteBook: "Delete book",
     deleteDesc: "This action is irreversible. All chapters and data will be deleted.",
@@ -101,6 +104,9 @@ const BOOKSETTINGS_I18N = {
     aboutAuthorSection: "Об авторе",
     aboutAuthorLabel: "Биография автора",
     aboutAuthorPlaceholder: "Несколько предложений об авторе — отображается в экспорте книги и на странице «Об авторе»…",
+    masterPromptSection: "Мастер-промт",
+    masterPromptLabel: "Мастер-промт",
+    masterPromptPlaceholder: "Опишите стиль, подход, тон, особенности книги — этот контекст имеет наивысший приоритет для всех ИИ-функций на платформе…",
     dangerZone: "Опасная зона",
     deleteBook: "Удалить книгу",
     deleteDesc: "Это действие необратимо. Все главы и данные будут удалены.",
@@ -148,6 +154,9 @@ const BOOKSETTINGS_I18N = {
     aboutAuthorSection: "Про автора",
     aboutAuthorLabel: "Біографія автора",
     aboutAuthorPlaceholder: "Кілька речень про автора — відображається в експорті книги та на сторінці «Про автора»…",
+    masterPromptSection: "Мастер-промт",
+    masterPromptLabel: "Мастер-промт",
+    masterPromptPlaceholder: "Опишіть стиль, підхід, тон, особливості книги — цей контекст має найвищий пріоритет для всіх ІІ-функцій на платформі…",
     dangerZone: "Небезпечна зона",
     deleteBook: "Видалити книгу",
     deleteDesc: "Ця дія незворотна. Всі розділи і дані будуть видалені.",
@@ -195,6 +204,9 @@ const BOOKSETTINGS_I18N = {
     aboutAuthorSection: "Über den Autor",
     aboutAuthorLabel: "Autorenbiografie",
     aboutAuthorPlaceholder: "Einige Sätze über den Autor — wird im Buchexport und im Nachwort angezeigt…",
+    masterPromptSection: "Master-Prompt",
+    masterPromptLabel: "Master-Prompt",
+    masterPromptPlaceholder: "Beschreibe den Stil, Ansatz, Ton und die Besonderheiten des Buches — dieser Kontext hat höchste Priorität für alle KI-Funktionen der Plattform…",
     dangerZone: "Gefahrenzone",
     deleteBook: "Buch löschen",
     deleteDesc: "Diese Aktion ist unwiderruflich. Alle Kapitel und Daten werden gelöscht.",
@@ -217,6 +229,7 @@ const COVER_COLORS = [
 
 const BOOK_LANGUAGES = [
   { value: "ru", label: "Русский" },
+  { value: "ua", label: "Українська" },
   { value: "en", label: "English" },
   { value: "de", label: "Deutsch" },
   { value: "fr", label: "Français" },
@@ -240,6 +253,7 @@ export function BookSettings({ book }: { book: Book }) {
   const [language, setLanguage] = useState(book.language || "ru");
   const [headingFont, setHeadingFont] = useState((book as any).headingFont || "");
   const [aboutAuthor, setAboutAuthor] = useState((book as any).aboutAuthor || "");
+  const [masterPrompt, setMasterPrompt] = useState((book as any).masterPrompt || "");
   const [coverColor, setCoverColor] = useState(book.coverColor || "#007AFF");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -306,7 +320,7 @@ export function BookSettings({ book }: { book: Book }) {
   });
 
   const handleSave = () => {
-    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, headingFont, aboutAuthor, coverColor, narrativeContext: buildNarrativeContext() });
+    updateMutation.mutate({ title: title.trim(), description, mode, genre, language, headingFont, aboutAuthor, masterPrompt, coverColor, narrativeContext: buildNarrativeContext() });
   };
 
   const mark = () => setIsDirty(true);
@@ -656,6 +670,33 @@ export function BookSettings({ book }: { book: Book }) {
                 rows={5}
                 placeholder={s.aboutAuthorPlaceholder}
                 className="bg-background rounded-xl resize-none border-border text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Master Prompt */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <span style={{ color: "#F96D1C" }}>★</span>
+              {s.masterPromptSection}
+            </h3>
+            <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(249,109,28,0.04)", borderColor: "rgba(249,109,28,0.25)" }}>
+              <p className="text-[11px] leading-relaxed" style={{ color: "#8a7a70" }}>
+                {lang === "ru"
+                  ? "Самый важный контекст: описание стиля, подхода и особенностей книги. Применяется с наивысшим приоритетом во всех ИИ-функциях — коавтор, улучшение текста, генерация черновиков и т.д."
+                  : lang === "ua"
+                  ? "Найважливіший контекст: опис стилю, підходу та особливостей книги. Застосовується з найвищим пріоритетом у всіх ІІ-функціях — співавтор, покращення тексту, генерація чернеток тощо."
+                  : lang === "de"
+                  ? "Der wichtigste Kontext: Beschreibung des Stils, des Ansatzes und der Besonderheiten des Buches. Wird mit höchster Priorität in allen KI-Funktionen eingesetzt."
+                  : "The most important context: style, approach, and unique characteristics of the book. Applied with top priority in all AI functions — co-author, text improvement, draft generation, etc."}
+              </p>
+              <Textarea
+                value={masterPrompt}
+                onChange={e => { setMasterPrompt(e.target.value); mark(); }}
+                rows={7}
+                placeholder={s.masterPromptPlaceholder}
+                className="bg-background rounded-xl resize-none border-border text-sm"
+                style={{ borderColor: masterPrompt ? "rgba(249,109,28,0.4)" : undefined }}
               />
             </div>
           </div>

@@ -38,6 +38,8 @@ export const books = pgTable("books", {
   language: text("language").default("ru"),
   headingFont: text("heading_font").default(""),
   aboutAuthor: text("about_author").default(""),
+  masterPrompt: text("master_prompt").default(""),
+  displayOrder: integer("display_order").default(0),
   status: text("status").default("draft"),
   wordCount: integer("word_count").default(0),
   narrativeContext: jsonb("narrative_context").$type<{
