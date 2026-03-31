@@ -3434,9 +3434,13 @@ window.addEventListener('load', function () {
       }
     };
 
+    // Page physical dimensions (mm) for cover image
+    const psW = psKey === "A4" ? 210 : psKey === "B5" ? 176 : 148;
+    const psH = psKey === "A4" ? 297 : psKey === "B5" ? 250 : 210;
+
     // Parse frontMatter settings from request
     const fm: any = body.frontMatter ?? {};
-    const tocLangLabel = docLang === "uk" ? "Зміст" : "Содержание";
+    const tocLangLabel = docLang === "uk" ? "Зміст" : "Оглавление";
 
     // ── Title page ──────────────────────────────────────────────────────
     const titlePageHtml = (() => {
@@ -3509,8 +3513,13 @@ ${chapters.map((ch, i) => `    <div class="toc-row"><a href="#chapter-${i}"><spa
   </div>
 </div>` : "";
 
+    // ── Cover image page ─────────────────────────────────────────────────
+    const coverHtml = (book.coverImage && book.coverImage.startsWith("data:"))
+      ? `<div class="cyrl-cover-img-page"><img src="${book.coverImage}" alt="Cover"/></div>`
+      : "";
+
     // Build front matter block
-    const frontMatterHtml = [titlePageHtml, copyrightPageHtml, dedicationPageHtml, tocPageHtml].filter(Boolean).join("\n");
+    const frontMatterHtml = [coverHtml, titlePageHtml, copyrightPageHtml, dedicationPageHtml, tocPageHtml].filter(Boolean).join("\n");
 
     // ── Chapter bodies (no "Глава X", title centered) ────────────────
     let bodyHtml = "";
@@ -3553,12 +3562,29 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
 <meta charset="UTF-8">
 <title>${escHtml(book.title)}</title>
 <style>
+  /* ── Cover image page (zero-margin, no footer) ── */
+  @page cyrl-cover {
+    size: ${pageSizeCSS};
+    margin: 0;
+    @bottom-left   { content: none; }
+    @bottom-center { content: none; }
+    @bottom-right  { content: none; }
+  }
+  .cyrl-cover-img-page {
+    page: cyrl-cover;
+    page-break-after: always;
+    width: ${psW}mm; height: ${psH}mm;
+    margin: 0; padding: 0; overflow: hidden; display: block;
+  }
+  .cyrl-cover-img-page img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+
   /* ── Page layout ── */
   @page {
     size: ${pageSizeCSS};
     margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm;
   }
-  @page :first { margin-top: ${marginTop + 5}mm; }
 
   /* ── Reset ── */
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3658,12 +3684,18 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
 
   /* TOC page */
   .cyrl-toc-page { padding-top: 10mm; }
-  .toc-heading { font-family: ${headingFontFam}; font-size: ${h2Size}pt; font-weight: 600; text-align: center; margin-bottom: 8mm; letter-spacing: 0.05em; color: #333; }
-  .toc-list { display: flex; flex-direction: column; gap: 4pt; }
-  .toc-row { display: flex; align-items: baseline; gap: 4pt; font-size: ${fontSize}pt; }
-  .toc-row a { color: inherit; text-decoration: none; display: flex; align-items: baseline; gap: 4pt; width: 100%; }
-  .toc-num { color: #bbb; font-size: ${Math.max(7, fontSize - 1)}pt; min-width: 1.8em; }
-  .toc-title { color: #333; }
+  .toc-heading { font-family: ${headingFontFam}; font-size: ${h2Size}pt; font-weight: 700; text-align: center; margin-bottom: 8mm; letter-spacing: 0.02em; color: #1a0d06; }
+  .toc-list { display: flex; flex-direction: column; gap: 3pt; }
+  .toc-row { display: block; font-size: ${fontSize}pt; line-height: 1.8; }
+  .toc-row a { color: inherit; text-decoration: none; display: block; }
+  .toc-num { color: #bbb; font-size: ${Math.max(7, fontSize - 1)}pt; }
+  .toc-title { color: #222; }
+  /* WeasyPrint: leader dots + page number from anchor target */
+  .toc-row a::after {
+    content: leader('.') target-counter(attr(href url), page);
+    color: #888;
+    font-size: ${Math.max(7, fontSize - 1)}pt;
+  }
 
   /* ── Chapter ── */
   .chapter { padding-top: 8mm; }
@@ -3673,7 +3705,7 @@ ${contentHtml || '<p class="empty-chapter">—</p>'}
     font-size: ${h1Size}pt;
     font-weight: 700;
     margin-top: 0;
-    margin-bottom: ${lineHeight * 2}em;
+    margin-bottom: ${Math.round(lineHeight * 2 * fontSize)}pt;
     line-height: 1.2;
     color: #1a0d06;
     letter-spacing: -0.01em;

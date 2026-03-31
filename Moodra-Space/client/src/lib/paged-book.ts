@@ -1527,7 +1527,7 @@ ${hyphTocCss}
 /* ── Chapter ──────────────────────────────────────────────── */
 .chapter-title {
   font-family: ${headingFont}; font-size: ${h1Size}pt; font-weight: 700;
-  margin-top: 0; margin-bottom: ${lineHeight * 2}em;
+  margin-top: 0; margin-bottom: ${Math.round(lineHeight * 2 * fontSize)}pt;
   line-height: 1.2; color: #1a0d06;
   letter-spacing: -0.01em; text-align: center;
 }

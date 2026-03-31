@@ -423,6 +423,31 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [activeChapter, setActiveChapter] = useState(0);
   const [open, setOpen] = useState({ engine: true, page: true, typography: true, headings: false, hf: false, frontmatter: false });
   const [showExport, setShowExport] = useState(false);
+  const [showEngineIntro, setShowEngineIntro] = useState(false);
+  const [showCyrillicBeta, setShowCyrillicBeta] = useState(false);
+  const prevEngine = useRef(settings.layoutEngine);
+
+  // First-time layout section visit → engine intro popup
+  useEffect(() => {
+    const seen = localStorage.getItem("moodra_layout_intro_seen");
+    if (!seen) {
+      setShowEngineIntro(true);
+      localStorage.setItem("moodra_layout_intro_seen", "1");
+    }
+  }, []);
+
+  // First-time Cyrillic selection → beta notice popup
+  useEffect(() => {
+    if (settings.layoutEngine === "cyrillic" && prevEngine.current !== "cyrillic") {
+      const seen = localStorage.getItem("moodra_cyrillic_beta_seen");
+      if (!seen) {
+        setShowCyrillicBeta(true);
+        localStorage.setItem("moodra_cyrillic_beta_seen", "1");
+      }
+    }
+    prevEngine.current = settings.layoutEngine;
+  }, [settings.layoutEngine]);
+
   const [designerPages, setDesignerPages] = useState<{ id: string; afterPage: number; imageUrl: string }[]>(() => {
     try { return JSON.parse(localStorage.getItem(`moodra_designer_pages_${bookId}`) || "[]"); } catch { return []; }
   });
@@ -585,6 +610,68 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
           onClose={() => setShowExport(false)}
           lp={lp}
         />
+      )}
+
+      {/* Engine intro popup — shown once on first visit */}
+      {showEngineIntro && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)" }}>
+          <div className="bg-background rounded-2xl shadow-2xl w-[400px] p-6 space-y-4">
+            <h2 className="text-base font-bold text-foreground">Два режима вёрстки</h2>
+            <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+              <div className="flex gap-3 items-start">
+                <div className="mt-0.5 w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0 text-blue-600 font-bold text-xs">L</div>
+                <div>
+                  <p className="font-semibold text-foreground text-xs">Latin Engine</p>
+                  <p className="text-xs">Для английских и других латинских текстов. Использует Paged.js в браузере — откроется диалог печати для сохранения PDF.</p>
+                </div>
+              </div>
+              <div className="flex gap-3 items-start">
+                <div className="mt-0.5 w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0 text-violet-600 font-bold text-xs">К</div>
+                <div>
+                  <p className="font-semibold text-foreground text-xs">Cyrillic Engine</p>
+                  <p className="text-xs">Для русских и украинских текстов. Использует WeasyPrint — PDF скачивается напрямую с правильными переносами и типографикой.</p>
+                </div>
+              </div>
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
+                Важно выбирать подходящий режим: неправильный движок может дать некорректные переносы и форматирование.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowEngineIntro(false)}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
+              style={{ background: "#F96D1C" }}
+            >
+              Понятно
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cyrillic beta popup — shown once on first Cyrillic selection */}
+      {showCyrillicBeta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)" }}>
+          <div className="bg-background rounded-2xl shadow-2xl w-[380px] p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">Beta</span>
+              <h2 className="text-base font-bold text-foreground">Режим Cyrillic Engine</h2>
+            </div>
+            <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+              <p className="text-sm">Кириллический движок находится в режиме бета-тестирования.</p>
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <p className="font-semibold">О предпросмотре:</p>
+                <p>В превью текст может распределяться не совсем пропорционально — внизу страниц бывает больше пустого пространства, чем должно быть.</p>
+                <p className="font-medium mt-1">В итоговом PDF-файле этого нет — всё выглядит корректно.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowCyrillicBeta(false)}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
+              style={{ background: "#F96D1C" }}
+            >
+              Понятно
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Hidden file input for designer page upload */}
@@ -796,7 +883,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
               style={{ background: "#F96D1C" }}
             >
               <Download className="h-3 w-3" />
-              {lp.exportPdf}
+              {lp.exportLabel || "Экспортировать"}
             </button>
           </div>
         </div>
@@ -1279,11 +1366,14 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
               {lp.exportPdf}
             </button>
             <button
-              onClick={() => window.open(`/api/books/${bookId}/export/docx`, "_blank")}
+              onClick={() => {
+                const safeTitle = book.title.replace(/[^\w\s-]/g, "").trim() || "book";
+                anchorDownload(`/api/books/${bookId}/export/epub`, `${safeTitle}.epub`);
+              }}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-secondary hover:bg-secondary/80 transition-all"
             >
               <FileDown className="h-4 w-4" />
-              {lp.exportDocx || "Export DOCX"}
+              {lp.exportEpub || "Export EPUB"}
             </button>
           </div>
         </div>
