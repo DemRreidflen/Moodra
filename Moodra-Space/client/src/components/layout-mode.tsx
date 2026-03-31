@@ -1348,7 +1348,7 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
                       </div>
                     </Row>
                     <Row label={lp.fontSize || "Font size"}><NumInput value={frontMatter.copyrightPage.fontSize ?? 9} onChange={v => updateCopyrightPage({ fontSize: v })} min={7} max={14} step={0.5} unit="pt" /></Row>
-                    <Row label={lp.lineHeight || "Line height"}><NumInput value={frontMatter.copyrightPage.lineHeight ?? 1.5} onChange={v => updateCopyrightPage({ lineHeight: v })} min={1} max={3} step={0.1} /></Row>
+                    <Row label={lp.lineHeight || "Line height"}><NumInput value={frontMatter.copyrightPage.lineHeight ?? 1.5} onChange={v => updateCopyrightPage({ lineHeight: v })} min={0.5} max={3} step={0.1} /></Row>
                   </div>
                 )}
               </div>
