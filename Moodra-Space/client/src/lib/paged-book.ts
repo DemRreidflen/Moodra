@@ -709,11 +709,19 @@ function buildFrontMatter(
     const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
     const align = tp.alignment ?? "center";
     const deco  = tp.decorativeStyle ?? "none";
-    const tfs   = tp.titleFontSize   ?? 22;
+    const tfsRaw = tp.titleFontSize   ?? 22;
     const sfs   = tp.subtitleFontSize ?? 13;
     const afs   = tp.authorFontSize  ?? 12;
     const sp    = tp.elementSpacing  ?? 1.2;
     const lh    = tp.titleLineHeight ?? 1.2;
+    // Auto-cap font size to keep title on one line
+    const PAGE_SIZES_FM: Record<string, { width: number }> = {
+      A4: { width: 210 }, A5: { width: 148 }, B5: { width: 176 },
+    };
+    const psLatin = PAGE_SIZES_FM[s.pageSize] ?? PAGE_SIZES_FM["A5"];
+    const latTitleWidthPt = (psLatin.width - (s.marginLeft ?? 20) - (s.marginRight ?? 16)) * (72 / 25.4);
+    const latMaxTfs = Math.floor(latTitleWidthPt / (titleText.length * 0.56));
+    const tfs = Math.min(tfsRaw, Math.max(12, latMaxTfs));
     parts.push(`
 <div class="front-matter-page title-page title-align-${align}" style="--t-fs:${tfs}pt;--s-fs:${sfs}pt;--a-fs:${afs}pt;--sp:${sp}em;--lh:${lh}">
   ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
@@ -1238,11 +1246,15 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
     const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
     const align   = tp.alignment       ?? "center";
     const deco    = tp.decorativeStyle ?? "none";
-    const tfs     = tp.titleFontSize   ?? 22;
+    const tfsRaw  = tp.titleFontSize   ?? 22;
     const sfs     = tp.subtitleFontSize ?? 13;
     const afs     = tp.authorFontSize  ?? 12;
     const sp      = tp.elementSpacing  ?? 1.2;
     const lh      = tp.titleLineHeight ?? 1.2;
+    // Auto-cap font size to fit title on one line
+    const cyrTitleWidthPt = (ps.width - ml - mr) * (72 / 25.4);
+    const cyrMaxTfs = Math.floor(cyrTitleWidthPt / (titleText.length * 0.56));
+    const tfs = Math.min(tfsRaw, Math.max(12, cyrMaxTfs));
     return `
 <div class="cyrl-fm-page title-page title-align-${align}" style="--t-fs:${tfs}pt;--s-fs:${sfs}pt;--a-fs:${afs}pt;--sp:${sp}em;--lh:${lh}">
   ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}

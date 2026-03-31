@@ -3458,11 +3458,16 @@ window.addEventListener('load', function () {
       const titleText = tp.useBookTitle ? book.title : (tp.customTitle || book.title);
       const align  = tp.alignment       ?? "center";
       const deco   = tp.decorativeStyle ?? "none";
-      const tfs    = tp.titleFontSize   ?? 22;
+      const tfsRaw = tp.titleFontSize   ?? 22;
       const sfs    = tp.subtitleFontSize ?? 13;
       const afs    = tp.authorFontSize  ?? 12;
       const sp     = tp.elementSpacing  ?? 1.2;
       const lh     = tp.titleLineHeight ?? 1.2;
+      // Auto-cap: ensure title fits on one line by limiting font size to page text width.
+      // 0.56 = empirical avg character width fraction for bold Cyrillic serif.
+      const titlePageTextWidthPt = (psW - marginLeft - marginRight) * (72 / 25.4);
+      const maxTfsByWidth = Math.floor(titlePageTextWidthPt / (titleText.length * 0.56));
+      const tfs = Math.min(tfsRaw, Math.max(12, maxTfsByWidth));
       return `
 <div class="cyrl-fm-page title-page title-align-${align}">
   ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
