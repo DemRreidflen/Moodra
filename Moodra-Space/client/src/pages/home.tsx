@@ -338,10 +338,18 @@ function BookCard({ book, onDelete, isLastModified }: { book: Book; onDelete: (i
       <h3 data-testid={`text-book-title-${book.id}`} className="font-semibold text-[15px] leading-tight line-clamp-2 mb-1">
         {book.title}
       </h3>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-[12px] text-muted-foreground">
           {book.mode === "fiction" ? t.home.modeFiction : t.home.modeScientific}
         </span>
+        {book.genre && (
+          <>
+            <span className="text-[11px] text-muted-foreground/40">·</span>
+            <span className="text-[12px] text-muted-foreground/70 italic truncate max-w-[120px]">
+              {book.genre}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

@@ -118,6 +118,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ---- Models pricing (update here when OpenAI changes prices) ----
+  // Source: https://platform.openai.com/docs/models — all prices are per 1M tokens (USD)
+  app.get("/api/models/pricing", (_req: Request, res: Response) => {
+    const pricing: Record<string, { input: number; output: number; cachedInput?: number }> = {
+      "gpt-4o-mini":   { input: 0.150,  output: 0.600,  cachedInput: 0.075 },
+      "gpt-4.1-mini":  { input: 0.40,   output: 1.60,   cachedInput: 0.10  },
+      "gpt-3.5-turbo": { input: 0.50,   output: 1.50                       },
+      "gpt-4o":        { input: 2.50,   output: 10.00,  cachedInput: 1.25  },
+      "gpt-4.1":       { input: 2.00,   output: 8.00,   cachedInput: 0.50  },
+      "gpt-4-turbo":   { input: 10.00,  output: 30.00                      },
+      "o4-mini":       { input: 1.10,   output: 4.40,   cachedInput: 0.275 },
+      "o3-mini":       { input: 1.10,   output: 4.40,   cachedInput: 0.55  },
+      "gpt-4":         { input: 30.00,  output: 60.00                      },
+    };
+    res.json({ pricing, updatedAt: "2025-04-22", source: "https://platform.openai.com/docs/models" });
+  });
+
   // ---- User profile ----
   app.get("/api/me", isAuthenticated, async (req: Request, res: Response) => {
     try {

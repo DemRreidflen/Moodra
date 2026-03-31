@@ -89,6 +89,19 @@ export default function ModelsPage() {
   const { data: user } = useQuery<any>({ queryKey: ["/api/auth/user"] });
   const currentModel = user?.openaiModel || "gpt-4o-mini";
 
+  const { data: pricingData } = useQuery<{
+    pricing: Record<string, { input: number; output: number; cachedInput?: number }>;
+    updatedAt: string;
+  }>({ queryKey: ["/api/models/pricing"], staleTime: 1000 * 60 * 60 });
+
+  // Compute "$5 ≈ N requests" dynamically: $5 / (inputPrice/1M) / 1000 tokens per avg request
+  const getDollarEstimate = (modelId: string) => {
+    const price = pricingData?.pricing?.[modelId];
+    if (!price) return null;
+    const count = Math.round(5000 / price.input);
+    return count.toLocaleString("en");
+  };
+
   const selectModel = useMutation({
     mutationFn: async (model: string) => {
       const res = await fetch("/api/user/model", {
@@ -166,7 +179,11 @@ export default function ModelsPage() {
         <div className="space-y-4">
           {MODEL_IDS.map((id, idx) => {
             const m = models[idx];
-            const prices = MODEL_PRICES[idx];
+            // Use server pricing if available, fallback to hardcoded
+            const serverPrice = pricingData?.pricing?.[id];
+            const prices = serverPrice
+              ? { ...MODEL_PRICES[idx], input: serverPrice.input, output: serverPrice.output }
+              : MODEL_PRICES[idx];
             const Icon = MODEL_ICONS[idx];
             const iconColor = MODEL_ICON_COLORS[idx];
             const badgeColor = MODEL_BADGE_COLORS[idx];
@@ -248,7 +265,9 @@ export default function ModelsPage() {
                       className="text-xs px-3 py-1.5 rounded-lg font-medium"
                       style={{ background: "rgba(249,109,28,0.07)", color: "#c45a10" }}
                     >
-                      {m.dollar}
+                      {getDollarEstimate(id) !== null
+                        ? `$5 ≈ ${getDollarEstimate(id)} ${lang === "ru" ? "запросов" : lang === "ua" ? "запитів" : lang === "de" ? "Anfragen" : "requests"}`
+                        : m.dollar}
                     </div>
                   </div>
 
@@ -302,6 +321,22 @@ export default function ModelsPage() {
             );
           })}
         </div>
+
+        {pricingData?.updatedAt && (
+          <p className="text-center text-xs mt-6 pb-2" style={{ color: "#c0a890" }}>
+            {lang === "ru" ? "Цены обновлены" : lang === "ua" ? "Ціни оновлено" : lang === "de" ? "Preise aktualisiert" : "Prices updated"}{" "}
+            {pricingData.updatedAt} ·{" "}
+            <a
+              href="https://platform.openai.com/docs/models"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:opacity-80"
+              style={{ color: "#F96D1C" }}
+            >
+              {lang === "ru" ? "Официальный прайс-лист OpenAI" : lang === "ua" ? "Офіційний прайс-лист OpenAI" : lang === "de" ? "Offizielle OpenAI-Preisliste" : "Official OpenAI pricing"}
+            </a>
+          </p>
+        )}
 
       </div>{/* end max-w-3xl light */}
       </div>{/* end light section */}

@@ -19,10 +19,8 @@ import {
 } from "@/components/icons";
 import { SiteFooter } from "@/components/site-footer";
 
-const GPT_MINI_PRICE_PER_TOKEN = 0.0000003;
-
-function formatCost(tokens: number): string {
-  const cost = tokens * GPT_MINI_PRICE_PER_TOKEN;
+function formatCost(tokens: number, inputPricePerMillion: number): string {
+  const cost = tokens * (inputPricePerMillion / 1_000_000);
   if (cost === 0) return "$0.00";
   if (cost < 0.001) return `< $0.001`;
   if (cost < 0.01) return `~$${cost.toFixed(4)}`;
@@ -67,15 +65,23 @@ export default function SettingsPage() {
   const [showKey, setShowKey] = useState(false);
 
   const { data: books = [] } = useQuery<Book[]>({ queryKey: ["/api/books"] });
+  const { data: pricingData } = useQuery<{
+    pricing: Record<string, { input: number; output: number; cachedInput?: number }>;
+    updatedAt: string;
+    source: string;
+  }>({ queryKey: ["/api/models/pricing"], staleTime: 1000 * 60 * 60 });
 
   const tokensUsed = (user as any)?.tokensUsed || 0;
   const hasApiKey = !!(user as any)?.openaiApiKey;
   const MODEL_LABELS: Record<string, string> = {
     "gpt-4o-mini": "GPT-4o mini", "gpt-4.1-mini": "GPT-4.1 mini",
-    "gpt-4o": "GPT-4o", "gpt-4.1": "GPT-4.1", "o4-mini": "o4-mini",
+    "gpt-3.5-turbo": "GPT-3.5 Turbo",
+    "gpt-4o": "GPT-4o", "gpt-4.1": "GPT-4.1", "gpt-4-turbo": "GPT-4 Turbo", "o4-mini": "o4-mini",
   };
   const currentModelId = (user as any)?.openaiModel || "gpt-4o-mini";
   const currentModelLabel = MODEL_LABELS[currentModelId] || currentModelId;
+  const currentModelPrice = pricingData?.pricing?.[currentModelId] ?? { input: 0.15, output: 0.60 };
+  const inputPricePerMillion = currentModelPrice.input;
 
   const updateMutation = useMutation({
     mutationFn: () => apiRequest("PATCH", "/api/me", { firstName, lastName }),
@@ -315,7 +321,7 @@ export default function SettingsPage() {
                         data-testid="text-estimated-cost"
                         style={{ color: "#F96D1C" }}
                       >
-                        {formatCost(tokensUsed)}
+                        {formatCost(tokensUsed, inputPricePerMillion)}
                       </span>
                       <span className="text-xs mt-0.5" style={{ color: "#c2a897" }}>
                         USD
@@ -324,7 +330,10 @@ export default function SettingsPage() {
                   </div>
 
                   <p className="text-xs mt-2 leading-relaxed" style={{ color: "#b0a090" }}>
-                    Based on $0.30/1M tokens.{" "}
+                    {currentModelLabel}: ${inputPricePerMillion}/1M input tokens.{" "}
+                    {pricingData?.updatedAt && (
+                      <span>Prices updated {pricingData.updatedAt}. </span>
+                    )}
                     <a
                       href="https://platform.openai.com/usage"
                       target="_blank"
