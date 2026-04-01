@@ -17,6 +17,23 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
+  // Explicitly serve favicon.ico (browsers request it automatically)
+  // Serve favicon.png if favicon.ico doesn't exist, with immutable cache headers
+  app.get("/favicon.ico", (req, res) => {
+    const faviconPath = path.resolve(distPath, "favicon.ico");
+    const fallbackPath = path.resolve(distPath, "favicon.png");
+    if (fs.existsSync(faviconPath)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.sendFile(faviconPath);
+    } else if (fs.existsSync(fallbackPath)) {
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.sendFile(fallbackPath);
+    } else {
+      res.status(404).send("Not Found");
+    }
+  });
+
   // fall through to index.html if the file doesn't exist
   app.use("/{*path}", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
