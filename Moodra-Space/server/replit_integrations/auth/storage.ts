@@ -10,6 +10,7 @@ export interface IAuthStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserApiKey(id: string, apiKey: string): Promise<void>;
   updateUserModel(id: string, model: string): Promise<void>;
+  updateUserFreeModel(id: string, freeModel: string): Promise<void>;
   updateUserProfile(id: string, data: { firstName?: string; lastName?: string }): Promise<User>;
   addTokenUsage(id: string, tokens: number): Promise<void>;
 }
@@ -49,6 +50,13 @@ class AuthStorage implements IAuthStorage {
     await db
       .update(users)
       .set({ openaiModel: model, updatedAt: new Date() })
+      .where(eq(users.id, id));
+  }
+
+  async updateUserFreeModel(id: string, freeModel: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ freeModel, updatedAt: new Date() })
       .where(eq(users.id, id));
   }
 

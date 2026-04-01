@@ -140,6 +140,17 @@ async function getUserModel(req: Request): Promise<string> {
   return DEFAULT_MODEL;
 }
 
+async function getUserFreeModel(req: Request): Promise<string> {
+  try {
+    const userId = getUserId(req);
+    if (userId) {
+      const user = await authStorage.getUser(userId);
+      if (user?.freeModel === "qwen") return "qwen";
+    }
+  } catch {}
+  return "openai";
+}
+
 function trackTokens(userId: string | undefined, tokens: number): void {
   if (!userId || tokens <= 0) return;
   authStorage.addTokenUsage(userId, tokens).catch(() => {});
@@ -283,6 +294,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       await authStorage.updateUserModel(userId, model);
       res.json({ ok: true, model });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/user/free-model", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { freeModel } = req.body;
+      if (!["gpt-oss", "qwen"].includes(freeModel)) {
+        return res.status(400).json({ error: "Invalid free model" });
+      }
+      await authStorage.updateUserFreeModel(userId, freeModel);
+      res.json({ ok: true, freeModel });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -965,8 +990,9 @@ FOCUS FOR THIS PASS: Deep cognitive reconstruction — intellectual method, conc
       }
     }
 
-    // Fallback: free Pollinations (single model)
+    // Fallback: free Pollinations (user's chosen free model)
     try {
+      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
       const pollinationsRes = await fetch("https://text.pollinations.ai/", {
         method: "POST",
@@ -976,7 +1002,7 @@ FOCUS FOR THIS PASS: Deep cognitive reconstruction — intellectual method, conc
             { role: "system", content: systemPrompt },
             { role: "user", content: `Perform a deep author style reconstruction on the following text. Return the JSON object with all 9 fields filled in full detail:\n\n---\n${rawSourceText.slice(0, 8000)}\n---` },
           ],
-          model: "openai",
+          model: freePollModel,
           seed,
           private: true,
           jsonMode: true,
@@ -1633,6 +1659,7 @@ Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction
         trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
         annotation = completion.choices[0].message.content?.trim() || "";
       } catch (openaiErr: any) {
+        const freePollModel = await getUserFreeModel(req);
         const seed = Math.floor(Math.random() * 99999);
         const pollinationsRes = await fetch("https://text.pollinations.ai/", {
           method: "POST",
@@ -1642,7 +1669,7 @@ Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction
               { role: "system", content: systemPrompt },
               { role: "user", content: context },
             ],
-            model: "openai",
+            model: freePollModel,
             seed,
             private: true,
           }),
@@ -1864,6 +1891,7 @@ Return only valid JSON, no extra wrappers or markdown.`,
 
       const userPrompt = `${contextBlock}\n${prompt}`.trim();
 
+      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
 
       // Use POST to avoid URL length limits (Cyrillic text encodes to 6x size via GET)
@@ -1875,7 +1903,7 @@ Return only valid JSON, no extra wrappers or markdown.`,
             { role: "system", content: systemHint },
             { role: "user", content: userPrompt },
           ],
-          model: "openai",
+          model: freePollModel,
           seed,
           private: true,
         }),
@@ -2345,6 +2373,7 @@ New directions the author could explore — what could make this text exceptiona
 
     // Fallback: free mode via Pollinations
     try {
+      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
       const pollinationsRes = await fetch("https://text.pollinations.ai/", {
         method: "POST",
@@ -2354,7 +2383,7 @@ New directions the author could explore — what could make this text exceptiona
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          model: "openai",
+          model: freePollModel,
           seed,
           private: true,
         }),
@@ -2425,6 +2454,7 @@ New directions the author could explore — what could make this text exceptiona
       }
 
       // Fallback: free Pollinations
+      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
       const pollinationsRes = await fetch("https://text.pollinations.ai/", {
         method: "POST",
@@ -2434,7 +2464,7 @@ New directions the author could explore — what could make this text exceptiona
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          model: "openai",
+          model: freePollModel,
           seed,
           private: true,
         }),
