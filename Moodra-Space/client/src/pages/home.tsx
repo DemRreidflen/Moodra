@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ImagePlus, X, Flame, Trophy, BookOpen, Cpu, PenLine, ArrowRight } from "lucide-react";
 import { useLang } from "@/contexts/language-context";
 import { LanguagePicker } from "@/components/language-picker";
-import { useStreak } from "@/hooks/use-streak";
+import { useStreak, loadStreakGoal } from "@/hooks/use-streak";
 import {
   MFlask, MFeather, MTrash, MGear, MPlus,
 } from "@/components/icons";
@@ -356,16 +356,16 @@ function BookCard({ book, onDelete, isLastModified }: { book: Book; onDelete: (i
 }
 
 function StreakBadge() {
-  const { streak } = useStreak();
+  const { user } = useAuth();
+  const uid = user?.id;
+  const { streak } = useStreak(uid);
   const { lang, t } = useLang();
   const [, navigate] = useLocation();
 
   const dayLabel: Record<string, string> = { en: "day streak", ru: "д. подряд", ua: "дн. поспіль", de: "Tage" };
   const label = dayLabel[lang] || dayLabel.en;
 
-  const goal = (() => {
-    try { return JSON.parse(localStorage.getItem("moodra_streak_goal") || "null"); } catch { return null; }
-  })();
+  const goal = loadStreakGoal(uid);
 
   const goalDisplay = goal
     ? `${goal.amount} ${goal.type === "words" ? (lang === "ru" ? "сл." : lang === "ua" ? "сл." : lang === "de" ? "Wörter" : "words") : (lang === "ru" ? "гл." : lang === "ua" ? "розд." : lang === "de" ? "Kap." : "ch.")}/day`

@@ -4,6 +4,7 @@ import { ArrowLeft, Flame, Target, Trophy, CalendarDays, Plus, Check, BookOpen, 
 import { useLang } from "@/contexts/language-context";
 import { LanguagePicker } from "@/components/language-picker";
 import { SiteFooter } from "@/components/site-footer";
+import { useAuth } from "@/hooks/use-auth";
 import {
   useStreak, loadWritingLog, saveWritingLog, loadStreakGoal, saveStreakGoal,
   addPlannedEntry, addDayNote, getTodayStr,
@@ -20,13 +21,15 @@ interface TodoItem {
   createdAt: string;
 }
 
-const TODO_KEY = "moodra_todos";
-
-function loadTodos(): TodoItem[] {
-  try { return JSON.parse(localStorage.getItem(TODO_KEY) || "[]"); } catch { return []; }
+function todoKey(uid?: string | number) {
+  return uid ? `moodra_todos_${uid}` : "moodra_todos";
 }
-function saveTodos(items: TodoItem[]) {
-  localStorage.setItem(TODO_KEY, JSON.stringify(items));
+
+function loadTodos(uid?: string | number): TodoItem[] {
+  try { return JSON.parse(localStorage.getItem(todoKey(uid)) || "[]"); } catch { return []; }
+}
+function saveTodos(items: TodoItem[], uid?: string | number) {
+  localStorage.setItem(todoKey(uid), JSON.stringify(items));
 }
 
 // ─── Calendar helpers ──────────────────────────────────────────────────────────
@@ -75,7 +78,9 @@ export default function HabitsPage() {
   const [, navigate] = useLocation();
   const { t, lang } = useLang();
   const h = t.habits;
-  const { streak } = useStreak();
+  const { user } = useAuth();
+  const uid = user?.id;
+  const { streak } = useStreak(uid);
 
   const today = getTodayStr();
   const todayDate = new Date(today);
@@ -98,8 +103,8 @@ export default function HabitsPage() {
   const todoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setTodos(loadTodos());
-  }, []);
+    setTodos(loadTodos(uid));
+  }, [uid]);
 
   const addTodo = () => {
     if (!todoInput.trim()) return;
@@ -112,7 +117,7 @@ export default function HabitsPage() {
     };
     const updated = [item, ...todos];
     setTodos(updated);
-    saveTodos(updated);
+    saveTodos(updated, uid);
     setTodoInput("");
     setTodoPriority("normal");
   };
@@ -120,28 +125,28 @@ export default function HabitsPage() {
   const toggleTodo = (id: string) => {
     const updated = todos.map(t => t.id === id ? { ...t, done: !t.done } : t);
     setTodos(updated);
-    saveTodos(updated);
+    saveTodos(updated, uid);
   };
 
   const deleteTodo = (id: string) => {
     const updated = todos.filter(t => t.id !== id);
     setTodos(updated);
-    saveTodos(updated);
+    saveTodos(updated, uid);
   };
 
   const clearDone = () => {
     const updated = todos.filter(t => !t.done);
     setTodos(updated);
-    saveTodos(updated);
+    saveTodos(updated, uid);
   };
   // ────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    setLog(loadWritingLog());
-    const g = loadStreakGoal();
+    setLog(loadWritingLog(uid));
+    const g = loadStreakGoal(uid);
     setGoal(g);
     if (g) { setGoalType(g.type); setGoalAmount(g.amount); }
-  }, []);
+  }, [uid]);
 
   const days = getMonthDays(viewYear, viewMonth);
   const firstDayOfWeek = days[0]?.dayOfWeek ?? 0;
@@ -172,27 +177,27 @@ export default function HabitsPage() {
 
   const saveGoal = () => {
     const g: StreakGoal = { type: goalType, amount: goalAmount };
-    saveStreakGoal(g);
+    saveStreakGoal(g, uid);
     setGoal(g);
     setShowGoalModal(false);
   };
 
   const removeGoal = () => {
-    saveStreakGoal(null);
+    saveStreakGoal(null, uid);
     setGoal(null);
     setShowGoalModal(false);
   };
 
   const saveNote = (date: string) => {
-    addDayNote(date, noteInput);
-    setLog(loadWritingLog());
+    addDayNote(date, noteInput, uid);
+    setLog(loadWritingLog(uid));
     setShowNoteFor(null);
     setNoteInput("");
   };
 
   const savePlanned = (date: string) => {
-    addPlannedEntry(date, noteInput);
-    setLog(loadWritingLog());
+    addPlannedEntry(date, noteInput, uid);
+    setLog(loadWritingLog(uid));
     setShowNoteFor(null);
     setNoteInput("");
   };

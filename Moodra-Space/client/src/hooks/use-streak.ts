@@ -25,7 +25,13 @@ export interface WritingLogEntry {
   plannedNote?: string;
 }
 
-const STORAGE_KEY = "moodra_streak_v2";
+const storageKey = (uid?: string | number) =>
+  uid ? `moodra_streak_v2_${uid}` : "moodra_streak_v2";
+const goalKey = (uid?: string | number) =>
+  uid ? `moodra_streak_goal_${uid}` : "moodra_streak_goal";
+const logKey = (uid?: string | number) =>
+  uid ? `moodra_writing_log_v2_${uid}` : "moodra_writing_log_v2";
+
 export const GOAL_KEY = "moodra_streak_goal";
 export const LOG_KEY = "moodra_writing_log_v2";
 
@@ -46,9 +52,9 @@ function isYesterday(dateStr: string): boolean {
   return `${y}-${m}-${day}` === dateStr;
 }
 
-function loadStreak(): StreakData & { _raw: any } {
+function loadStreak(uid?: string | number): StreakData & { _raw: any } {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const raw = JSON.parse(localStorage.getItem(storageKey(uid)) || "{}");
     const today = getTodayStr();
     const lastDate = raw.lastWriteDate || null;
     let current = raw.currentStreak || 0;
@@ -72,37 +78,37 @@ function loadStreak(): StreakData & { _raw: any } {
   }
 }
 
-export function loadWritingLog(): WritingLogEntry[] {
+export function loadWritingLog(uid?: string | number): WritingLogEntry[] {
   try {
-    return JSON.parse(localStorage.getItem(LOG_KEY) || "[]");
+    return JSON.parse(localStorage.getItem(logKey(uid)) || "[]");
   } catch {
     return [];
   }
 }
 
-export function saveWritingLog(log: WritingLogEntry[]): void {
+export function saveWritingLog(log: WritingLogEntry[], uid?: string | number): void {
   try {
-    localStorage.setItem(LOG_KEY, JSON.stringify(log));
+    localStorage.setItem(logKey(uid), JSON.stringify(log));
   } catch {}
 }
 
-export function loadStreakGoal(): StreakGoal | null {
+export function loadStreakGoal(uid?: string | number): StreakGoal | null {
   try {
-    return JSON.parse(localStorage.getItem(GOAL_KEY) || "null");
+    return JSON.parse(localStorage.getItem(goalKey(uid)) || "null");
   } catch {
     return null;
   }
 }
 
-export function saveStreakGoal(goal: StreakGoal | null): void {
+export function saveStreakGoal(goal: StreakGoal | null, uid?: string | number): void {
   try {
-    if (goal) localStorage.setItem(GOAL_KEY, JSON.stringify(goal));
-    else localStorage.removeItem(GOAL_KEY);
+    if (goal) localStorage.setItem(goalKey(uid), JSON.stringify(goal));
+    else localStorage.removeItem(goalKey(uid));
   } catch {}
 }
 
-export function addLogEntry(entry: Omit<WritingLogEntry, "date"> & { date?: string }): void {
-  const log = loadWritingLog();
+export function addLogEntry(entry: Omit<WritingLogEntry, "date"> & { date?: string }, uid?: string | number): void {
+  const log = loadWritingLog(uid);
   const today = entry.date || getTodayStr();
   const existing = log.findIndex(
     e => e.date === today && !e.planned && e.bookId === entry.bookId && e.chapterId === entry.chapterId
@@ -112,11 +118,11 @@ export function addLogEntry(entry: Omit<WritingLogEntry, "date"> & { date?: stri
   } else {
     log.unshift({ ...entry, date: today } as WritingLogEntry);
   }
-  saveWritingLog(log.slice(0, 365));
+  saveWritingLog(log.slice(0, 365), uid);
 }
 
-export function addPlannedEntry(date: string, note: string): void {
-  const log = loadWritingLog();
+export function addPlannedEntry(date: string, note: string, uid?: string | number): void {
+  const log = loadWritingLog(uid);
   const existing = log.findIndex(e => e.date === date && e.planned);
   if (existing >= 0) {
     if (note.trim()) {
@@ -127,23 +133,23 @@ export function addPlannedEntry(date: string, note: string): void {
   } else if (note.trim()) {
     log.unshift({ date, planned: true, plannedNote: note, action: "wrote" });
   }
-  saveWritingLog(log.slice(0, 365));
+  saveWritingLog(log.slice(0, 365), uid);
 }
 
-export function addDayNote(date: string, note: string): void {
-  const log = loadWritingLog();
+export function addDayNote(date: string, note: string, uid?: string | number): void {
+  const log = loadWritingLog(uid);
   const existing = log.findIndex(e => e.date === date && !e.planned);
   if (existing >= 0) {
     log[existing] = { ...log[existing], note };
   } else {
     log.unshift({ date, note, action: "wrote" } as WritingLogEntry);
   }
-  saveWritingLog(log.slice(0, 365));
+  saveWritingLog(log.slice(0, 365), uid);
 }
 
-export function useStreak() {
+export function useStreak(uid?: string | number) {
   const [streak, setStreak] = useState<StreakData>(() => {
-    const { _raw, ...s } = loadStreak();
+    const { _raw, ...s } = loadStreak(uid);
     return s;
   });
 
@@ -153,7 +159,7 @@ export function useStreak() {
     chapterId?: number;
     chapterTitle?: string;
   }) => {
-    const { _raw, ...current } = loadStreak();
+    const { _raw, ...current } = loadStreak(uid);
 
     if (!current.wroteTodayAlready) {
       const today = getTodayStr();
@@ -169,7 +175,7 @@ export function useStreak() {
         wroteTodayAlready: true,
       };
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+      localStorage.setItem(storageKey(uid), JSON.stringify(newData));
       setStreak(newData);
     }
 
@@ -180,14 +186,14 @@ export function useStreak() {
         chapterId: ctx.chapterId,
         chapterTitle: ctx.chapterTitle,
         action: "wrote",
-      });
+      }, uid);
     }
-  }, []);
+  }, [uid]);
 
   useEffect(() => {
-    const { _raw, ...s } = loadStreak();
+    const { _raw, ...s } = loadStreak(uid);
     setStreak(s);
-  }, []);
+  }, [uid]);
 
   return { streak, recordWriting };
 }
