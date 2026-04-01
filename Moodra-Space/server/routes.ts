@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { createRequire } from "module";
+import { Readable } from "stream";
 const _cjsRequire = createRequire(import.meta.url);
 const Hypher = _cjsRequire("hypher");
 const _hyphenPatternRu = _cjsRequire("hyphenation.ru");
@@ -213,8 +214,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { response: supabaseResponse, contentType } = await getFileStream(storagePath);
       res.setHeader("Content-Type", contentType);
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      const body = supabaseResponse.body as any;
-      body.pipe(res);
+      const nodeStream = Readable.fromWeb(supabaseResponse.body as any);
+      nodeStream.pipe(res);
     } catch (e: any) {
       res.status(404).json({ error: "Image not found" });
     }
