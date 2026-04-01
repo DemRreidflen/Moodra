@@ -5,6 +5,8 @@ import { createServer } from "http";
 import path from "path";
 import { setupAuth } from "./replit_integrations/auth/replitAuth";
 import { registerAuthRoutes } from "./replit_integrations/auth/routes";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,6 +16,64 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+// ── Security headers ────────────────────────────────────────────────────────
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "blob:", "https://lh3.googleusercontent.com", "https://www.google.com"],
+        connectSrc: ["'self'", "https://api.openai.com"],
+        frameSrc: ["'self'", "blob:"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "same-origin" },
+  }),
+);
+
+// ── Rate limiting ───────────────────────────────────────────────────────────
+// Strict limit for auth endpoints — prevents credential brute-force
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." },
+  skip: (req) => req.path === "/api/auth/google/callback",
+});
+
+// General API limiter — generous to not disrupt normal editing flow
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." },
+});
+
+// OpenAI proxy — more restrictive to prevent API abuse
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many AI requests, please slow down." },
+});
+
+app.use("/api/login", authLimiter);
+app.use("/api/auth", authLimiter);
+app.use("/api/logout", authLimiter);
+app.use("/api/books/:id/chapters/:cid/ai", aiLimiter);
+app.use("/api/generate", aiLimiter);
+app.use("/api", apiLimiter);
 
 app.use(
   express.json({

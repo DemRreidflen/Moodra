@@ -230,6 +230,18 @@ All custom SVG icons with M-prefix naming:
 - `/models` — AI model selection (7 models, full translated descriptions, pricing dots)
 - `*` — 404 page (fully translated, random phrase picker)
 
+## Habits Page Enhancements
+- **Delete entries**: X button (appears on hover) on both real writing log entries and planned sessions in the day detail view, and in the monthly activity list. Calls `deleteLogEntry()` from `use-streak.ts`.
+- **Extended `WritingLogEntry`**: added `wordCount?: number` and `language?: string` fields. These are shown in the day detail view (green pill for word count, flag emoji for language) and in the monthly activity list (compact row).
+- **Language icons**: `LANG_FLAG` map in `habits.tsx` maps language codes to flag emojis (EN 🇬🇧, RU 🇷🇺, UA 🇺🇦, DE 🇩🇪, + others).
+
+## Security Hardening
+- **Helmet** (`helmet` package): full HTTP security headers — CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.
+- **CSP**: `defaultSrc: 'self'`, allows `blob:` + `'self'` in frameSrc (for Cyrillic preview), OpenAI in connectSrc, Google avatars in imgSrc.
+- **Rate limiting** (`express-rate-limit` package): auth routes 30 req/15 min, general API 300 req/min, AI proxy 30 req/min.
+- **SameSite: 'lax'** on session cookie — CSRF protection.
+- **OpenAI API key encryption** at rest: `server/crypto.ts` uses AES-256-GCM (Node.js built-in `crypto`). Key derived from `SESSION_SECRET` via SHA-256. Prefix `enc1:` distinguishes encrypted from legacy plaintext values (backward-compatible read). `updateUserApiKey` encrypts on write; `getUser` decrypts on read.
+
 ## Running the Project
 ```bash
 cd Moodra-Space && npm run dev

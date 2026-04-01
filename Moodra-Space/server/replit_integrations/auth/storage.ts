@@ -2,6 +2,7 @@ import { users } from "@shared/schema";
 import type { User } from "@shared/schema";
 import { db } from "../../db";
 import { eq, sql } from "drizzle-orm";
+import { encryptSecret, decryptSecret } from "../../crypto";
 
 type UpsertUser = Partial<User> & { id: string };
 
@@ -17,6 +18,9 @@ export interface IAuthStorage {
 class AuthStorage implements IAuthStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    if (user?.openaiApiKey) {
+      user.openaiApiKey = decryptSecret(user.openaiApiKey);
+    }
     return user;
   }
 
@@ -41,7 +45,7 @@ class AuthStorage implements IAuthStorage {
   async updateUserApiKey(id: string, apiKey: string): Promise<void> {
     await db
       .update(users)
-      .set({ openaiApiKey: apiKey, updatedAt: new Date() })
+      .set({ openaiApiKey: encryptSecret(apiKey), updatedAt: new Date() })
       .where(eq(users.id, id));
   }
 

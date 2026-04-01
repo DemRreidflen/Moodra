@@ -7,9 +7,15 @@ import { SiteFooter } from "@/components/site-footer";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useStreak, loadWritingLog, saveWritingLog, loadStreakGoal, saveStreakGoal,
-  addPlannedEntry, addDayNote, getTodayStr,
+  addPlannedEntry, addDayNote, deleteLogEntry, getTodayStr,
   type WritingLogEntry, type StreakGoal,
 } from "@/hooks/use-streak";
+
+const LANG_FLAG: Record<string, string> = {
+  en: "🇬🇧", ru: "🇷🇺", ua: "🇺🇦", de: "🇩🇪",
+  fr: "🇫🇷", es: "🇪🇸", it: "🇮🇹", pl: "🇵🇱",
+  zh: "🇨🇳", ja: "🇯🇵", ko: "🇰🇷", pt: "🇧🇷",
+};
 
 // ─── To-Do helpers ────────────────────────────────────────────────────────────
 
@@ -202,6 +208,11 @@ export default function HabitsPage() {
     setNoteInput("");
   };
 
+  const removeEntry = (entry: WritingLogEntry) => {
+    deleteLogEntry(entry.date, !!entry.planned, entry.bookId, entry.chapterId, uid);
+    setLog(loadWritingLog(uid));
+  };
+
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
     else setViewMonth(m => m - 1);
@@ -372,33 +383,65 @@ export default function HabitsPage() {
               )}
 
               {selectedRealEntries.map((entry, i) => (
-                <div key={i} className="flex items-start gap-3">
+                <div key={i} className="flex items-start gap-3 group">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "rgba(249,109,28,0.10)" }}>
                     {entry.action === "wrote" ? <PenLine className="w-3.5 h-3.5" style={{ color: "#F96D1C" }} /> :
                      entry.action === "edited" ? <Edit3 className="w-3.5 h-3.5" style={{ color: "#F96D1C" }} /> :
                      <Plus className="w-3.5 h-3.5" style={{ color: "#F96D1C" }} />}
                   </div>
-                  <div className="flex-1">
-                    {entry.bookTitle && <p className="text-sm font-medium" style={{ color: "#2d1a0e" }}>{entry.bookTitle}</p>}
-                    {entry.chapterTitle && <p className="text-xs" style={{ color: "#8a7a70" }}>{entry.chapterTitle}</p>}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {entry.bookTitle && <p className="text-sm font-medium" style={{ color: "#2d1a0e" }}>{entry.bookTitle}</p>}
+                        {entry.chapterTitle && <p className="text-xs" style={{ color: "#8a7a70" }}>{entry.chapterTitle}</p>}
+                      </div>
+                      <button
+                        onClick={() => removeEntry(entry)}
+                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg transition-all hover:bg-red-50"
+                        style={{ color: "#c0b0a0" }}
+                        title={lang === "ru" ? "Удалить" : lang === "ua" ? "Видалити" : "Delete"}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className="text-[11px] capitalize px-2 py-0.5 rounded-full" style={{ background: "rgba(249,109,28,0.08)", color: "#c47040" }}>
+                        {h[entry.action as keyof typeof h] || entry.action}
+                      </span>
+                      {entry.wordCount != null && entry.wordCount > 0 && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.08)", color: "#059669" }}>
+                          {entry.wordCount.toLocaleString()} {lang === "ru" ? "сл." : lang === "ua" ? "сл." : lang === "de" ? "Wörter" : "words"}
+                        </span>
+                      )}
+                      {entry.language && LANG_FLAG[entry.language] && (
+                        <span className="text-[13px]" title={entry.language.toUpperCase()}>{LANG_FLAG[entry.language]}</span>
+                      )}
+                    </div>
                     {entry.note && (
                       <p className="text-sm mt-1 italic" style={{ color: "#6b5a50" }}>"{entry.note}"</p>
                     )}
-                    <span className="text-[11px] capitalize px-2 py-0.5 rounded-full mt-1 inline-block" style={{ background: "rgba(249,109,28,0.08)", color: "#c47040" }}>
-                      {h[entry.action as keyof typeof h] || entry.action}
-                    </span>
                   </div>
                 </div>
               ))}
 
               {/* Planned entry */}
               {selectedPlanned && (
-                <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
+                <div className="flex items-start gap-3 p-3 rounded-xl group" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)" }}>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(59,130,246,0.12)" }}>
                     <CalendarDays className="w-3.5 h-3.5" style={{ color: "#3B82F6" }} />
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: "#3B82F6" }}>{h.planned}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-semibold" style={{ color: "#3B82F6" }}>{h.planned}</p>
+                      <button
+                        onClick={() => removeEntry(selectedPlanned)}
+                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg transition-all hover:bg-red-50"
+                        style={{ color: "#c0b0a0" }}
+                        title={lang === "ru" ? "Удалить" : lang === "ua" ? "Видалити" : "Delete"}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     {selectedPlanned.plannedNote && <p className="text-sm mt-0.5" style={{ color: "#2d1a0e" }}>{selectedPlanned.plannedNote}</p>}
                   </div>
                 </div>
@@ -621,11 +664,11 @@ export default function HabitsPage() {
             <div className="space-y-2">
               {log
                 .filter(e => !e.planned && e.date.startsWith(`${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`))
-                .slice(0, 20)
+                .slice(0, 30)
                 .map((entry, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all hover:shadow-sm"
+                    className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all hover:shadow-sm group"
                     style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.06)" }}
                     onClick={() => setSelectedDate(entry.date)}
                   >
@@ -639,10 +682,32 @@ export default function HabitsPage() {
                       {entry.chapterTitle && (
                         <p className="text-xs truncate" style={{ color: "#8a7a70" }}>{entry.chapterTitle}</p>
                       )}
+                      {(entry.wordCount != null && entry.wordCount > 0 || entry.language) && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {entry.wordCount != null && entry.wordCount > 0 && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-md" style={{ background: "rgba(16,185,129,0.08)", color: "#059669" }}>
+                              {entry.wordCount.toLocaleString()} {lang === "ru" || lang === "ua" ? "сл." : lang === "de" ? "W." : "w."}
+                            </span>
+                          )}
+                          {entry.language && LANG_FLAG[entry.language] && (
+                            <span className="text-[12px]" title={entry.language.toUpperCase()}>{LANG_FLAG[entry.language]}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <span className="text-xs flex-shrink-0" style={{ color: "#c0b0a0" }}>
-                      {entry.date.slice(5)}
-                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs" style={{ color: "#c0b0a0" }}>
+                        {entry.date.slice(5)}
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); removeEntry(entry); }}
+                        className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg transition-all hover:bg-red-50"
+                        style={{ color: "#c0b0a0" }}
+                        title={lang === "ru" ? "Удалить" : lang === "ua" ? "Видалити" : "Delete"}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
             </div>

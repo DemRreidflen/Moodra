@@ -23,6 +23,8 @@ export interface WritingLogEntry {
   note?: string;
   planned?: boolean;
   plannedNote?: string;
+  wordCount?: number;
+  language?: string;
 }
 
 const storageKey = (uid?: string | number) =>
@@ -134,6 +136,27 @@ export function addPlannedEntry(date: string, note: string, uid?: string | numbe
     log.unshift({ date, planned: true, plannedNote: note, action: "wrote" });
   }
   saveWritingLog(log.slice(0, 365), uid);
+}
+
+export function deleteLogEntry(
+  date: string,
+  isPlanned: boolean,
+  bookId?: number,
+  chapterId?: number,
+  uid?: string | number,
+): void {
+  const log = loadWritingLog(uid);
+  const idx = log.findIndex(
+    e =>
+      e.date === date &&
+      !!e.planned === isPlanned &&
+      e.bookId === bookId &&
+      e.chapterId === chapterId,
+  );
+  if (idx >= 0) {
+    log.splice(idx, 1);
+    saveWritingLog(log, uid);
+  }
 }
 
 export function addDayNote(date: string, note: string, uid?: string | number): void {
