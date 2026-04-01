@@ -230,6 +230,29 @@ All custom SVG icons with M-prefix naming:
 - `/models` — AI model selection (7 models, full translated descriptions, pricing dots)
 - `*` — 404 page (fully translated, random phrase picker)
 
+## SEO & AI-Discovery Architecture
+Implemented in two parts:
+
+### Features Page Rewrite (`client/src/pages/features.tsx`)
+Reorganized from 12 bloated sections into 6 focused value pillars (all 4 languages):
+1. **The Editor — Built for Books** — block hierarchy, writing modes, inline AI
+2. **AI That Learns Your Voice** — 7 agents + co-author + style analysis (merged, highlighted)
+3. **Drafts and Research in One Place** — drafts workspace + codex
+4. **Layout and Export** — Paged.js + PDF/EPUB/DOCX
+5. **Build a Writing Practice** — habits, streaks, focus timer
+6. **Open, Private, and Multilingual** — free AI, your key, 4 languages, privacy
+
+Hero rewritten for machine readability: "Moodra is a long-form AI writing platform for authors..."
+
+### SEO Foundation
+- `client/public/robots.txt` — crawl rules, disallows auth-only routes, points to sitemap
+- `client/public/sitemap.xml` — all public marketing pages with hreflang alternates
+- `client/index.html` — updated title, meta description, OG/Twitter, canonical link, JSON-LD with `SoftwareApplication`, `Organization`, `WebSite` schemas
+- `client/src/components/page-head.tsx` — React component for per-page dynamic title/meta/canonical/JSON-LD injection (used on features, faq, mission pages)
+  - Features: SoftwareApplication schema with full featureList
+  - FAQ: FAQPage schema from live translation data
+  - Mission: AboutPage + Organization schema
+
 ## Running the Project
 ```bash
 cd Moodra-Space && npm run dev

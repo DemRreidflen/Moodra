@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLang } from "@/contexts/language-context";
 import { LanguagePicker } from "@/components/language-picker";
 import { SiteFooter } from "@/components/site-footer";
+import { PageHead } from "@/components/page-head";
 
 const ACCENT = "#F96D1C";
 
@@ -283,8 +284,36 @@ export default function MissionPage() {
   const stats = STATS[lang as keyof typeof STATS] ?? STATS.en;
   const faqs = FAQS[lang as keyof typeof FAQS] ?? FAQS.en;
 
+  const missionJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "AboutPage",
+        "@id": "https://moodra.space/mission",
+        "name": "Moodra — Mission and Philosophy",
+        "url": "https://moodra.space/mission",
+        "description": "Moodra is an independent AI writing platform built by writers, for writers. Founded in 2022. No venture capital, no dark patterns, no data sold. Built because no existing tool fit the way serious writing actually happens.",
+        "publisher": {
+          "@type": "Organization",
+          "name": "Moodra",
+          "url": "https://moodra.space",
+          "foundingDate": "2022",
+          "description": "Independent writing software. Built by writers. No VC funding. Permanently independent."
+        }
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen" style={{ background: "hsl(30, 58%, 97%)", fontFamily: "var(--font-sans)" }}>
+      <PageHead
+        title="Moodra — Mission, Story, and Philosophy"
+        description="Moodra is an independent AI writing platform built by writers, for writers. Founded in 2022. No venture capital, no dark patterns. Built because no existing tool fit how serious writing actually happens."
+        canonical="https://moodra.space/mission"
+        ogTitle="Moodra — Why We Built This and What We Believe"
+        ogDescription="Built because nothing else worked. Independent since 2022. No VC, no growth hacking, no dark patterns. A writing platform with a clear point of view."
+        jsonLd={missionJsonLd}
+      />
       <div className="max-w-2xl mx-auto px-6 py-10">
 
         {/* Nav */}

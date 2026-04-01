@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 
     <!-- Title & Description -->
-    <title>Moodra — AI Writing Studio</title>
-    <meta name="description" content="Moodra is an AI-powered writing studio for authors, researchers, and thinkers. Write books, essays, and long-form content with intelligent assistance." />
+    <title>Moodra — AI Writing Platform for Authors</title>
+    <meta name="description" content="Moodra is a long-form AI writing platform for authors. Block-based book editor, 7 AI analysis agents, style-matching co-author, research workspace, and professional PDF, EPUB, DOCX export. Free to use." />
+    <meta name="keywords" content="AI writing platform, book writing software, long-form writing, AI book editor, author tools, writing app for authors, AI co-author, book drafting, writing workspace, EPUB export" />
     <meta name="application-name" content="Moodra" />
     <meta name="author" content="Moodra" />
 
@@ -24,16 +25,88 @@
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Moodra — AI Writing Studio" />
-    <meta property="og:description" content="Write books, essays, and long-form content with intelligent AI assistance. Your private writing studio." />
+    <meta property="og:url" content="https://moodra.space/" />
+    <meta property="og:title" content="Moodra — AI Writing Platform for Authors" />
+    <meta property="og:description" content="Long-form AI writing platform for authors. Block-based editor, 7 AI agents, style-matching co-author, and professional export — one coherent system built for serious writing." />
     <meta property="og:image" content="/moodra-logo-full.png" />
     <meta property="og:site_name" content="Moodra" />
 
     <!-- Twitter / X card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Moodra — AI Writing Studio" />
-    <meta name="twitter:description" content="Write books, essays, and long-form content with intelligent AI assistance." />
+    <meta name="twitter:title" content="Moodra — AI Writing Platform for Authors" />
+    <meta name="twitter:description" content="Long-form AI writing platform. Block-based editor, 7 AI agents, style matching, and professional export. Built for authors who take their work seriously." />
     <meta name="twitter:image" content="/moodra-logo-full.png" />
+
+    <!-- Canonical (homepage) -->
+    <link rel="canonical" href="https://moodra.space/" />
+
+    <!-- Structured data: SoftwareApplication + Organization + WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://moodra.space/#software",
+          "name": "Moodra",
+          "url": "https://moodra.space",
+          "applicationCategory": "ProductivityApplication",
+          "applicationSubCategory": "Writing Software",
+          "operatingSystem": "Web",
+          "description": "Moodra is a long-form AI writing platform for authors, researchers, and book thinkers. It combines a block-based book editor, 7 AI analysis agents, a style-matching co-author, a research workspace, a Codex knowledge base, and professional PDF, EPUB, and DOCX export in one coherent system. Best for: authors writing books, academic writers, memoir writers, long-form content creators. Not for: short social media copy, lightweight note-taking, or generic task management.",
+          "featureList": [
+            "Block-based book editor with Part-Chapter-Section-Scene hierarchy",
+            "7 AI agents: Editor, Critic, Philosopher, Reader, Story Analyst, Argument Analyst, Consistency",
+            "AI Co-Author with style matching across 10 writing dimensions",
+            "Drafts workspace with stage tracker and AI draft assistant",
+            "Codex world and character knowledge base linked to AI context",
+            "Professional layout with Paged.js rendering",
+            "Export to PDF, EPUB 3, and DOCX",
+            "Writing habit tracker with daily streak and calendar heatmap",
+            "Free built-in AI via Pollinations — no API key required",
+            "Full UI in English, Russian, Ukrainian, and German",
+            "Three writing environments: standard, Reading mode, Deep Writing mode",
+            "Sprint timer and focus tools"
+          ],
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "Free to use. Optional: connect your own OpenAI API key for advanced AI models."
+          },
+          "isAccessibleForFree": true,
+          "inLanguage": ["en", "ru", "uk", "de"],
+          "brand": {
+            "@type": "Brand",
+            "name": "Moodra"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://moodra.space/#organization",
+          "name": "Moodra",
+          "url": "https://moodra.space",
+          "description": "Independent writing software. No venture capital. Built by writers, for writers. Founded in 2022 in England and Ukraine.",
+          "foundingDate": "2022",
+          "knowsAbout": ["Writing Software", "AI Writing", "Book Editor", "Long-form Writing", "Author Tools"],
+          "sameAs": []
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://moodra.space/#website",
+          "name": "Moodra",
+          "url": "https://moodra.space",
+          "description": "AI writing platform for authors who need structure, intelligent AI, research tools, and professional export in one system.",
+          "publisher": { "@id": "https://moodra.space/#organization" },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://moodra.space/?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

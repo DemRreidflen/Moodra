@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Disallow: /book/
+Disallow: /settings
+Disallow: /api/
+Disallow: /inspiration
+Disallow: /codex
+Disallow: /habits
+Disallow: /models
+
+# Public marketing pages — fully crawlable
+# https://moodra.space/
+# https://moodra.space/features
+# https://moodra.space/mission
+# https://moodra.space/faq
+
+Sitemap: https://moodra.space/sitemap.xml

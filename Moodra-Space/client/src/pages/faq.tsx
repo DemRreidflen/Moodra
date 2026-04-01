@@ -4,16 +4,40 @@ import { useLang } from "@/contexts/language-context";
 import { SiteFooter } from "@/components/site-footer";
 import { MArrowLeft, MBookOpen } from "@/components/icons";
 import { LanguagePicker } from "@/components/language-picker";
+import { PageHead } from "@/components/page-head";
 
 export default function FaqPage() {
   const { t } = useLang();
   const [open, setOpen] = useState<number | null>(0);
+
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "name": "Moodra FAQ — Frequently Asked Questions",
+    "url": "https://moodra.space/faq",
+    "mainEntity": t.faq.items.map((item: { q: string; a: string }) => ({
+      "@type": "Question",
+      "name": item.q,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": item.a,
+      },
+    })),
+  };
 
   return (
     <div
       className="min-h-screen flex flex-col"
       style={{ background: "hsl(30, 58%, 97%)" }}
     >
+      <PageHead
+        title="Moodra FAQ — Frequently Asked Questions"
+        description="Get answers to common questions about Moodra: pricing, AI features, privacy, export formats, supported languages, and how the platform differs from Notion, Scrivener, or Word."
+        canonical="https://moodra.space/faq"
+        ogTitle="Moodra FAQ — All Your Questions Answered"
+        ogDescription="Is Moodra free? How does the AI work? What export formats are supported? Find direct answers to the most common questions about the Moodra writing platform."
+        jsonLd={faqJsonLd}
+      />
       {/* Header */}
       <header className="sticky top-0 z-10 border-b" style={{
         background: "rgba(250,242,234,0.85)",
