@@ -172,7 +172,11 @@ function ExportModal({
       } else if (exportFormat === "pdf") {
         // Latin Engine: open in new tab — Paged.js auto-triggers the print dialog
         const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-        const html = generatePrintHtml({ book, chapters, settings, frontMatter, lp, pagedJsUrl, designerPages });
+        const resolvedDp = designerPages.map(dp => ({
+          ...dp,
+          imageUrl: dp.imageUrl.startsWith("/") ? `${window.location.origin}${dp.imageUrl}` : dp.imageUrl,
+        }));
+        const html = generatePrintHtml({ book, chapters, settings, frontMatter, lp, pagedJsUrl, designerPages: resolvedDp });
         const blob = new Blob([html], { type: "text/html; charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
         const w = window.open(blobUrl, "_blank");
@@ -592,6 +596,16 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     }
   }, [bookId, designerPages, saveDesignerPages]);
 
+  // Relative /uploads/... URLs don't resolve inside srcdoc iframes (base is
+  // about:blank). Make them absolute so the iframe can fetch them correctly.
+  const resolvedDesignerPages = useMemo(
+    () => designerPages.map(dp => ({
+      ...dp,
+      imageUrl: dp.imageUrl.startsWith("/") ? `${window.location.origin}${dp.imageUrl}` : dp.imageUrl,
+    })),
+    [designerPages],
+  );
+
   // Regenerate iframe HTML whenever settings, chapters, or zoom changes.
   // Latin engine: Paged.js (sends back "paged-ready" with page count).
   // Cyrillic engine: generateCyrillicPreviewHtml (same CSS as WeasyPrint export, no Paged.js).
@@ -599,11 +613,11 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
     if (!book || chapters.length === 0) return;
     let html: string;
     if (settings.layoutEngine === "cyrillic") {
-      html = generateCyrillicPreviewHtml({ book, chapters, settings, frontMatter, lp, zoom, designerPages });
+      html = generateCyrillicPreviewHtml({ book, chapters, settings, frontMatter, lp, zoom, designerPages: resolvedDesignerPages });
       setTotalPages(0);
     } else {
       const pagedJsUrl = `${window.location.origin}/paged.polyfill.js`;
-      html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl, designerPages });
+      html = generatePagedJsHtml({ book, chapters, settings, frontMatter, lp, zoom, pagedJsUrl, designerPages: resolvedDesignerPages });
       setTotalPages(0); // reset while iframe re-renders
     }
     setCurrentSpread(0);

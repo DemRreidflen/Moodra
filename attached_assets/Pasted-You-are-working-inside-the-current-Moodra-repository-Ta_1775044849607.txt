@@ -1,0 +1,101 @@
+You are working inside the current Moodra repository.
+
+Task:
+Refactor and optimize the marketing copy on the platform capabilities / features page so it becomes clearer, more premium, more product-driven, and more conversion-oriented.
+
+Important:
+The current UI/interaction is already good enough. Do NOT redesign the page visually unless strictly necessary.
+Focus mainly on content architecture, section hierarchy, feature grouping, and stronger product messaging.
+
+Goal:
+The page must stop feeling like an endless list of obvious features.
+It should feel like a focused premium AI writing platform that is practical, powerful, and unusually well thought through.
+
+What to do:
+
+1. Audit the current features/capabilities page copy.
+   Detect:
+
+   * repetitive points
+   * weak generic claims
+   * features that say the same thing in different words
+   * sections that are too obvious and do not add sales value
+   * opportunities to merge or simplify
+
+2. Rebuild the copy architecture around 4–6 strong value pillars, not a huge feature dump.
+   Example pillar logic:
+
+   * Write deeply, not noisily
+   * Structure books and notes without chaos
+   * Work with AI that adapts to your voice
+   * Research, references, and idea systems in one place
+   * Export that respects the final reading experience
+   * Workspace built for real authors, not generic productivity users
+
+3. Convert low-value feature bullets into high-value grouped narratives:
+   Instead of listing every small capability separately, merge them into meaningful product clusters.
+   Example:
+
+   * “Chapter management”, “book organization”, “draft handling” → one stronger block about narrative architecture
+   * “AI improve”, “rewrite”, “tone”, “expand” → one stronger block about adaptive writing intelligence
+
+4. Keep only features that either:
+
+   * solve a painful real-world writing problem
+   * differentiate Moodra from generic editors
+   * help explain why the platform is more usable, deeper, or more coherent than alternatives
+
+5. Remove or demote copy that sounds:
+
+   * obvious
+   * generic SaaS
+   * filler
+   * too technical for top-level product marketing
+   * impressive only to the builder, not the user
+
+6. Highlight true strategic differentiators.
+   Make them sound sharp and commercial, for example:
+
+   * AI that works with author voice, not against it
+   * one system for drafting, structuring, research, and export
+   * workspace designed around books, long-form thought, and creative depth
+   * export that respects the final form, not just raw text output
+
+7. Rewrite the page in a stronger conversion style:
+
+   * clearer headlines
+   * shorter paragraphs
+   * stronger subheadings
+   * better section progression
+   * less “we have many features”
+   * more “this removes friction and makes writing actually work”
+
+8. Tone direction:
+
+   * premium
+   * intelligent
+   * calm confidence
+   * product-led
+   * no hype slang
+   * no empty “future of writing” clichés
+   * no childish startup exaggeration
+
+9. Output format:
+
+   * first provide a brief audit of what is weak now
+   * then provide a proposed new section structure
+   * then rewrite the actual page copy in final ready-to-use form
+   * then implement it in code
+   * keep existing translations/localization structure if present
+   * do not break the page layout
+
+10. Extra rule:
+    If some existing sections are good, keep them.
+    This is an optimization and sharpening task, not a full marketing rewrite from zero.
+
+Deliver:
+
+* changed files
+* before/after section map
+* final improved copy
+* short explanation of why the new structure sells better
