@@ -14,6 +14,7 @@ import { MPdf } from "@/components/icons";
 import { useBookSettings, BookTypographySettings } from "@/hooks/use-book-settings";
 import { useFrontMatter, FrontMatterSettings } from "@/hooks/use-front-matter";
 import { generatePagedJsHtml, generatePrintHtml, generateCyrillicPreviewHtml } from "@/lib/paged-book";
+import { SectionTourModal } from "@/components/section-tour-modal";
 
 // ─── Page sizes ─────────────────────────────────────────────────────
 const PAGE_SIZES = {
@@ -417,7 +418,7 @@ function SecHead({ label, open, toggle }: { label: string; open: boolean; toggle
 
 // ─── Main component ──────────────────────────────────────────────────
 export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const lp = t.layoutPanel as Record<string, string>;
 
   const { settings, update } = useBookSettings(bookId);
@@ -438,18 +439,8 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
   const [activeChapter, setActiveChapter] = useState(0);
   const [open, setOpen] = useState({ engine: true, page: true, typography: true, headings: false, hf: false, frontmatter: false });
   const [showExport, setShowExport] = useState(false);
-  const [showEngineIntro, setShowEngineIntro] = useState(false);
   const [showCyrillicBeta, setShowCyrillicBeta] = useState(false);
   const prevEngine = useRef(settings.layoutEngine);
-
-  // First-time layout section visit → engine intro popup
-  useEffect(() => {
-    const seen = localStorage.getItem("moodra_layout_intro_seen");
-    if (!seen) {
-      setShowEngineIntro(true);
-      localStorage.setItem("moodra_layout_intro_seen", "1");
-    }
-  }, []);
 
   // First-time Cyrillic selection → beta notice popup
   useEffect(() => {
@@ -671,72 +662,88 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
         />
       )}
 
-      {/* Engine intro popup — shown once on first visit */}
-      {showEngineIntro && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)" }}>
-          <div className="bg-background rounded-2xl shadow-2xl w-[400px] p-6 space-y-4">
-            <h2 className="text-base font-bold text-foreground">Два режима вёрстки</h2>
-            <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
-              <div className="flex gap-3 items-start">
-                <div className="mt-0.5 w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0 text-blue-600 font-bold text-xs">L</div>
-                <div>
-                  <p className="font-semibold text-foreground text-xs">Latin Engine</p>
-                  <p className="text-xs">Для английских и других латинских текстов. Использует Paged.js в браузере — откроется диалог печати для сохранения PDF.</p>
-                </div>
-              </div>
-              <div className="flex gap-3 items-start">
-                <div className="mt-0.5 w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0 text-violet-600 font-bold text-xs">К</div>
-                <div>
-                  <p className="font-semibold text-foreground text-xs">Cyrillic Engine</p>
-                  <p className="text-xs">Для русских и украинских текстов. Использует WeasyPrint — PDF скачивается напрямую с правильными переносами и типографикой.</p>
-                </div>
-              </div>
-              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
-                Важно выбирать подходящий режим: неправильный движок может дать некорректные переносы и форматирование.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowEngineIntro(false)}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-              style={{ background: "#F96D1C" }}
-            >
-              Понятно
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Layout section tour — shown once on first visit */}
+      <SectionTourModal sectionId="layout" lang={lang as "en" | "ru" | "ua" | "de"} />
 
       {/* Cyrillic beta popup — shown once on first Cyrillic selection */}
-      {showCyrillicBeta && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)" }}>
-          <div className="bg-background rounded-2xl shadow-2xl w-[380px] p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">Beta</span>
-              <h2 className="text-base font-bold text-foreground">Режим Cyrillic Engine</h2>
-            </div>
-            <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
-              <p className="text-sm">Кириллический движок находится в режиме <span className="font-medium text-foreground">мягкого бета-теста</span>.</p>
-              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
-                <p className="font-semibold">Предпросмотр:</p>
-                <p>На страницах превью текст может располагаться непропорционально — внизу бывает больше пустого места, чем нужно. Это особенность движка предпросмотра.</p>
-                <p className="font-medium">В итоговом PDF-файле этого нет — всё выглядит корректно.</p>
+      {showCyrillicBeta && (() => {
+        const CB: Record<string, { title: string; beta: string; previewTitle: string; previewBody: string; previewNote: string; designTitle: string; designBody: string; designNote: string; ok: string }> = {
+          en: {
+            title: "Cyrillic Engine Mode",
+            beta: "Beta",
+            previewTitle: "Preview:",
+            previewBody: "In the preview pages, text may appear unevenly distributed — more empty space at the bottom than expected. This is a preview engine limitation.",
+            previewNote: "In the final PDF this does not happen — everything looks correct.",
+            designTitle: "Designer pages:",
+            designBody: "Adding designer pages in this mode may not always work correctly.",
+            designNote: "If the file fails to download after adding designer pages — remove them, download the PDF without them, then insert the needed pages manually in any PDF editor.",
+            ok: "Got it",
+          },
+          ru: {
+            title: "Режим Cyrillic Engine",
+            beta: "Бета",
+            previewTitle: "Предпросмотр:",
+            previewBody: "На страницах превью текст может располагаться непропорционально — внизу бывает больше пустого места, чем нужно. Это особенность движка предпросмотра.",
+            previewNote: "В итоговом PDF-файле этого нет — всё выглядит корректно.",
+            designTitle: "Дизайн-страницы:",
+            designBody: "Добавление дизайн-страниц в этом режиме может работать некорректно.",
+            designNote: "Если файл не скачивается после добавления дизайн-страниц — удалите их, скачайте PDF без них, а затем вставьте нужные страницы вручную в любом PDF-редакторе.",
+            ok: "Понятно",
+          },
+          ua: {
+            title: "Режим Cyrillic Engine",
+            beta: "Бета",
+            previewTitle: "Передперегляд:",
+            previewBody: "На сторінках перегляду текст може розташовуватися непропорційно — знизу буває більше порожнього місця, ніж потрібно. Це особливість рушія передперегляду.",
+            previewNote: "У підсумковому PDF-файлі цього немає — все виглядає коректно.",
+            designTitle: "Дизайн-сторінки:",
+            designBody: "Додавання дизайн-сторінок у цьому режимі може працювати некоректно.",
+            designNote: "Якщо файл не завантажується після додавання дизайн-сторінок — видаліть їх, завантажте PDF без них, а потім вставте потрібні сторінки вручну в будь-якому PDF-редакторі.",
+            ok: "Зрозуміло",
+          },
+          de: {
+            title: "Cyrillic Engine Modus",
+            beta: "Beta",
+            previewTitle: "Vorschau:",
+            previewBody: "In den Vorschauseiten kann der Text ungleichmäßig verteilt erscheinen — am unteren Rand mehr Leerraum als erwartet. Dies ist eine Einschränkung der Vorschau-Engine.",
+            previewNote: "Im endgültigen PDF tritt dies nicht auf — alles sieht korrekt aus.",
+            designTitle: "Designer-Seiten:",
+            designBody: "Das Hinzufügen von Designer-Seiten in diesem Modus funktioniert möglicherweise nicht immer korrekt.",
+            designNote: "Falls die Datei nach dem Hinzufügen von Designer-Seiten nicht heruntergeladen werden kann — entfernen Sie diese, laden Sie das PDF ohne sie herunter und fügen Sie die Seiten dann manuell in einem PDF-Editor ein.",
+            ok: "Verstanden",
+          },
+        };
+        const cb = CB[lang] || CB.en;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)" }}>
+            <div className="bg-background rounded-2xl shadow-2xl w-[380px] p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">{cb.beta}</span>
+                <h2 className="text-base font-bold text-foreground">{cb.title}</h2>
               </div>
-              <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3 text-xs text-orange-800 dark:text-orange-300 space-y-1.5">
-                <p className="font-semibold">Дизайн-страницы:</p>
-                <p>Добавление дизайн-страниц в этом режиме может работать некорректно.</p>
-                <p>Если файл не скачивается после добавления дизайн-страниц — удалите их, скачайте PDF без них, а затем вставьте нужные страницы вручную в любом PDF-редакторе.</p>
+              <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
+                  <p className="font-semibold">{cb.previewTitle}</p>
+                  <p>{cb.previewBody}</p>
+                  <p className="font-medium">{cb.previewNote}</p>
+                </div>
+                <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3 text-xs text-orange-800 dark:text-orange-300 space-y-1.5">
+                  <p className="font-semibold">{cb.designTitle}</p>
+                  <p>{cb.designBody}</p>
+                  <p>{cb.designNote}</p>
+                </div>
               </div>
+              <button
+                onClick={() => setShowCyrillicBeta(false)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
+                style={{ background: "#F96D1C" }}
+              >
+                {cb.ok}
+              </button>
             </div>
-            <button
-              onClick={() => setShowCyrillicBeta(false)}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-              style={{ background: "#F96D1C" }}
-            >
-              Понятно
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Hidden file input for designer page upload */}
       <input
