@@ -1,0 +1,45 @@
+Now I need to migrate all local file storage in this existing project to Supabase Storage.
+
+Important context:
+- The app currently stores uploaded/generated files on local disk under /uploads or similar local filesystem paths.
+- This will break on Render because local disk is not persistent.
+- I already have a Supabase project and a private storage bucket named "uploads".
+- The server must use:
+  - SUPABASE_URL
+  - SUPABASE_SERVICE_ROLE_KEY
+  - SUPABASE_STORAGE_BUCKET
+- Keep the current app behavior and API responses as close as possible to the existing frontend expectations.
+- Do not rewrite unrelated parts of the app.
+- Make minimal, safe, production-oriented changes.
+
+Tasks:
+1. Search the codebase for all local file storage usage, including:
+   - /uploads
+   - fs.writeFile
+   - fs.writeFileSync
+   - fs.mkdir
+   - express.static serving uploaded files
+   - multer destinations pointing to local disk
+2. Identify every endpoint and helper that saves or serves files from local storage.
+3. Replace local persistent storage with Supabase Storage uploads.
+4. If multer is already used, prefer memory-based uploads and send file buffers to Supabase Storage.
+5. Create a reusable server-side helper for Supabase Storage operations.
+6. Ensure the service role key is used only on the server.
+7. Preserve current route response shapes as much as possible.
+8. If the frontend expects a file URL, return a signed URL or another safe server-compatible URL strategy.
+9. Remove or disable local /uploads static serving if it is no longer needed.
+10. Add/update .env.example with:
+   - SUPABASE_URL
+   - SUPABASE_SERVICE_ROLE_KEY
+   - SUPABASE_STORAGE_BUCKET
+11. Update DEPLOYMENT.md with any required Storage notes.
+12. Return:
+   - all changed files
+   - every route that was migrated
+   - any manual steps I must do in Supabase Storage policies/settings
+
+Important constraints:
+- Do not expose the service role key to the client.
+- Do not move the whole app to supabase-js on the frontend.
+- Do not rewrite app architecture.
+- Keep changes minimal and focused on storage migration only

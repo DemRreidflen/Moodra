@@ -8,6 +8,7 @@
 | Backend | Node.js + Express (bundled to `dist/index.js`) |
 | Database | PostgreSQL via Drizzle ORM |
 | Auth | Google OAuth 2.0 + `express-session` |
+| File storage | Supabase Storage (private bucket, accessed via server-side proxy) |
 | PDF renderer | Python + WeasyPrint (optional sidecar, started by `start.sh`) |
 
 ---
@@ -96,6 +97,9 @@ Set all of these under **Render → Service → Environment**:
 | `GOOGLE_CLIENT_ID` | From Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
 | `GOOGLE_CALLBACK_URL` | `https://<your-render-subdomain>.onrender.com/api/auth/google/callback` |
+| `SUPABASE_URL` | Your project URL from Supabase → Project Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key from the same page (keep secret — server-side only) |
+| `SUPABASE_STORAGE_BUCKET` | Name of your private storage bucket (e.g. `uploads`) |
 
 Optional:
 
@@ -143,12 +147,41 @@ The `sessions` table is created automatically on first server startup
 
 ---
 
+## Supabase Storage setup
+
+Designer page images (full-page images interleaved in the book layout) are stored in Supabase Storage. The service role key is used **only on the server** — the client never sees it.
+
+### How it works
+
+| Step | Detail |
+|------|--------|
+| Upload | `POST /api/books/:id/designer-pages/upload` — receives the image via multipart, uploads the buffer to Supabase Storage at path `designer-pages/{bookId}/{filename}` |
+| Serve | `GET /api/uploads/designer-pages/:bookId/:filename` — server-side proxy fetches the file from Supabase Storage and streams it to the client |
+| URL in DB | URLs are stored as `/api/uploads/designer-pages/{bookId}/{filename}` — permanent, never-expiring proxy paths |
+
+### Required Supabase settings
+
+1. **Create a private bucket** named `uploads` (or whatever you set `SUPABASE_STORAGE_BUCKET` to)
+2. **Storage → Policies**: No client-side RLS policies are required because all access is via the service role key on the server side. You can leave the bucket with no public access policies.
+3. _(Optional)_ If you want the Cyrillic PDF renderer to embed images directly from Supabase (bypassing the proxy), you can make the bucket public and return the public URL instead of the proxy URL — but the current server-proxy approach works fine for both web and PDF rendering.
+
+### Manual step after first deploy
+
+No schema changes are needed for storage. The only step is:
+1. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` in Render
+2. Create the `uploads` bucket in Supabase Storage (private)
+
+---
+
 ## Changed files (deployment prep)
 
 | File | Change |
 |------|--------|
 | `server/replit_integrations/auth/replitAuth.ts` | `createTableIfMissing: false` → `true` so the `sessions` table is auto-created on first startup |
-| `.env.example` | Added with all required environment variables |
+| `server/supabase-storage.ts` | New: reusable server-side helper for Supabase Storage upload/download via REST API |
+| `server/routes.ts` | Designer-pages upload writes to Supabase Storage instead of local disk; new GET proxy route added; `uploadsDir` creation and `fs` import removed |
+| `server/index.ts` | Removed `express.static("/uploads", ...)` — local disk is no longer used for file serving |
+| `.env.example` | Updated with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` as required vars |
 | `DEPLOYMENT.md` | This file |
 
 ---

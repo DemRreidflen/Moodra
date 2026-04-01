@@ -12,7 +12,7 @@ import { generateAndStoreEmbedding, findRelevantModels, buildEmbeddingText } fro
 import OpenAI from "openai";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
+import { uploadFile, downloadFile } from "./supabase-storage";
 import { isAuthenticated } from "./replit_integrations/auth/replitAuth";
 import { authStorage } from "./replit_integrations/auth/storage";
 import JSZip from "jszip";
@@ -88,9 +88,6 @@ function hyphenateHtmlContent(html: string, lang: "ru" | "uk"): string {
   });
 }
 // ─────────────────────────────────────────────────────────────────────────────
-
-const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -190,19 +187,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // ---- Designer page image upload (stores file on disk, returns URL) ----
+  // ---- Designer page image upload (Supabase Storage, served via proxy) ----
   app.post("/api/books/:id/designer-pages/upload", upload.single("image"), async (req: Request, res: Response) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file" });
       const bookId = req.params.id;
-      const dir = path.join(uploadsDir, "designer-pages", bookId);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const ext = path.extname(req.file.originalname || ".jpg").toLowerCase() || ".jpg";
       const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
-      res.json({ url: `/uploads/designer-pages/${bookId}/${filename}` });
+      const storagePath = `designer-pages/${bookId}/${filename}`;
+      await uploadFile(storagePath, req.file.buffer, req.file.mimetype || "image/jpeg");
+      res.json({ url: `/api/uploads/designer-pages/${bookId}/${filename}` });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ---- Designer page image proxy (streams from Supabase Storage) ----
+  // The URL /api/uploads/designer-pages/:bookId/:filename is returned by the upload route above.
+  // Keeping the proxy server-side means the service role key is never exposed to clients.
+  app.get("/api/uploads/designer-pages/:bookId/:filename", async (req: Request, res: Response) => {
+    try {
+      const { bookId, filename } = req.params;
+      const storagePath = `designer-pages/${bookId}/${filename}`;
+      const { buffer, contentType } = await downloadFile(storagePath);
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.send(buffer);
+    } catch (e: any) {
+      res.status(404).json({ error: "Image not found" });
     }
   });
 
