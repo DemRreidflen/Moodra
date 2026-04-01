@@ -140,17 +140,6 @@ async function getUserModel(req: Request): Promise<string> {
   return DEFAULT_MODEL;
 }
 
-async function getUserFreeModel(req: Request): Promise<string> {
-  try {
-    const userId = getUserId(req);
-    if (userId) {
-      const user = await authStorage.getUser(userId);
-      if (user?.freeModel === "qwen") return "qwen";
-    }
-  } catch {}
-  return "openai";
-}
-
 function trackTokens(userId: string | undefined, tokens: number): void {
   if (!userId || tokens <= 0) return;
   authStorage.addTokenUsage(userId, tokens).catch(() => {});
@@ -294,20 +283,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       await authStorage.updateUserModel(userId, model);
       res.json({ ok: true, model });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  app.patch("/api/user/free-model", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const userId = getUserId(req);
-      const { freeModel } = req.body;
-      if (!["gpt-oss", "qwen"].includes(freeModel)) {
-        return res.status(400).json({ error: "Invalid free model" });
-      }
-      await authStorage.updateUserFreeModel(userId, freeModel);
-      res.json({ ok: true, freeModel });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -990,9 +965,8 @@ FOCUS FOR THIS PASS: Deep cognitive reconstruction — intellectual method, conc
       }
     }
 
-    // Fallback: free Pollinations (user's chosen free model)
+    // Fallback: free Pollinations (single model)
     try {
-      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
       const pollinationsRes = await fetch("https://text.pollinations.ai/", {
         method: "POST",
@@ -1002,7 +976,7 @@ FOCUS FOR THIS PASS: Deep cognitive reconstruction — intellectual method, conc
             { role: "system", content: systemPrompt },
             { role: "user", content: `Perform a deep author style reconstruction on the following text. Return the JSON object with all 9 fields filled in full detail:\n\n---\n${rawSourceText.slice(0, 8000)}\n---` },
           ],
-          model: freePollModel,
+          model: "openai",
           seed,
           private: true,
           jsonMode: true,
@@ -1534,85 +1508,7 @@ This is NOT a literal word-for-word translation but a stylistic language adaptat
 Return ONLY the adapted text, no preamble or explanation. Do NOT skip or summarize any part — translate the ENTIRE input.
 Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction" : "non-fiction"})`;
 
-      // Try to get OpenAI — fall back to Pollinations for free Qwen 3 users
-      let ai: OpenAI | null = null;
-      try { ai = await getOpenAI(req); } catch { /* no key — will use Pollinations */ }
-
-      if (!ai) {
-        // ── Pollinations free path (Qwen 3) ──────────────────────────────────
-        const freePollModel = await getUserFreeModel(req);
-        const FREE_CHUNK_WORDS = 1500;
-        const paragraphs = text.split(/\n\n+/);
-        const freeChunks: string[] = [];
-        let curChunk: string[] = [];
-        let curWords = 0;
-        for (const para of paragraphs) {
-          const wc = para.split(/\s+/).filter(Boolean).length;
-          if (curWords + wc > FREE_CHUNK_WORDS && curChunk.length > 0) {
-            freeChunks.push(curChunk.join("\n\n"));
-            curChunk = [para]; curWords = wc;
-          } else { curChunk.push(para); curWords += wc; }
-        }
-        if (curChunk.length > 0) freeChunks.push(curChunk.join("\n\n"));
-
-        const adaptedParts: string[] = [];
-        for (const chunk of freeChunks) {
-          const pr = await fetch("https://text.pollinations.ai/", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: chunk },
-              ],
-              model: freePollModel,
-              seed: Math.floor(Math.random() * 99999),
-              private: true,
-            }),
-            signal: AbortSignal.timeout(45000),
-          });
-          if (!pr.ok) {
-            if (pr.status === 429) return res.status(429).json({ error: "free_rate_limit", message: "Free AI rate limit reached. Try again." });
-            return res.status(502).json({ error: "free_unavailable", message: `Free AI unavailable (${pr.status})` });
-          }
-          let part = (await pr.text()).trim();
-          if (part.startsWith("{") || part.startsWith("[")) {
-            try { const p = JSON.parse(part); part = p?.choices?.[0]?.message?.content || p?.content || part; } catch {}
-          }
-          adaptedParts.push(part);
-        }
-        const adapted = adaptedParts.join("\n\n");
-
-        // Translate title via Pollinations too
-        let adaptedTitle = chapterTitle || "";
-        if (chapterTitle) {
-          try {
-            const titlePr = await fetch("https://text.pollinations.ai/", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                messages: [
-                  { role: "system", content: `Translate this chapter title to ${targetLanguage}. Return ONLY the translated title, no quotes, no explanation.` },
-                  { role: "user", content: chapterTitle },
-                ],
-                model: freePollModel,
-                seed: Math.floor(Math.random() * 99999),
-                private: true,
-              }),
-              signal: AbortSignal.timeout(15000),
-            });
-            if (titlePr.ok) {
-              let t = (await titlePr.text()).trim();
-              if (t.startsWith("{") || t.startsWith("[")) {
-                try { const p = JSON.parse(t); t = p?.choices?.[0]?.message?.content || p?.content || t; } catch {}
-              }
-              adaptedTitle = t || chapterTitle;
-            }
-          } catch {}
-        }
-        return res.json({ adapted, adaptedTitle, freeMode: true });
-      }
-
+      const ai = await getOpenAI(req);
       const ADAPT_MODEL = "o4-mini";
       const ADAPT_MAX_TOKENS = 32000;
 
@@ -1737,7 +1633,6 @@ Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction
         trackTokens(getUserId(req), completion.usage?.total_tokens || 0);
         annotation = completion.choices[0].message.content?.trim() || "";
       } catch (openaiErr: any) {
-        const freePollModel = await getUserFreeModel(req);
         const seed = Math.floor(Math.random() * 99999);
         const pollinationsRes = await fetch("https://text.pollinations.ai/", {
           method: "POST",
@@ -1747,7 +1642,7 @@ Context: Book "${bookTitle || ""}" (${bookMode === "fiction" ? "literary fiction
               { role: "system", content: systemPrompt },
               { role: "user", content: context },
             ],
-            model: freePollModel,
+            model: "openai",
             seed,
             private: true,
           }),
@@ -1969,7 +1864,6 @@ Return only valid JSON, no extra wrappers or markdown.`,
 
       const userPrompt = `${contextBlock}\n${prompt}`.trim();
 
-      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
 
       // Use POST to avoid URL length limits (Cyrillic text encodes to 6x size via GET)
@@ -1981,7 +1875,7 @@ Return only valid JSON, no extra wrappers or markdown.`,
             { role: "system", content: systemHint },
             { role: "user", content: userPrompt },
           ],
-          model: freePollModel,
+          model: "openai",
           seed,
           private: true,
         }),
@@ -2020,70 +1914,6 @@ Return only valid JSON, no extra wrappers or markdown.`,
       if (e?.name === "TimeoutError") {
         return res.status(504).json({ error: "free_timeout", message: "Free AI timed out. Try again or add your OpenAI key for faster responses." });
       }
-      res.status(500).json({ error: "free_error", message: e?.message || "Free AI error" });
-    }
-  });
-
-  // ───── FREE SELECTION TOOLBAR — improve/rewrite/translate via Pollinations ─────
-  app.post("/api/ai/improve-free", async (req: Request, res: Response) => {
-    try {
-      const { text, mode, targetLang, customInstruction, bookTitle, bookMode } = req.body;
-      if (!text) return res.status(400).json({ error: "text is required" });
-
-      const modeInstructions: Record<string, string> = {
-        improve:      "You are an expert editor. Improve this text: make it clearer, more expressive, and more compelling. Preserve the author's voice. Return ONLY the improved text.",
-        rewrite:      "You are a skilled writer. Completely rewrite this text while preserving its meaning. Use fresh phrasing and new sentence structures. Return ONLY the rewritten text.",
-        simplify:     "You are an expert editor. Simplify this text: use plainer language, shorter sentences, clearer ideas. Make it easy to read without dumbing it down. Return ONLY the simplified text.",
-        expand:       "You are a skilled writer. Expand this text with more detail, vivid examples, and deeper analysis. Make it richer and more comprehensive. Return ONLY the expanded text.",
-        translate:    targetLang
-          ? `You are a professional translator. Translate this text into ${targetLang}. Keep the meaning, tone, and style as close to the original as possible. Return ONLY the translated text.`
-          : "You are a professional translator. Translate this text into English. Return ONLY the translated text.",
-        "fix-grammar":"You are an expert proofreader. Fix all grammar, spelling, punctuation, and style errors. Preserve the author's voice and meaning. Return ONLY the corrected text.",
-        "paragraphs": "You are a professional editor. Split this text into well-structured paragraphs, each developing one clear idea. Separate every paragraph with a blank line. Preserve all content exactly — only adjust paragraph breaks, do not change the words. Return ONLY the restructured text.",
-        "adapt-tone": customInstruction
-          ? `You are an expert editor. Adapt the tone of this text as follows: ${customInstruction}. Keep the meaning intact. Return ONLY the adapted text.`
-          : "You are an expert editor. Make this text more engaging and natural in tone. Return ONLY the adapted text.",
-      };
-
-      const instruction = modeInstructions[mode] || modeInstructions.improve;
-      const extra = customInstruction && mode !== "adapt-tone" ? ` Additional instruction: ${customInstruction}` : "";
-      const systemMsg = `${instruction}${extra}`;
-
-      const freePollModel = await getUserFreeModel(req);
-      const seed = Math.floor(Math.random() * 99999);
-
-      const pollinationsRes = await fetch("https://text.pollinations.ai/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [
-            { role: "system", content: systemMsg },
-            { role: "user", content: text },
-          ],
-          model: freePollModel,
-          seed,
-          private: true,
-        }),
-        signal: AbortSignal.timeout(40000),
-      });
-
-      if (!pollinationsRes.ok) {
-        if (pollinationsRes.status === 429)
-          return res.status(429).json({ error: "free_rate_limit", message: "Free AI rate limit reached. Try again in a moment." });
-        return res.status(502).json({ error: "free_unavailable", message: `Free AI unavailable (${pollinationsRes.status})` });
-      }
-
-      let improved = (await pollinationsRes.text()).trim();
-      if (improved.startsWith("{") || improved.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(improved);
-          improved = parsed?.choices?.[0]?.message?.content || parsed?.content || improved;
-        } catch { /* keep as-is */ }
-      }
-      res.json({ improved });
-    } catch (e: any) {
-      if (e?.name === "TimeoutError")
-        return res.status(504).json({ error: "free_timeout", message: "Free AI timed out. Try again." });
       res.status(500).json({ error: "free_error", message: e?.message || "Free AI error" });
     }
   });
@@ -2515,7 +2345,6 @@ New directions the author could explore — what could make this text exceptiona
 
     // Fallback: free mode via Pollinations
     try {
-      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
       const pollinationsRes = await fetch("https://text.pollinations.ai/", {
         method: "POST",
@@ -2525,7 +2354,7 @@ New directions the author could explore — what could make this text exceptiona
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          model: freePollModel,
+          model: "openai",
           seed,
           private: true,
         }),
@@ -2596,7 +2425,6 @@ New directions the author could explore — what could make this text exceptiona
       }
 
       // Fallback: free Pollinations
-      const freePollModel = await getUserFreeModel(req);
       const seed = Math.floor(Math.random() * 99999);
       const pollinationsRes = await fetch("https://text.pollinations.ai/", {
         method: "POST",
@@ -2606,7 +2434,7 @@ New directions the author could explore — what could make this text exceptiona
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          model: freePollModel,
+          model: "openai",
           seed,
           private: true,
         }),

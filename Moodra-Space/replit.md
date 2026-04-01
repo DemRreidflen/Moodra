@@ -93,10 +93,6 @@ Notes editor has a compact AI action strip (Connect · Expand · Distill · Tags
 - **Typewriter Mode**: Cursor auto-scrolls to vertical center of screen on each keypress (keyboard icon in toolbar)
 - **Stats bar**: Click word count to toggle between words + reading time (÷225 wpm) / character count
 - **AI Co-author**: Streaming SSE generation — continue, develop, improve, ideas; free Pollinations toggle; regenerate button; paste-own-text editing; deeper style analysis (pov, rhythm, dialogueStyle, styleInstruction); scrollable output area; **Deepen Analysis** — collapsible panel with optional custom prompt that re-runs style analysis with added nuance
-- **Dual free AI models**: Users can switch between GPT-OSS 20B (Meta/Llama) and Qwen 3 (Alibaba) for free tier — stored per user in `freeModel` DB column; `PATCH /api/user/free-model` endpoint; `getUserFreeModel(req)` helper reads it and maps to Pollinations model string ("openai"/"qwen")
-- **Qwen 3 selection toolbar**: When freeModel="qwen", ALL selection toolbar actions (improve/rewrite/simplify/expand/translate/fix-grammar/paragraphs/adapt-tone) are unlocked and routed through `/api/ai/improve-free` (Pollinations). GPT-OSS users see the orange key icon + Qwen 3 suggestion in the "no API" popup.
-- **Qwen 3 chapter language adaptation**: `/api/ai/adapt-language` auto-detects free users (no API key), splits chapters into 1500-word chunks, routes each through Pollinations with Qwen 3. Chapter editor shows Qwen 3 info badge in adapt modal.
-- **AI panel dynamic label**: Shows "Qwen 3 · Free" (green) or "GPT-OSS · Free" (purple) based on user's freeModel selection
 - **Hypothesis system**: Track claims with statuses (hypothesis, testing, confirmed, refuted) + AI generation
 - **AI Research**: 6 categorized source suggestions per query
 - **Idea Board** (FigJam-inspired cognitive layer):
@@ -233,29 +229,6 @@ All custom SVG icons with M-prefix naming:
 - `/codex` — Codex Moodra (6 authorship principles, manifesto, all 4 languages)
 - `/models` — AI model selection (7 models, full translated descriptions, pricing dots)
 - `*` — 404 page (fully translated, random phrase picker)
-
-## SEO & AI-Discovery Architecture
-Implemented in two parts:
-
-### Features Page Rewrite (`client/src/pages/features.tsx`)
-Reorganized from 12 bloated sections into 6 focused value pillars (all 4 languages):
-1. **The Editor — Built for Books** — block hierarchy, writing modes, inline AI
-2. **AI That Learns Your Voice** — 7 agents + co-author + style analysis (merged, highlighted)
-3. **Drafts and Research in One Place** — drafts workspace + codex
-4. **Layout and Export** — Paged.js + PDF/EPUB/DOCX
-5. **Build a Writing Practice** — habits, streaks, focus timer
-6. **Open, Private, and Multilingual** — free AI, your key, 4 languages, privacy
-
-Hero rewritten for machine readability: "Moodra is a long-form AI writing platform for authors..."
-
-### SEO Foundation
-- `client/public/robots.txt` — crawl rules, disallows auth-only routes, points to sitemap
-- `client/public/sitemap.xml` — all public marketing pages with hreflang alternates
-- `client/index.html` — updated title, meta description, OG/Twitter, canonical link, JSON-LD with `SoftwareApplication`, `Organization`, `WebSite` schemas
-- `client/src/components/page-head.tsx` — React component for per-page dynamic title/meta/canonical/JSON-LD injection (used on features, faq, mission pages)
-  - Features: SoftwareApplication schema with full featureList
-  - FAQ: FAQPage schema from live translation data
-  - Mission: AboutPage + Organization schema
 
 ## Running the Project
 ```bash

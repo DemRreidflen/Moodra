@@ -205,7 +205,7 @@ export function AiPanel({ book, chapter, context, chapters = [], onInsert }: Pro
   const { data: user } = useQuery<any>({ queryKey: ["/api/auth/user"] });
   const currentModel = (user as any)?.openaiModel || "gpt-4o-mini";
   const modelLabel = MODEL_DISPLAY[currentModel] || currentModel;
-  const { isFreeMode, freeModel } = useFreeMode();
+  const { isFreeMode } = useFreeMode();
   const [mode, setMode] = useState("continue");
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -993,7 +993,7 @@ export function AiPanel({ book, chapter, context, chapters = [], onInsert }: Pro
               onClick={() => setLocation("/models")}
               className="flex items-center gap-0.5 mt-0.5 hover:opacity-70 transition-opacity group"
             >
-              <span className="text-[10px] font-medium" style={{ color: freeModel === "qwen" ? "#34D399" : "#818cf8" }}>{freeModel === "qwen" ? "Qwen 3 · Free" : "GPT-OSS · Free"}</span>
+              <span className="text-[10px] font-medium" style={{ color: "#818cf8" }}>GPT-OSS · Free</span>
               <ChevronRight className="w-2.5 h-2.5 opacity-60 group-hover:opacity-100 transition-opacity" style={{ color: "#818cf8" }} />
             </button>
           ) : (
@@ -1421,7 +1421,7 @@ export function AiPanel({ book, chapter, context, chapters = [], onInsert }: Pro
                     ))}
                   </div>
                   <p className="text-xs font-medium" style={{ color: "#6366f1" }}>{thinkingMsgs[freeThinkingIdx]}</p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "#94a3b8" }}>{freeModel === "qwen" ? "Qwen 3 · Free" : "GPT-OSS · Free"}</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "#94a3b8" }}>GPT-OSS · Free</p>
                 </div>
               )}
 

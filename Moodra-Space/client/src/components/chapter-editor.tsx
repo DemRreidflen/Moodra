@@ -481,7 +481,7 @@ export function ChapterEditor({
   const { toast } = useToast();
   const { handleAiError } = useAiError();
   const { lang } = useLang();
-  const { isFreeMode, freeModel } = useFreeMode();
+  const { isFreeMode } = useFreeMode();
   const { data: currentUser } = useQuery<any>({ queryKey: ["/api/auth/user"] });
   const currentModelId = currentUser?.openaiModel || "gpt-4o-mini";
   const { settings: bookSettings } = useBookSettings(bookId || 0);
@@ -1687,16 +1687,6 @@ export function ChapterEditor({
               /* STEP 1 — Language selection */
               <>
                 <p className="text-sm text-muted-foreground leading-relaxed">{s.adaptDesc}</p>
-                {isFreeMode && freeModel === "qwen" && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(52,211,153,0.18)" }}>
-                    <div className="w-4 h-4 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: "rgba(16,185,129,0.2)" }}>
-                      <Globe className="w-2.5 h-2.5" style={{ color: "#34D399" }} />
-                    </div>
-                    <p className="text-[11px]" style={{ color: "rgba(52,211,153,0.85)" }}>
-                      {lang === "ru" ? "Адаптация через Qwen 3 · Бесплатно · Длинные главы разбиваются на части автоматически" : lang === "ua" ? "Адаптація через Qwen 3 · Безплатно · Довгі глави розбиваються на частини автоматично" : lang === "de" ? "Adaptation via Qwen 3 · Kostenlos · Lange Kapitel werden automatisch aufgeteilt" : "Adaptation via Qwen 3 · Free · Long chapters are split automatically"}
-                    </p>
-                  </div>
-                )}
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{s.adaptSelectLang}</p>
                   <div className="relative">

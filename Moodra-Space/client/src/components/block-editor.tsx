@@ -781,8 +781,7 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
   const [lineSpacing, setLineSpacing] = useState("1.625");
   const containerRef = useRef<HTMLDivElement>(null);
   const cursorTargetRef = useRef<{ blockId: string; offset: number } | null>(null);
-  const { isFreeMode, freeModel } = useFreeMode();
-  const isQwenFree = isFreeMode && freeModel === "qwen";
+  const { isFreeMode } = useFreeMode();
   const { lang } = useLang();
   const s = BLOCK_EDITOR_I18N[lang] || BLOCK_EDITOR_I18N.en;
   const [, setLocation] = useLocation();
@@ -915,56 +914,38 @@ export function BlockEditor({ initialContent, onChange, hideControls, hideFormat
 
   const callImprove = useCallback(async (mode: string) => {
     if (!selectionBar) return;
-    if (isFreeMode && !isQwenFree) {
+    if (isFreeMode) {
       setSelectionBar(null);
       setFreeGateOpen(true);
       return;
     }
     setIsImproving(true);
     try {
-      if (isQwenFree) {
-        // Qwen 3 free path
-        const resp = await fetch("/api/ai/improve-free", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: selectionBar.text,
-            mode,
-          }),
-        });
-        const data = await resp.json();
-        setImprovementResult({
-          original: selectionBar.text,
-          improved: data.improved || "",
-          blockId: selectionBar.blockId,
-        });
-      } else {
-        const resp = await fetch("/api/ai/improve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: selectionBar.text,
-            mode,
-            style: selectedStyle,
-            bookTitle: bookTitle || "",
-            bookMode: bookMode || "scientific",
-            bookGenre: bookGenre || "",
-          }),
-        });
-        const data = await resp.json();
-        setImprovementResult({
-          original: data.original || selectionBar.text,
-          improved: data.improved || "",
-          blockId: selectionBar.blockId,
-        });
-      }
+      const resp = await fetch("/api/ai/improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: selectionBar.text,
+          mode,
+          style: selectedStyle,
+          bookTitle: bookTitle || "",
+          bookMode: bookMode || "scientific",
+          bookGenre: bookGenre || "",
+        }),
+      });
+      const data = await resp.json();
+      setImprovementResult({
+        original: data.original || selectionBar.text,
+        improved: data.improved || "",
+        blockId: selectionBar.blockId,
+      });
       setSelectionBar(null);
     } catch {
       setSelectionBar(null);
     } finally {
       setIsImproving(false);
     }
-  }, [selectionBar, isQwenFree, isFreeMode, selectedStyle, bookTitle, bookMode]);
+  }, [selectionBar, selectedStyle, bookTitle, bookMode]);
 
   const acceptImprovement = useCallback(() => {
     if (!improvementResult) return;

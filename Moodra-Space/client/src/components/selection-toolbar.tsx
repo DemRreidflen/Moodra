@@ -101,8 +101,7 @@ interface Props {
 
 export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre, bookId, positionBelow, onResult }: Props) {
   const { lang } = useLang();
-  const { isFreeMode, freeModel } = useFreeMode();
-  const isQwenFree = isFreeMode && freeModel === "qwen";
+  const { isFreeMode } = useFreeMode();
   const [, navigate] = useLocation();
   const s = I18N[lang as keyof typeof I18N] ?? I18N.en;
 
@@ -263,57 +262,40 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre,
   const runAction = useCallback(async (mode: string, extraParams?: Record<string, string>) => {
     const text = selectedTextRef.current;
     if (!text || loading) return;
-    if (isFreeMode && !isQwenFree) { setShowNoApi(true); return; }
+    if (isFreeMode) { setShowNoApi(true); return; }
     setLoading(mode);
     setShowTranslatePicker(false);
     setShowToneInput(false);
     try {
-      if (isQwenFree) {
-        // Qwen 3 free path — uses Pollinations
-        const resp = await fetch("/api/ai/improve-free", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text,
-            mode,
-            targetLang: extraParams?.targetLang || "",
-            customInstruction: extraParams?.customInstruction || "",
-          }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.message || data.error || "error");
-        onResult(text, data.improved || "", mode, savedRangeRef.current, savedBlockIdsRef.current);
-      } else {
-        // Paid OpenAI path
-        const resp = await fetch("/api/ai/improve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text,
-            mode,
-            bookTitle: bookTitle || "",
-            bookMode: bookMode || "fiction",
-            bookGenre: bookGenre || "",
-            customInstruction: extraParams?.customInstruction || "",
-            targetLang: extraParams?.targetLang || "",
-            bookId: bookId != null ? String(bookId) : undefined,
-            useRoleModels: bookId != null,
-            selectedRoleModelIds: [],
-          }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || "error");
-        onResult(text, data.improved || "", mode, savedRangeRef.current, savedBlockIdsRef.current);
-      }
+      const resp = await fetch("/api/ai/improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          mode,
+          bookTitle: bookTitle || "",
+          bookMode: bookMode || "fiction",
+          bookGenre: bookGenre || "",
+          customInstruction: extraParams?.customInstruction || "",
+          targetLang: extraParams?.targetLang || "",
+          // Phase 3: author role model context
+          bookId: bookId != null ? String(bookId) : undefined,
+          useRoleModels: bookId != null,
+          selectedRoleModelIds: [],
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "error");
+      onResult(text, data.improved || "", mode, savedRangeRef.current, savedBlockIdsRef.current);
       setVisible(false);
     } catch {
     } finally {
       setLoading(null);
     }
-  }, [loading, isFreeMode, isQwenFree, bookTitle, bookMode, bookId, onResult]);
+  }, [loading, isFreeMode, bookTitle, bookMode, onResult]);
 
   const handleActionClick = useCallback((mode: string) => {
-    if (isFreeMode && !isQwenFree) {
+    if (isFreeMode) {
       setShowNoApi(true);
       setShowTranslatePicker(false);
       setShowToneInput(false);
@@ -328,7 +310,7 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre,
     } else {
       runAction(mode);
     }
-  }, [isFreeMode, isQwenFree, runAction]);
+  }, [isFreeMode, runAction]);
 
   if (!visible) return null;
 
@@ -353,12 +335,12 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre,
             disabled={!!loading}
             onClick={() => handleActionClick(mode)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:bg-white/10 disabled:opacity-40"
-            style={{ color: loading === mode ? color : (isFreeMode && !isQwenFree ? "#64748B" : "#CBD5E1") }}
+            style={{ color: loading === mode ? color : (isFreeMode ? "#64748B" : "#CBD5E1") }}
             title={label}
           >
             {loading === mode
               ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color }} />
-              : <Icon className="w-3.5 h-3.5" style={{ color: isFreeMode && !isQwenFree ? "#475569" : color }} />
+              : <Icon className="w-3.5 h-3.5" style={{ color: isFreeMode ? "#475569" : color }} />
             }
             <span>{label}</span>
             {(mode === "translate" || mode === "adapt-tone") && (
@@ -367,10 +349,10 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre,
           </button>
         ))}
 
-        {isFreeMode && !isQwenFree && (
+        {isFreeMode && (
           <div className="w-px h-5 mx-1 flex-shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
         )}
-        {isFreeMode && !isQwenFree && (
+        {isFreeMode && (
           <button
             onClick={() => setShowNoApi(v => !v)}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:bg-white/10"
@@ -379,15 +361,6 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre,
           >
             <Key className="w-3.5 h-3.5" />
           </button>
-        )}
-        {isQwenFree && (
-          <div className="w-px h-5 mx-1 flex-shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
-        )}
-        {isQwenFree && (
-          <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(52,211,153,0.2)" }}>
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#34D399" }} />
-            <span className="text-[9px] font-bold" style={{ color: "#34D399" }}>Qwen 3</span>
-          </div>
         )}
       </div>
 
@@ -399,7 +372,7 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre,
             background: "rgba(18,18,28,0.97)",
             backdropFilter: "blur(16px)",
             minWidth: 320,
-            maxWidth: 400,
+            maxWidth: 380,
             borderColor: "rgba(249,109,28,0.3)",
           }}
         >
@@ -424,28 +397,6 @@ export function SelectionToolbar({ containerRef, bookTitle, bookMode, bookGenre,
               style={{ color: "#475569" }}
             >
               <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Qwen 3 as free alternative */}
-          <div className="rounded-xl p-3 flex items-center gap-2.5" style={{ background: "rgba(16,185,129,0.10)", border: "1px solid rgba(52,211,153,0.2)" }}>
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(16,185,129,0.2)" }}>
-              <Zap className="w-3.5 h-3.5" style={{ color: "#34D399" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold" style={{ color: "#34D399" }}>
-                {lang === "ru" ? "Бесплатно с Qwen 3" : lang === "ua" ? "Безплатно з Qwen 3" : lang === "de" ? "Kostenlos mit Qwen 3" : "Free with Qwen 3"}
-              </p>
-              <p className="text-[10px]" style={{ color: "rgba(148,163,184,0.7)" }}>
-                {lang === "ru" ? "Переключитесь на Qwen 3 в разделе Модели — и все эти функции станут доступны бесплатно." : lang === "ua" ? "Перейдіть на Qwen 3 у розділі Моделі — і всі ці функції стануть доступні безплатно." : lang === "de" ? "Wechsle zu Qwen 3 in Modelle — alle Funktionen werden kostenlos verfügbar." : "Switch to Qwen 3 in Models — all these functions become free."}
-              </p>
-            </div>
-            <button
-              onClick={() => { navigate("/models"); setVisible(false); setShowNoApi(false); }}
-              className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex-shrink-0 transition-all hover:opacity-80"
-              style={{ background: "rgba(16,185,129,0.25)", color: "#34D399" }}
-            >
-              {lang === "ru" ? "Сменить" : lang === "ua" ? "Змінити" : lang === "de" ? "Wechseln" : "Switch"}
             </button>
           </div>
 

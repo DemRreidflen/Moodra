@@ -88,7 +88,6 @@ export default function ModelsPage() {
 
   const { data: user } = useQuery<any>({ queryKey: ["/api/auth/user"] });
   const currentModel = user?.openaiModel || "gpt-4o-mini";
-  const activeFreeModel: "gpt-oss" | "qwen" = user?.freeModel === "qwen" ? "qwen" : "gpt-oss";
 
   const { data: pricingData } = useQuery<{
     pricing: Record<string, { input: number; output: number; cachedInput?: number }>;
@@ -118,24 +117,6 @@ export default function ModelsPage() {
       const m = models[MODEL_IDS.indexOf(model as any)];
       toast({ title: `${ml.modelChanged} ${m?.name || model}`, description: ml.modelChangedDesc });
       setTimeout(() => setLocation("/"), 900);
-    },
-    onError: () => {
-      toast({ title: ml.errorTitle, description: ml.errorDesc, variant: "destructive" });
-    },
-  });
-
-  const changeFreeModel = useMutation({
-    mutationFn: async (model: "gpt-oss" | "qwen") => {
-      const res = await fetch("/api/user/free-model", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ freeModel: model }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
     },
     onError: () => {
       toast({ title: ml.errorTitle, description: ml.errorDesc, variant: "destructive" });
@@ -180,47 +161,17 @@ export default function ModelsPage() {
 
         {isFreeMode && (
           <div
-            className="mb-6 rounded-2xl px-5 py-4"
-            style={{ background: "rgba(249,109,28,0.05)", border: "1.5px solid rgba(249,109,28,0.18)" }}
+            className="mb-6 rounded-2xl px-5 py-4 flex items-start gap-3"
+            style={{ background: "rgba(249,109,28,0.06)", border: "1.5px solid rgba(249,109,28,0.20)" }}
           >
-            <div className="flex items-start gap-3 mb-3">
-              <Lock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#F96D1C" }} />
-              <div>
-                <p className="text-sm font-semibold mb-0.5" style={{ color: "#c45a10" }}>
-                  {lang === "ru" ? "Платные модели недоступны — но есть выбор ИИ" : lang === "ua" ? "Платні моделі недоступні — але є вибір ШІ" : lang === "de" ? "Bezahlmodelle gesperrt — wähle deinen freien KI-Motor" : "Paid models locked — choose your free AI engine"}
-                </p>
-                <p className="text-xs leading-relaxed" style={{ color: "#8a7a70" }}>
-                  {lang === "ru" ? "Добавьте API-ключ OpenAI для доступа к GPT. Пока — выберите бесплатную архитектуру:" : lang === "ua" ? "Додайте API-ключ OpenAI для доступу до GPT. Поки — оберіть безплатну архітектуру:" : lang === "de" ? "Füge deinen OpenAI-Schlüssel hinzu für GPT. Wähle jetzt deine kostenlose Architektur:" : "Add your OpenAI key for GPT access. For now — pick your free AI architecture:"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 ml-7">
-              <button
-                onClick={() => changeFreeModel.mutate("gpt-oss")}
-                disabled={changeFreeModel.isPending}
-                className="flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all"
-                style={{
-                  background: activeFreeModel === "gpt-oss" ? "rgba(249,109,28,0.14)" : "rgba(0,0,0,0.03)",
-                  color: activeFreeModel === "gpt-oss" ? "#c45a10" : "#8a7a70",
-                  border: activeFreeModel === "gpt-oss" ? "1.5px solid rgba(249,109,28,0.30)" : "1.5px solid rgba(0,0,0,0.08)",
-                }}
-              >
-                {activeFreeModel === "gpt-oss" && <Check className="w-3 h-3 inline mr-1.5" />}
-                GPT-OSS 20B
-              </button>
-              <button
-                onClick={() => changeFreeModel.mutate("qwen")}
-                disabled={changeFreeModel.isPending}
-                className="flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all"
-                style={{
-                  background: activeFreeModel === "qwen" ? "rgba(16,185,129,0.12)" : "rgba(0,0,0,0.03)",
-                  color: activeFreeModel === "qwen" ? "#059669" : "#8a7a70",
-                  border: activeFreeModel === "qwen" ? "1.5px solid rgba(16,185,129,0.28)" : "1.5px solid rgba(0,0,0,0.08)",
-                }}
-              >
-                {activeFreeModel === "qwen" && <Check className="w-3 h-3 inline mr-1.5" />}
-                Qwen 3
-              </button>
+            <Lock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#F96D1C" }} />
+            <div>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: "#c45a10" }}>
+                {lang === "ru" ? "Выбор модели недоступен" : lang === "ua" ? "Вибір моделі недоступний" : lang === "de" ? "Modellauswahl gesperrt" : "Model selection locked"}
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: "#8a7a70" }}>
+                {lang === "ru" ? "Вы используете бесплатный GPT-OSS. Чтобы выбрать другую модель, добавьте API-ключ OpenAI в настройках аккаунта." : lang === "ua" ? "Ви використовуєте безплатний GPT-OSS. Щоб обрати іншу модель, додайте API-ключ OpenAI у налаштуваннях акаунта." : lang === "de" ? "Du verwendest das kostenlose GPT-OSS. Um ein anderes Modell zu wählen, füge deinen OpenAI API-Schlüssel in den Kontoeinstellungen hinzu." : "You're using free GPT-OSS. To switch models, add your OpenAI API key in account settings."}
+              </p>
             </div>
           </div>
         )}
@@ -454,13 +405,11 @@ export default function ModelsPage() {
             <div className="grid grid-cols-[180px_1fr_1fr] border-b" style={{ borderColor: "rgba(129,140,248,0.08)" }}>
               <div className="px-5 py-2.5" />
               <div className="px-4 py-2.5 border-l flex items-center gap-2" style={{ borderColor: "rgba(129,140,248,0.08)" }}>
-                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: activeFreeModel === "qwen" ? "rgba(16,185,129,0.15)" : "rgba(129,140,248,0.15)" }}>
-                  <Cpu className="w-2.5 h-2.5" style={{ color: activeFreeModel === "qwen" ? "#34D399" : "#818CF8" }} />
+                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: "rgba(129,140,248,0.15)" }}>
+                  <Cpu className="w-2.5 h-2.5" style={{ color: "#818CF8" }} />
                 </div>
-                <span className="text-[11px] font-bold" style={{ color: activeFreeModel === "qwen" ? "#34D399" : "#818CF8" }}>
-                  {activeFreeModel === "qwen" ? "Qwen 3" : "GPT-OSS 20B"}
-                </span>
-                <span className="text-[10px] ml-1" style={{ color: activeFreeModel === "qwen" ? "rgba(52,211,153,0.5)" : "rgba(129,140,248,0.5)" }}>
+                <span className="text-[11px] font-bold" style={{ color: "#818CF8" }}>GPT-OSS 20B</span>
+                <span className="text-[10px] ml-1" style={{ color: "rgba(129,140,248,0.5)" }}>
                   {lang === "ru" ? "· бесплатно" : lang === "ua" ? "· безплатно" : lang === "de" ? "· kostenlos" : "· free"}
                 </span>
               </div>
@@ -475,24 +424,65 @@ export default function ModelsPage() {
               </div>
             </div>
 
-            {/* Visual bar rows — dynamic based on active free model */}
-            {(activeFreeModel === "qwen" ? [
-              { label: lang === "ru" ? "Стоимость" : lang === "ua" ? "Вартість" : lang === "de" ? "Kosten" : "Cost", freeVal: lang === "ru" ? "Бесплатно" : lang === "ua" ? "Безплатно" : lang === "de" ? "Kostenlos" : "Free", paidVal: "$0.15 / 1M tok", freeBar: 100, paidBar: 10, freeGreen: true, freeBarColor: "#34D399", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Скорость" : lang === "ua" ? "Швидкість" : lang === "de" ? "Geschwindigkeit" : "Speed", freeVal: "8–20 sec", paidVal: "1–3 sec", freeBar: 25, paidBar: 92, freeGreen: false, freeBarColor: "rgba(52,211,153,0.28)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Качество текста" : lang === "ua" ? "Якість тексту" : lang === "de" ? "Textqualität" : "Text quality", freeVal: lang === "ru" ? "Хорошее" : lang === "ua" ? "Добре" : lang === "de" ? "Gut" : "Good", paidVal: lang === "ru" ? "Высокое" : lang === "ua" ? "Висока" : lang === "de" ? "Hoch" : "High", freeBar: 70, paidBar: 90, freeGreen: false, freeBarColor: "rgba(52,211,153,0.45)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Точность инструкций" : lang === "ua" ? "Точність інструкцій" : lang === "de" ? "Instruktionsgenauigkeit" : "Instruction accuracy", freeVal: lang === "ru" ? "Хорошая" : lang === "ua" ? "Хороша" : lang === "de" ? "Gut" : "Good", paidVal: lang === "ru" ? "Высокая" : lang === "ua" ? "Висока" : lang === "de" ? "Hoch" : "High", freeBar: 72, paidBar: 95, freeGreen: false, freeBarColor: "rgba(52,211,153,0.45)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Длинный контекст" : lang === "ua" ? "Довгий контекст" : lang === "de" ? "Langer Kontext" : "Long context", freeVal: lang === "ru" ? "Средне" : lang === "ua" ? "Середньо" : lang === "de" ? "Mittel" : "Medium", paidVal: lang === "ru" ? "Отлично" : lang === "ua" ? "Відмінно" : lang === "de" ? "Ausgezeichnet" : "Excellent", freeBar: 50, paidBar: 94, freeGreen: false, freeBarColor: "rgba(52,211,153,0.35)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "API ключ нужен?" : lang === "ua" ? "API ключ потрібен?" : lang === "de" ? "API-Schlüssel nötig?" : "API key required?", freeVal: lang === "ru" ? "Нет" : lang === "ua" ? "Ні" : lang === "de" ? "Nein" : "No", paidVal: lang === "ru" ? "Да" : lang === "ua" ? "Так" : lang === "de" ? "Ja" : "Yes", freeBar: 100, paidBar: 0, freeGreen: true, freeBarColor: "#34D399", paidBarColor: "rgba(99,102,241,0.22)" },
-              { label: lang === "ru" ? "Многоязычность" : lang === "ua" ? "Багатомовність" : lang === "de" ? "Mehrsprachigkeit" : "Multilingual", freeVal: lang === "ru" ? "Отличная" : lang === "ua" ? "Відмінна" : lang === "de" ? "Ausgezeichnet" : "Excellent", paidVal: lang === "ru" ? "Высокое" : lang === "ua" ? "Висока" : lang === "de" ? "Hoch" : "High", freeBar: 88, paidBar: 90, freeGreen: false, freeBarColor: "rgba(52,211,153,0.55)", paidBarColor: "#818CF8" },
-            ] : [
-              { label: lang === "ru" ? "Стоимость" : lang === "ua" ? "Вартість" : lang === "de" ? "Kosten" : "Cost", freeVal: lang === "ru" ? "Бесплатно" : lang === "ua" ? "Безплатно" : lang === "de" ? "Kostenlos" : "Free", paidVal: "$0.15 / 1M tok", freeBar: 100, paidBar: 10, freeGreen: true, freeBarColor: "#A5B4FC", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Скорость" : lang === "ua" ? "Швидкість" : lang === "de" ? "Geschwindigkeit" : "Speed", freeVal: "8–15 sec", paidVal: "1–3 sec", freeBar: 28, paidBar: 92, freeGreen: false, freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Качество текста" : lang === "ua" ? "Якість тексту" : lang === "de" ? "Textqualität" : "Text quality", freeVal: lang === "ru" ? "Среднее" : lang === "ua" ? "Середнє" : lang === "de" ? "Mittel" : "Average", paidVal: lang === "ru" ? "Высокое" : lang === "ua" ? "Висока" : lang === "de" ? "Hoch" : "High", freeBar: 45, paidBar: 90, freeGreen: false, freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Точность инструкций" : lang === "ua" ? "Точність інструкцій" : lang === "de" ? "Instruktionsgenauigkeit" : "Instruction accuracy", freeVal: lang === "ru" ? "Нестабильно" : lang === "ua" ? "Нестабільно" : lang === "de" ? "Instabil" : "Unstable", paidVal: lang === "ru" ? "Высокая" : lang === "ua" ? "Висока" : lang === "de" ? "Hoch" : "High", freeBar: 40, paidBar: 95, freeGreen: false, freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "Длинный контекст" : lang === "ua" ? "Довгий контекст" : lang === "de" ? "Langer Kontext" : "Long context", freeVal: lang === "ru" ? "Слабо" : lang === "ua" ? "Слабо" : lang === "de" ? "Schwach" : "Weak", paidVal: lang === "ru" ? "Отлично" : lang === "ua" ? "Відмінно" : lang === "de" ? "Ausgezeichnet" : "Excellent", freeBar: 22, paidBar: 94, freeGreen: false, freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8" },
-              { label: lang === "ru" ? "API ключ нужен?" : lang === "ua" ? "API ключ потрібен?" : lang === "de" ? "API-Schlüssel nötig?" : "API key required?", freeVal: lang === "ru" ? "Нет" : lang === "ua" ? "Ні" : lang === "de" ? "Nein" : "No", paidVal: lang === "ru" ? "Да" : lang === "ua" ? "Так" : lang === "de" ? "Ja" : "Yes", freeBar: 100, paidBar: 0, freeGreen: true, freeBarColor: "#A5B4FC", paidBarColor: "rgba(99,102,241,0.22)" },
-              { label: lang === "ru" ? "Надёжность" : lang === "ua" ? "Надійність" : lang === "de" ? "Zuverlässigkeit" : "Reliability", freeVal: lang === "ru" ? "Зависит от Pollinations" : lang === "ua" ? "Від Pollinations" : lang === "de" ? "Pollinations-abhängig" : "Pollinations uptime", paidVal: "OpenAI · 99.9%", freeBar: 55, paidBar: 99, freeGreen: false, freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8" },
-            ]).map((row, i) => (
+            {/* Visual bar rows */}
+            {[
+              {
+                label: lang === "ru" ? "Стоимость" : lang === "ua" ? "Вартість" : lang === "de" ? "Kosten" : "Cost",
+                freeVal: lang === "ru" ? "Бесплатно" : lang === "ua" ? "Безплатно" : lang === "de" ? "Kostenlos" : "Free",
+                paidVal: "$0.15 / 1M tok",
+                freeBar: 100, paidBar: 10,
+                freeGreen: true,
+                freeBarColor: "#A5B4FC", paidBarColor: "#818CF8",
+              },
+              {
+                label: lang === "ru" ? "Скорость" : lang === "ua" ? "Швидкість" : lang === "de" ? "Geschwindigkeit" : "Speed",
+                freeVal: "8–15 sec",
+                paidVal: "1–3 sec",
+                freeBar: 28, paidBar: 92,
+                freeGreen: false,
+                freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8",
+              },
+              {
+                label: lang === "ru" ? "Качество текста" : lang === "ua" ? "Якість тексту" : lang === "de" ? "Textqualität" : "Text quality",
+                freeVal: lang === "ru" ? "Среднее" : lang === "ua" ? "Середнє" : lang === "de" ? "Mittel" : "Average",
+                paidVal: lang === "ru" ? "Высокое" : lang === "ua" ? "Висока" : lang === "de" ? "Hoch" : "High",
+                freeBar: 45, paidBar: 90,
+                freeGreen: false,
+                freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8",
+              },
+              {
+                label: lang === "ru" ? "Точность инструкций" : lang === "ua" ? "Точність інструкцій" : lang === "de" ? "Instruktionsgenauigkeit" : "Instruction accuracy",
+                freeVal: lang === "ru" ? "Нестабильно" : lang === "ua" ? "Нестабільно" : lang === "de" ? "Instabil" : "Unstable",
+                paidVal: lang === "ru" ? "Высокая" : lang === "ua" ? "Висока" : lang === "de" ? "Hoch" : "High",
+                freeBar: 40, paidBar: 95,
+                freeGreen: false,
+                freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8",
+              },
+              {
+                label: lang === "ru" ? "Длинный контекст" : lang === "ua" ? "Довгий контекст" : lang === "de" ? "Langer Kontext" : "Long context",
+                freeVal: lang === "ru" ? "Слабо" : lang === "ua" ? "Слабо" : lang === "de" ? "Schwach" : "Weak",
+                paidVal: lang === "ru" ? "Отлично" : lang === "ua" ? "Відмінно" : lang === "de" ? "Ausgezeichnet" : "Excellent",
+                freeBar: 22, paidBar: 94,
+                freeGreen: false,
+                freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8",
+              },
+              {
+                label: lang === "ru" ? "API ключ нужен?" : lang === "ua" ? "API ключ потрібен?" : lang === "de" ? "API-Schlüssel nötig?" : "API key required?",
+                freeVal: lang === "ru" ? "Нет" : lang === "ua" ? "Ні" : lang === "de" ? "Nein" : "No",
+                paidVal: lang === "ru" ? "Да" : lang === "ua" ? "Так" : lang === "de" ? "Ja" : "Yes",
+                freeBar: 100, paidBar: 0,
+                freeGreen: true,
+                freeBarColor: "#A5B4FC", paidBarColor: "rgba(99,102,241,0.22)",
+              },
+              {
+                label: lang === "ru" ? "Надёжность" : lang === "ua" ? "Надійність" : lang === "de" ? "Zuverlässigkeit" : "Reliability",
+                freeVal: lang === "ru" ? "Зависит от Pollinations" : lang === "ua" ? "Від Pollinations" : lang === "de" ? "Pollinations-abhängig" : "Pollinations uptime",
+                paidVal: "OpenAI · 99.9%",
+                freeBar: 55, paidBar: 99,
+                freeGreen: false,
+                freeBarColor: "rgba(129,140,248,0.28)", paidBarColor: "#818CF8",
+              },
+            ].map((row, i) => (
               <div key={i} className="grid grid-cols-[180px_1fr_1fr] border-b last:border-b-0" style={{ borderColor: "rgba(129,140,248,0.06)" }}>
                 <div className="px-5 py-3 flex items-center">
                   <span className="text-[11px] font-medium" style={{ color: "#94A3B8" }}>{row.label}</span>
@@ -500,7 +490,7 @@ export default function ModelsPage() {
                 {/* Free col */}
                 <div className="px-4 py-3 border-l" style={{ borderColor: "rgba(129,140,248,0.06)" }}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold" style={{ color: row.freeGreen ? row.freeBarColor : "rgba(165,180,252,0.45)" }}>{row.freeVal}</span>
+                    <span className="text-[11px] font-semibold" style={{ color: row.freeGreen ? "#A5B4FC" : "rgba(165,180,252,0.45)" }}>{row.freeVal}</span>
                   </div>
                   <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                     <div className="h-full rounded-full transition-all" style={{ width: `${row.freeBar}%`, background: row.freeBarColor, opacity: 0.7 }} />
@@ -544,21 +534,13 @@ export default function ModelsPage() {
 
             {/* Intro */}
             <p className="text-[12px] leading-relaxed mb-4" style={{ color: "rgba(148,163,184,0.75)" }}>
-              {activeFreeModel === "qwen"
-                ? (lang === "ru"
-                    ? "Бесплатный Qwen 3 работает через Pollinations — сторонний сервис с открытыми LLM. Лучшее бесплатное рассуждение, но задержки те же."
-                    : lang === "ua"
-                    ? "Безплатний Qwen 3 працює через Pollinations — сторонній сервіс з відкритими LLM. Краще безплатне міркування, але затримки ті ж."
-                    : lang === "de"
-                    ? "Kostenloses Qwen 3 läuft über Pollinations. Bestes kostenloses Reasoning, aber gleiche Latenzen."
-                    : "Free Qwen 3 runs via Pollinations. Best free-tier reasoning, but same latency trade-offs.")
-                : (lang === "ru"
-                    ? "Бесплатный GPT-OSS работает через Pollinations — сторонний сервис с открытыми LLM. Честный компромисс, но с реальными ограничениями."
-                    : lang === "ua"
-                    ? "Безплатний GPT-OSS працює через Pollinations — сторонній сервіс з відкритими LLM. Чесний компроміс, але з реальними обмеженнями."
-                    : lang === "de"
+              {lang === "ru"
+                ? "Бесплатный GPT-OSS работает через Pollinations — сторонний сервис с открытыми LLM. Честный компромисс, но с реальными ограничениями."
+                : lang === "ua"
+                  ? "Безплатний GPT-OSS працює через Pollinations — сторонній сервіс з відкритими LLM. Чесний компроміс, але з реальними обмеженнями."
+                  : lang === "de"
                     ? "Kostenloses GPT-OSS läuft über Pollinations mit Open-Source-LLMs. Fair, aber mit echten Einschränkungen."
-                    : "Free GPT-OSS runs via Pollinations using open-source LLMs. Fair trade-off, but with real limitations.")}
+                    : "Free GPT-OSS runs via Pollinations using open-source LLMs. Fair trade-off, but with real limitations."}
             </p>
 
             {/* Tile grid 2×2 */}
@@ -639,86 +621,15 @@ export default function ModelsPage() {
             </div>
           </div>
 
-          {/* ── GPT-OSS 20B vs Qwen 3 comparison ── */}
-          <div className="relative z-10 rounded-2xl overflow-hidden mb-6" style={{ border: "1px solid rgba(129,140,248,0.18)", background: "rgba(255,255,255,0.02)" }}>
-            <div className="px-6 pt-5 pb-4 border-b" style={{ borderColor: "rgba(129,140,248,0.12)" }}>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="h-px w-5" style={{ background: "#818CF8" }} />
-                <span className="text-[10px] font-bold tracking-[0.15em] uppercase" style={{ color: "#818CF8" }}>
-                  {lang === "ru" ? "Сравнение архитектур" : lang === "ua" ? "Порівняння архітектур" : lang === "de" ? "Architektur-Vergleich" : "Architecture comparison"}
-                </span>
-              </div>
-              <h3 className="text-base font-bold" style={{ color: "#E2E8F0" }}>GPT-OSS 20B vs Qwen 3</h3>
-              <p className="text-[11px] mt-1" style={{ color: "#64748B" }}>
-                {lang === "ru" ? "Обе — бесплатно, без ключа, через Pollinations AI" : lang === "ua" ? "Обидві — безплатно, без ключа, через Pollinations AI" : lang === "de" ? "Beide kostenlos, kein Schlüssel, via Pollinations AI" : "Both free, no API key, via Pollinations AI"}
-              </p>
-            </div>
-            <div className="grid grid-cols-[180px_1fr_1fr] border-b" style={{ borderColor: "rgba(129,140,248,0.08)" }}>
-              <div className="px-5 py-2.5" />
-              <div className="px-4 py-2.5 border-l flex items-center gap-2" style={{ borderColor: "rgba(129,140,248,0.08)" }}>
-                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: "rgba(129,140,248,0.15)" }}>
-                  <Cpu className="w-2.5 h-2.5" style={{ color: "#818CF8" }} />
-                </div>
-                <span className="text-[11px] font-bold" style={{ color: "#818CF8" }}>GPT-OSS 20B</span>
-              </div>
-              <div className="px-4 py-2.5 border-l flex items-center gap-2" style={{ borderColor: "rgba(129,140,248,0.08)" }}>
-                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: "rgba(16,185,129,0.15)" }}>
-                  <Brain className="w-2.5 h-2.5" style={{ color: "#34D399" }} />
-                </div>
-                <span className="text-[11px] font-bold" style={{ color: "#34D399" }}>Qwen 3</span>
-              </div>
-            </div>
-            {[
-              { label: lang === "ru" ? "Качество текста" : lang === "ua" ? "Якість тексту" : lang === "de" ? "Textqualität" : "Text quality", a: lang === "ru" ? "Среднее" : lang === "ua" ? "Середнє" : lang === "de" ? "Mittel" : "Average", aBar: 45, b: lang === "ru" ? "Хорошее" : lang === "ua" ? "Добре" : lang === "de" ? "Gut" : "Good", bBar: 70, winner: "b" },
-              { label: lang === "ru" ? "Точность инструкций" : lang === "ua" ? "Точність інструкцій" : lang === "de" ? "Instruktionsgenauigkeit" : "Instruction accuracy", a: lang === "ru" ? "Нестабильно" : lang === "ua" ? "Нестабільно" : lang === "de" ? "Instabil" : "Unstable", aBar: 40, b: lang === "ru" ? "Хорошая" : lang === "ua" ? "Хороша" : lang === "de" ? "Gut" : "Good", bBar: 72, winner: "b" },
-              { label: lang === "ru" ? "Рассуждение" : lang === "ua" ? "Міркування" : lang === "de" ? "Reasoning" : "Reasoning", a: lang === "ru" ? "Базовое" : lang === "ua" ? "Базове" : lang === "de" ? "Grundlegend" : "Basic", aBar: 35, b: lang === "ru" ? "Сильное" : lang === "ua" ? "Сильне" : lang === "de" ? "Stark" : "Strong", bBar: 78, winner: "b" },
-              { label: lang === "ru" ? "Многоязычность" : lang === "ua" ? "Багатомовність" : lang === "de" ? "Mehrsprachigkeit" : "Multilingual", a: lang === "ru" ? "Хорошая" : lang === "ua" ? "Хороша" : lang === "de" ? "Gut" : "Good", aBar: 65, b: lang === "ru" ? "Отличная" : lang === "ua" ? "Відмінна" : lang === "de" ? "Ausgezeichnet" : "Excellent", bBar: 88, winner: "b" },
-              { label: lang === "ru" ? "Стиль / нарратив" : lang === "ua" ? "Стиль / наратив" : lang === "de" ? "Stil / Narrativ" : "Style / narrative", a: lang === "ru" ? "Хорошее" : lang === "ua" ? "Добре" : lang === "de" ? "Gut" : "Good", aBar: 60, b: lang === "ru" ? "Хорошее" : lang === "ua" ? "Добре" : lang === "de" ? "Gut" : "Good", bBar: 65, winner: "tie" },
-              { label: lang === "ru" ? "Скорость ответа" : lang === "ua" ? "Швидкість відповіді" : lang === "de" ? "Antwortgeschwindigkeit" : "Response speed", a: "8–15 sec", aBar: 60, b: "8–20 sec", bBar: 50, winner: "a" },
-            ].map((row, i) => (
-              <div key={i} className="grid grid-cols-[180px_1fr_1fr] border-b last:border-b-0" style={{ borderColor: "rgba(129,140,248,0.06)" }}>
-                <div className="px-5 py-3 flex items-center">
-                  <span className="text-[11px] font-medium" style={{ color: "#94A3B8" }}>{row.label}</span>
-                </div>
-                <div className="px-4 py-3 border-l" style={{ borderColor: "rgba(129,140,248,0.06)" }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold" style={{ color: row.winner === "a" ? "#A5B4FC" : "rgba(165,180,252,0.45)" }}>{row.a}</span>
-                    {row.winner === "a" && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(129,140,248,0.2)", color: "#A5B4FC" }}>✓</span>}
-                  </div>
-                  <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${row.aBar}%`, background: row.winner === "a" ? "#818CF8" : "rgba(129,140,248,0.25)", opacity: 0.8 }} />
-                  </div>
-                </div>
-                <div className="px-4 py-3 border-l" style={{ borderColor: "rgba(129,140,248,0.06)" }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold" style={{ color: row.winner === "b" ? "#34D399" : "rgba(52,211,153,0.45)" }}>{row.b}</span>
-                    {row.winner === "b" && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.2)", color: "#34D399" }}>✓</span>}
-                  </div>
-                  <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${row.bBar}%`, background: row.winner === "b" ? "#34D399" : "rgba(52,211,153,0.22)", opacity: 0.8 }} />
-                  </div>
-                </div>
-              </div>
-            ))}
-            <div className="px-5 py-3" style={{ background: "rgba(129,140,248,0.03)", borderTop: "1px solid rgba(129,140,248,0.08)" }}>
-              <p className="text-[10px]" style={{ color: "rgba(148,163,184,0.55)" }}>
-                {lang === "ru" ? "Оба работают через Pollinations AI — задержки и доступность одинаковы. Переключайся сверху." : lang === "ua" ? "Обидва працюють через Pollinations AI — затримки та доступність однакові. Перемикай зверху." : lang === "de" ? "Beide laufen über Pollinations AI — gleiche Latenzen und Verfügbarkeit. Oben umschalten." : "Both run via Pollinations AI — same latency and uptime. Switch above."}
-              </p>
-            </div>
-          </div>
-
-          {/* ── FREE MODEL CARDS ── */}
-          <div className="relative z-10 space-y-3">
-            {/* GPT-OSS 20B card */}
+          {/* ── FREE MODEL CARD ── */}
+          <div className="relative z-10">
             <div
-              className="rounded-2xl overflow-hidden cursor-pointer transition-all"
-              onClick={() => isFreeMode && changeFreeModel.mutate("gpt-oss")}
+              className="rounded-2xl overflow-hidden"
               style={{
                 background: "linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(129,140,248,0.06) 100%)",
-                border: activeFreeModel === "gpt-oss" && isFreeMode ? "1.5px solid rgba(129,140,248,0.55)" : "1.5px solid rgba(129,140,248,0.18)",
-                boxShadow: activeFreeModel === "gpt-oss" && isFreeMode ? "0 0 0 3px rgba(99,102,241,0.10), inset 0 0 40px rgba(99,102,241,0.05)" : "none",
-                opacity: isFreeMode && activeFreeModel !== "gpt-oss" ? 0.6 : 1,
-                transition: "all 0.2s",
+                border: isFreeMode ? "1.5px solid rgba(129,140,248,0.55)" : "1.5px solid rgba(129,140,248,0.22)",
+                boxShadow: isFreeMode ? "0 0 0 3px rgba(99,102,241,0.12), inset 0 0 40px rgba(99,102,241,0.05)" : "inset 0 0 40px rgba(99,102,241,0.03)",
+                transition: "border 0.2s, box-shadow 0.2s",
               }}
             >
               <div className="px-6 pt-5 pb-4">
@@ -726,93 +637,54 @@ export default function ModelsPage() {
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(99,102,241,0.18)", border: "1px solid rgba(129,140,248,0.2)" }}>
                     <Cpu className="w-5 h-5" style={{ color: "#818CF8" }} />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2">
                       <span className="text-base font-bold" style={{ color: "#E2E8F0" }}>GPT-OSS 20B</span>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.22)", color: "#818CF8" }}>{t.freeMode.badge}</span>
-                      {isFreeMode && activeFreeModel === "gpt-oss" && (
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.22)", color: "#818CF8" }}>
+                        {t.freeMode.badge}
+                      </span>
+                      {isFreeMode && (
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: "rgba(99,102,241,0.22)", color: "#818CF8" }}>
                           <Check className="w-3 h-3" /> {lang === "ru" ? "Активен" : lang === "ua" ? "Активний" : lang === "de" ? "Aktiv" : "Active"}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs mt-0.5" style={{ color: "#64748B" }}>Meta · Llama 3.3 70B · via Pollinations AI · {lang === "ru" ? "без ключа" : lang === "ua" ? "без ключа" : lang === "de" ? "kein Schlüssel" : "no key needed"}</p>
+                    <p className="text-xs" style={{ color: "#64748B" }}>
+                      {lang === "ru" ? "Meta · Llama 3.3 70B · via Pollinations AI · без ключа" :
+                       lang === "ua" ? "Meta · Llama 3.3 70B · via Pollinations AI · без ключа" :
+                       lang === "de" ? "Meta · Llama 3.3 70B · via Pollinations AI · kein Schlüssel nötig" :
+                       "Meta · Llama 3.3 70B · via Pollinations AI · no key needed"}
+                    </p>
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed mb-3" style={{ color: "#94A3B8" }}>{t.freeMode.description}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(lang === "ru" ? ["Нарратив", "Скорость", "Стабильность стиля"] : lang === "ua" ? ["Наратив", "Швидкість", "Стабільність стилю"] : lang === "de" ? ["Narrativ", "Tempo", "Stilstabilität"] : ["Narrative", "Speed edge", "Style consistency"]).map(tag => (
-                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(129,140,248,0.10)", color: "#818CF8" }}>{tag}</span>
-                  ))}
-                </div>
-              </div>
-              <div className="px-6 py-3 flex items-center justify-between border-t" style={{ borderColor: "rgba(129,140,248,0.10)" }}>
-                <span className="text-xs font-medium" style={{ color: "#64748B" }}>{lang === "ru" ? "Без ключа API · Всегда бесплатно" : lang === "ua" ? "Без ключа API · Завжди безплатно" : lang === "de" ? "Kein API-Schlüssel · Immer kostenlos" : "No API key · Always free"}</span>
-                {isFreeMode && (
-                  <div className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: activeFreeModel === "gpt-oss" ? "rgba(99,102,241,0.25)" : "rgba(99,102,241,0.10)", color: activeFreeModel === "gpt-oss" ? "#A5B4FC" : "#64748B" }}>
-                    {activeFreeModel === "gpt-oss" ? (lang === "ru" ? "← Текущая" : lang === "ua" ? "← Поточна" : lang === "de" ? "← Aktuell" : "← Current") : (lang === "ru" ? "Выбрать" : lang === "ua" ? "Обрати" : lang === "de" ? "Wählen" : "Switch to")}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Qwen 3 card */}
-            <div
-              className="rounded-2xl overflow-hidden cursor-pointer transition-all"
-              onClick={() => isFreeMode && changeFreeModel.mutate("qwen")}
-              style={{
-                background: "linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(52,211,153,0.04) 100%)",
-                border: activeFreeModel === "qwen" && isFreeMode ? "1.5px solid rgba(52,211,153,0.50)" : "1.5px solid rgba(52,211,153,0.18)",
-                boxShadow: activeFreeModel === "qwen" && isFreeMode ? "0 0 0 3px rgba(16,185,129,0.10), inset 0 0 40px rgba(16,185,129,0.04)" : "none",
-                opacity: isFreeMode && activeFreeModel !== "qwen" ? 0.6 : 1,
-                transition: "all 0.2s",
-              }}
-            >
-              <div className="px-6 pt-5 pb-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(16,185,129,0.18)", border: "1px solid rgba(52,211,153,0.25)" }}>
-                    <Brain className="w-5 h-5" style={{ color: "#34D399" }} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-base font-bold" style={{ color: "#E2E8F0" }}>Qwen 3</span>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.20)", color: "#34D399" }}>
-                        {lang === "ru" ? "Бесплатно" : lang === "ua" ? "Безплатно" : lang === "de" ? "Kostenlos" : "Free"}
-                      </span>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.12)", color: "#6EE7B7" }}>
-                        {lang === "ru" ? "Новое" : lang === "ua" ? "Нове" : lang === "de" ? "Neu" : "New"}
-                      </span>
-                      {isFreeMode && activeFreeModel === "qwen" && (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: "rgba(16,185,129,0.22)", color: "#34D399" }}>
-                          <Check className="w-3 h-3" /> {lang === "ru" ? "Активен" : lang === "ua" ? "Активний" : lang === "de" ? "Aktiv" : "Active"}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: "#64748B" }}>Alibaba · Qwen 3 · via Pollinations AI · {lang === "ru" ? "без ключа" : lang === "ua" ? "без ключа" : lang === "de" ? "kein Schlüssel" : "no key needed"}</p>
-                  </div>
-                </div>
-                <p className="text-sm leading-relaxed mb-3" style={{ color: "#94A3B8" }}>
-                  {lang === "ru"
-                    ? "Флагманская открытая модель Alibaba с глубоким рассуждением, точным следованием инструкциям и отличной многоязычностью. Значительно умнее GPT-OSS в логических и аналитических задачах."
-                    : lang === "ua"
-                    ? "Флагманська відкрита модель Alibaba з глибоким міркуванням, точним дотриманням інструкцій та відмінною багатомовністю. Значно розумніша за GPT-OSS у логічних та аналітичних завданнях."
-                    : lang === "de"
-                    ? "Alibabas Open-Source-Flaggschiff mit tiefem Reasoning, präziser Instruktionsbefolgung und exzellentem Multilingual-Support. Deutlich leistungsfähiger als GPT-OSS bei logischen und analytischen Aufgaben."
-                    : "Alibaba's open-source flagship with deep reasoning, precise instruction following, and excellent multilingual support. Significantly smarter than GPT-OSS for logical and analytical tasks."}
+                <p className="text-sm leading-relaxed mb-4" style={{ color: "#94A3B8" }}>
+                  {t.freeMode.description}
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(lang === "ru" ? ["Рассуждение", "Точность", "Многоязычность", "Анализ"] : lang === "ua" ? ["Міркування", "Точність", "Багатомовність", "Аналіз"] : lang === "de" ? ["Reasoning", "Präzision", "Mehrsprachig", "Analyse"] : ["Reasoning", "Precision", "Multilingual", "Analysis"]).map(tag => (
-                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(16,185,129,0.12)", color: "#34D399" }}>{tag}</span>
-                  ))}
+                <div className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.14)" }}>
+                  <Zap className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: "#818CF8" }} />
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(148,163,184,0.75)" }}>
+                    {lang === "ru"
+                      ? "Работает без регистрации и API-ключа. Ответы могут занимать 5–15 секунд. Добавьте ключ OpenAI для мгновенного доступа к GPT-моделям."
+                      : lang === "ua"
+                      ? "Працює без реєстрації та API-ключа. Відповіді можуть займати 5–15 секунд. Додайте ключ OpenAI для миттєвого доступу до GPT-моделей."
+                      : lang === "de"
+                      ? "Funktioniert ohne Registrierung und API-Schlüssel. Antworten können 5–15 Sekunden dauern. Füge deinen OpenAI-Schlüssel für sofortigen Zugang hinzu."
+                      : "Works without registration or API key. Responses may take 5–15 seconds. Add an OpenAI key for instant access to GPT models."}
+                  </p>
                 </div>
               </div>
-              <div className="px-6 py-3 flex items-center justify-between border-t" style={{ borderColor: "rgba(52,211,153,0.10)" }}>
-                <span className="text-xs font-medium" style={{ color: "#64748B" }}>{lang === "ru" ? "Без ключа API · Всегда бесплатно" : lang === "ua" ? "Без ключа API · Завжди безплатно" : lang === "de" ? "Kein API-Schlüssel · Immer kostenlos" : "No API key · Always free"}</span>
-                {isFreeMode && (
-                  <div className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: activeFreeModel === "qwen" ? "rgba(16,185,129,0.22)" : "rgba(16,185,129,0.08)", color: activeFreeModel === "qwen" ? "#34D399" : "#64748B" }}>
-                    {activeFreeModel === "qwen" ? (lang === "ru" ? "← Текущая" : lang === "ua" ? "← Поточна" : lang === "de" ? "← Aktuell" : "← Current") : (lang === "ru" ? "Выбрать" : lang === "ua" ? "Обрати" : lang === "de" ? "Wählen" : "Switch to")}
-                  </div>
-                )}
+              <div className="px-6 py-4 flex items-center justify-between border-t" style={{ borderColor: "rgba(129,140,248,0.10)" }}>
+                <div className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" style={{ color: "#818CF8" }} />
+                  <span className="text-xs font-medium" style={{ color: "#64748B" }}>
+                    {lang === "ru" ? "Без ключа API · Бесплатно" : lang === "ua" ? "Без ключа API · Безплатно" : lang === "de" ? "Kein API-Schlüssel · Kostenlos" : "No API key · Always free"}
+                  </span>
+                </div>
+                <div className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: "rgba(99,102,241,0.18)", color: "#818CF8" }}>
+                  {isFreeMode
+                    ? (lang === "ru" ? "Активен (нет ключа)" : lang === "ua" ? "Активний (немає ключа)" : lang === "de" ? "Aktiv (kein Schlüssel)" : "Active · No key set")
+                    : (lang === "ru" ? "Добавлен API ключ" : lang === "ua" ? "Додано API ключ" : lang === "de" ? "API-Schlüssel hinterlegt" : "API key set")}
+                </div>
               </div>
             </div>
           </div>

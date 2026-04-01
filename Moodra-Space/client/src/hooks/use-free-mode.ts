@@ -4,6 +4,5 @@ export function useFreeMode() {
   const queryClient = useQueryClient();
   const user = queryClient.getQueryData<any>(["/api/auth/user"]);
   const isFreeMode = !user?.openaiApiKey;
-  const freeModel: "gpt-oss" | "qwen" = user?.freeModel === "qwen" ? "qwen" : "gpt-oss";
-  return { isFreeMode, freeModel };
+  return { isFreeMode };
 }

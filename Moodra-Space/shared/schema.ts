@@ -21,7 +21,6 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   openaiApiKey: varchar("openai_api_key"),
   openaiModel: varchar("openai_model").default("gpt-4o-mini"),
-  freeModel: varchar("free_model").default("gpt-oss"),
   tokensUsed: integer("tokens_used").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
