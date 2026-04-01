@@ -1821,47 +1821,47 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
             var h = measureH(block);
             qi++;
 
-            // Block fits in remaining space — just add it
-            if (usedH === 0 || usedH + h <= CONTENT_H) {
-              wrapper.appendChild(block.cloneNode(true));
-              usedH += h;
-              // If after adding we overflowed (block taller than CONTENT_H itself),
-              // flush immediately
-              if (usedH > CONTENT_H) {
-                if (wrapper.children.length > 0) page.appendChild(wrapper);
+            // ── Step 1: block is taller than a full page → MUST split ──────
+            // This check MUST come first — do not let usedH===0 short-circuit it.
+            if (h > CONTENT_H) {
+              // How much space is left on the current page?
+              var avail = CONTENT_H - usedH;
+              var splits = null;
+              if (avail > 20) {
+                // There's worthwhile space — try to fill it before starting a new page
+                splits = splitParagraph(block, avail);
+              }
+              if (!splits) {
+                // No useful space (or unsplittable): flush current page first,
+                // then split across fresh pages
+                if (wrapper.children.length > 0) { page.appendChild(wrapper); }
                 page = pushPage(page); usedH = 0;
                 wrapper = document.createElement('div');
                 wrapper.className = 'chapter-content';
+                splits = splitParagraph(block, CONTENT_H);
               }
-              continue;
-            }
-
-            // Block doesn't fit on current page — try to split if it's a tall <p>
-            if (h > CONTENT_H) {
-              // Block is TALLER than a full page: split at CONTENT_H boundary
-              var splits = splitParagraph(block, CONTENT_H - usedH > 0 ? CONTENT_H - usedH : CONTENT_H);
               if (splits) {
-                // Re-insert the two fragments at current position in the queue
                 blockQueue.splice(qi, 0, splits[0], splits[1]);
                 continue;  // process frag1 next iteration
               }
-              // Can't split (non-paragraph / too short) — flush & place as-is, let overflow:hidden clip
-              if (wrapper.children.length > 0) page.appendChild(wrapper);
+              // Truly unsplittable (non-paragraph / too short) — place as-is
+              wrapper.appendChild(block.cloneNode(true));
+              page.appendChild(wrapper);
               page = pushPage(page); usedH = 0;
               wrapper = document.createElement('div');
               wrapper.className = 'chapter-content';
-              wrapper.appendChild(block.cloneNode(true));
-              usedH += h;
-              if (usedH > CONTENT_H) {
-                if (wrapper.children.length > 0) page.appendChild(wrapper);
-                page = pushPage(page); usedH = 0;
-                wrapper = document.createElement('div');
-                wrapper.className = 'chapter-content';
-              }
               continue;
             }
 
-            // Normal case: block fits on a fresh page — flush current and start new page
+            // ── Step 2: block fits on a full page ───────────────────────────
+            // Does it also fit on the CURRENT page?
+            if (usedH + h <= CONTENT_H) {
+              wrapper.appendChild(block.cloneNode(true));
+              usedH += h;
+              continue;
+            }
+
+            // ── Step 3: flush current page, place on a fresh page ───────────
             if (wrapper.children.length > 0) page.appendChild(wrapper);
             page = pushPage(page); usedH = 0;
             wrapper = document.createElement('div');
