@@ -61,7 +61,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "Updated",
         title: "The Editor — Built for Books",
         subtitle: "A block-based writing environment structured around how books actually work — not how productivity apps think books work.",
-        highlight: true,
         items: [
           "Part → Chapter → Section → Scene hierarchy — manuscript structure built in from sentence one",
           "15+ block types: paragraphs, headings, quotes, arguments, research notes, lists, and dividers",
@@ -79,7 +78,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "New",
         title: "AI That Learns Your Voice",
         subtitle: "Seven specialised analysts and a context-aware co-author — all working with your full book, not just the last paragraph.",
-        highlight: true,
         items: [
           "7 AI agents, each reading your chapter from a distinct professional lens: Editor, Critic, Philosopher, Reader, Story Analyst, Argument Analyst, Consistency",
           "Reader archetype selector: Beginner, Expert, Skeptic, Emotional, Editorial — choose whose reaction you need",
@@ -173,7 +171,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "Обновлено",
         title: "Редактор — создан для книг",
         subtitle: "Блочная среда письма, выстроенная вокруг того, как работают настоящие книги, — а не вокруг того, как приложения-органайзеры думают, что они работают.",
-        highlight: true,
         items: [
           "Иерархия Часть → Глава → Раздел → Сцена — структура рукописи встроена с первой строки",
           "15+ типов блоков: абзацы, заголовки, цитаты, аргументы, исследовательские заметки, списки, разделители",
@@ -191,7 +188,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "Новое",
         title: "AI, который изучает ваш голос",
         subtitle: "Семь специализированных аналитиков и соавтор, который помнит контекст — все работают с вашей полной книгой, а не только с последним абзацем.",
-        highlight: true,
         items: [
           "7 AI-агентов, каждый читает главу с отдельной профессиональной позиции: Редактор, Критик, Философ, Читатель, Нарратолог, Аналитик аргументов, Согласованность",
           "Выбор архетипа читателя: Начинающий, Эксперт, Скептик, Эмоциональный, Редакционный — чья реакция вам нужна",
@@ -285,7 +281,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "Оновлено",
         title: "Редактор — створений для книг",
         subtitle: "Блокове середовище письма, побудоване навколо того, як насправді влаштовані книги, — а не навколо того, як думають застосунки-органайзери.",
-        highlight: true,
         items: [
           "Ієрархія Частина → Розділ → Секція → Сцена — структура рукопису вбудована з першого речення",
           "15+ типів блоків: абзаци, заголовки, цитати, аргументи, дослідницькі нотатки, списки, розділювачі",
@@ -303,7 +298,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "Нове",
         title: "ШІ, який вивчає ваш голос",
         subtitle: "Сім спеціалізованих аналітиків і співавтор з контекстом — усі працюють з вашою повною книгою, а не лише з останнім абзацом.",
-        highlight: true,
         items: [
           "7 ШІ-агентів, кожен читає розділ з окремої професійної позиції: Редактор, Критик, Філософ, Читач, Наратолог, Аналітик аргументів, Узгодженість",
           "Вибір архетипу читача: Початківець, Експерт, Скептик, Емоційний, Редакторський — чия реакція вам потрібна",
@@ -397,7 +391,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "Aktualisiert",
         title: "Der Editor — gebaut für Bücher",
         subtitle: "Eine block-basierte Schreibumgebung, die um die Logik echter Bücher herum aufgebaut ist — nicht darum, wie Produktivitäts-Apps Bücher verstehen.",
-        highlight: true,
         items: [
           "Hierarchie Teil → Kapitel → Abschnitt → Szene — Manuskriptstruktur vom ersten Satz an",
           "15+ Blocktypen: Absätze, Überschriften, Zitate, Argumente, Forschungsnotizen, Listen und Trennzeichen",
@@ -415,7 +408,6 @@ const FEATURES: Record<string, LangData> = {
         badge: "Neu",
         title: "KI, die deine Stimme lernt",
         subtitle: "Sieben spezialisierte Analysten und ein kontextbewusster Koautor — alle arbeiten mit deinem vollständigen Buch, nicht nur dem letzten Absatz.",
-        highlight: true,
         items: [
           "7 KI-Agenten, jeder liest dein Kapitel aus einer anderen professionellen Perspektive: Lektor, Kritiker, Philosoph, Leser, Erzählanalytiker, Argumentanalytiker, Konsistenz",
           "Leser-Archetyp-Auswahl: Anfänger, Experte, Skeptiker, Emotional, Lektorisch — wessen Reaktion du brauchst",
