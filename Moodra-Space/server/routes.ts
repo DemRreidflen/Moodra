@@ -12,7 +12,7 @@ import { generateAndStoreEmbedding, findRelevantModels, buildEmbeddingText } fro
 import OpenAI from "openai";
 import multer from "multer";
 import path from "path";
-import { uploadFile, downloadFile } from "./supabase-storage";
+import { uploadFile, downloadFile, getFileStream } from "./supabase-storage";
 import { isAuthenticated } from "./replit_integrations/auth/replitAuth";
 import { authStorage } from "./replit_integrations/auth/storage";
 import JSZip from "jszip";
@@ -205,14 +205,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ---- Designer page image proxy (streams from Supabase Storage) ----
   // The URL /api/uploads/designer-pages/:bookId/:filename is returned by the upload route above.
   // Keeping the proxy server-side means the service role key is never exposed to clients.
+  // Uses streaming to avoid buffering large files in memory.
   app.get("/api/uploads/designer-pages/:bookId/:filename", async (req: Request, res: Response) => {
     try {
       const { bookId, filename } = req.params;
       const storagePath = `designer-pages/${bookId}/${filename}`;
-      const { buffer, contentType } = await downloadFile(storagePath);
+      const { response: supabaseResponse, contentType } = await getFileStream(storagePath);
       res.setHeader("Content-Type", contentType);
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      res.send(buffer);
+      const body = supabaseResponse.body as any;
+      body.pipe(res);
     } catch (e: any) {
       res.status(404).json({ error: "Image not found" });
     }

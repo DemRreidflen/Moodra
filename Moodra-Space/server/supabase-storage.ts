@@ -68,3 +68,24 @@ export async function downloadFile(
   const arrayBuffer = await res.arrayBuffer();
   return { buffer: Buffer.from(arrayBuffer), contentType };
 }
+
+/**
+ * Stream a file from Supabase Storage directly to an Express response.
+ * Does NOT buffer the file in memory — pipes directly.
+ * @param storagePath  Path inside the bucket, e.g. "designer-pages/42/img.jpg"
+ * @returns { response, contentType } where response is the fetch Response object
+ */
+export async function getFileStream(
+  storagePath: string,
+): Promise<{ response: Response; contentType: string }> {
+  const url = `${storageBase()}/object/${bucket()}/${storagePath}`;
+  const res = await fetch(url, {
+    headers: { Authorization: authHeader() },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Supabase Storage download failed (${res.status}): ${body}`);
+  }
+  const contentType = res.headers.get("content-type") || "application/octet-stream";
+  return { response: res, contentType };
+}
