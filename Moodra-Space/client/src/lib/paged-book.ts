@@ -1670,6 +1670,44 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
     return h;
   }
 
+  // Split a <p> block at word boundaries so that the first fragment
+  // fits within availH, the rest becomes a second fragment.
+  // Returns [frag1, frag2] or null if the block cannot / should not be split.
+  function splitParagraph(block, availH) {
+    if (!block || block.tagName !== 'P') return null;
+    var text = block.textContent || '';
+    var words = text.trim().split(/\s+/);
+    if (words.length < 4) return null;
+
+    // Binary-search the largest word prefix that fits in availH
+    var lo = 1, hi = words.length - 1, best = 1;
+    var test = document.createElement('p');
+    test.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;'
+      + 'width:' + Math.round(CONTENT_W) + 'px;'
+      + 'font-family:' + probe.style.fontFamily + ';'
+      + 'font-size:' + probe.style.fontSize + ';'
+      + 'line-height:' + probe.style.lineHeight + ';'
+      + 'letter-spacing:' + probe.style.letterSpacing + ';'
+      + 'word-break:normal;overflow-wrap:normal;';
+    document.body.appendChild(test);
+    while (lo <= hi) {
+      var mid = Math.floor((lo + hi) / 2);
+      test.textContent = words.slice(0, mid).join(' ');
+      var mh = test.getBoundingClientRect().height;
+      if (mh <= availH) { best = mid; lo = mid + 1; }
+      else { hi = mid - 1; }
+    }
+    document.body.removeChild(test);
+
+    if (best >= words.length - 1) return null;  // whole text already fits
+
+    var f1 = block.cloneNode(false);
+    f1.textContent = words.slice(0, best).join(' ');
+    var f2 = block.cloneNode(false);
+    f2.textContent = words.slice(best).join(' ');
+    return [f1, f2];
+  }
+
   // ── Footer builder ─────────────────────────────────────────
   function makeFooter(pageNum) {
     if (!SHOW_NUM && !SHOW_TITLE) return null;
@@ -1772,35 +1810,65 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
         // so that p:first-child and other CSS rules cascade correctly.
         var contentEl = section.querySelector('.chapter-content');
         if (contentEl) {
-          var blocks = Array.from(contentEl.children);
+          // Use a mutable queue so oversized blocks can be split and re-queued
+          var blockQueue = Array.from(contentEl.children);
+          var qi = 0;
           var wrapper = document.createElement('div');
           wrapper.className = 'chapter-content';
-          var isFirstOnPage = true;
 
-          blocks.forEach(function(block) {
+          while (qi < blockQueue.length) {
+            var block = blockQueue[qi];
             var h = measureH(block);
+            qi++;
 
-            if (usedH > 0 && usedH + h > CONTENT_H) {
-              // Flush current wrapper + page, start fresh
+            // Block fits in remaining space — just add it
+            if (usedH === 0 || usedH + h <= CONTENT_H) {
+              wrapper.appendChild(block.cloneNode(true));
+              usedH += h;
+              // If after adding we overflowed (block taller than CONTENT_H itself),
+              // flush immediately
+              if (usedH > CONTENT_H) {
+                if (wrapper.children.length > 0) page.appendChild(wrapper);
+                page = pushPage(page); usedH = 0;
+                wrapper = document.createElement('div');
+                wrapper.className = 'chapter-content';
+              }
+              continue;
+            }
+
+            // Block doesn't fit on current page — try to split if it's a tall <p>
+            if (h > CONTENT_H) {
+              // Block is TALLER than a full page: split at CONTENT_H boundary
+              var splits = splitParagraph(block, CONTENT_H - usedH > 0 ? CONTENT_H - usedH : CONTENT_H);
+              if (splits) {
+                // Re-insert the two fragments at current position in the queue
+                blockQueue.splice(qi, 0, splits[0], splits[1]);
+                continue;  // process frag1 next iteration
+              }
+              // Can't split (non-paragraph / too short) — flush & place as-is, let overflow:hidden clip
               if (wrapper.children.length > 0) page.appendChild(wrapper);
               page = pushPage(page); usedH = 0;
               wrapper = document.createElement('div');
               wrapper.className = 'chapter-content';
-              isFirstOnPage = true;
+              wrapper.appendChild(block.cloneNode(true));
+              usedH += h;
+              if (usedH > CONTENT_H) {
+                if (wrapper.children.length > 0) page.appendChild(wrapper);
+                page = pushPage(page); usedH = 0;
+                wrapper = document.createElement('div');
+                wrapper.className = 'chapter-content';
+              }
+              continue;
             }
 
+            // Normal case: block fits on a fresh page — flush current and start new page
+            if (wrapper.children.length > 0) page.appendChild(wrapper);
+            page = pushPage(page); usedH = 0;
+            wrapper = document.createElement('div');
+            wrapper.className = 'chapter-content';
             wrapper.appendChild(block.cloneNode(true));
             usedH += h;
-            isFirstOnPage = false;
-
-            if (usedH > CONTENT_H) {
-              if (wrapper.children.length > 0) page.appendChild(wrapper);
-              page = pushPage(page); usedH = 0;
-              wrapper = document.createElement('div');
-              wrapper.className = 'chapter-content';
-              isFirstOnPage = true;
-            }
-          });
+          }
 
           // Flush remaining wrapper to current page
           if (wrapper.children.length > 0) page.appendChild(wrapper);

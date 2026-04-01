@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SelectionToolbar } from "./selection-toolbar";
+import { addLogEntry } from "@/hooks/use-streak";
 
 interface Props {
   chapter: Chapter | null;
@@ -58,6 +59,7 @@ interface Props {
   bookMode: string;
   bookGenre?: string;
   bookId?: number;
+  bookLanguage?: string;
   onContextChange: (context: string) => void;
   onInsertReady: (cb: (text: string) => void) => void;
   isDeepWritingMode?: boolean;
@@ -472,6 +474,7 @@ export function ChapterEditor({
   bookMode,
   bookGenre,
   bookId,
+  bookLanguage,
   onContextChange, 
   onInsertReady,
   isDeepWritingMode,
@@ -701,6 +704,20 @@ export function ChapterEditor({
       queryClient.invalidateQueries({ queryKey: ["/api/books", updated.bookId, "chapters"] });
       setIsDirty(false);
       onWrite?.();
+      if (wordCount > 0) {
+        addLogEntry(
+          {
+            bookId: updated.bookId,
+            bookTitle: bookTitle || "",
+            chapterId: updated.id,
+            chapterTitle: updated.title || "",
+            wordCount,
+            language: bookLanguage || "ru",
+            action: "wrote",
+          },
+          currentUser?.id
+        );
+      }
     },
     onError: () => toast({ title: s.saving + " error", variant: "destructive" }),
   });

@@ -25,6 +25,7 @@ import NotFound from "@/pages/not-found";
 import { BookLoader } from "@/components/book-loader";
 import { MobileBlocker } from "@/components/mobile-blocker";
 import { OnboardingModal } from "@/components/onboarding-modal";
+import { CookieBanner } from "@/components/cookie-banner";
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -80,6 +81,7 @@ function App() {
           <TooltipProvider>
             <AiErrorProvider>
               <Toaster />
+              <CookieBanner />
               <MobileBlocker>
                 <Router />
               </MobileBlocker>

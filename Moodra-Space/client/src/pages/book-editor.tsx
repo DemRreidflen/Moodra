@@ -237,6 +237,7 @@ export default function BookEditor() {
               bookTitle={book.title}
               bookMode={book.mode || "scientific"}
               bookGenre={book.genre || ""}
+              bookLanguage={book.language || "ru"}
               bookId={bookId}
               onContextChange={setAiContext}
               onInsertReady={cb => setAiInsertCallback(() => cb)}
