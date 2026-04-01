@@ -1623,52 +1623,47 @@ hr.divider { border: none; border-top: 1px solid #e0d4c4; margin: 18px 40px; }
   var pageEls = [];
   var chapterPageMap = {};
 
-  // ── Measurement probe (safe font embedding via JS variable) ──
+  // ── Page geometry — computed directly from mm settings ──────
+  // We deliberately avoid reading clientHeight/clientWidth from a DOM
+  // element because the parent app can send set-view-mode before the
+  // first rAF, which applies a CSS zoom (<1) to .cyrl-page cards.
+  // Any DOM-measured dimension would be shrunk by that zoom, causing
+  // CONTENT_H to be underestimated and pages to be half-empty.
+  // Instead we derive the content area straight from the mm values and
+  // the CSS reference-pixel ratio (96 px/inch, 25.4 mm/inch → 3.7795 px/mm).
+  var MM_TO_PX = 96 / 25.4;
+  var CONTENT_W = (${ps.width - ml - mr}) * MM_TO_PX;
+  var CONTENT_H = (${ps.height - mt - mb}) * MM_TO_PX;
+  // Small buffer: allow the last block's bottom-margin to extend
+  // slightly past CONTENT_H without triggering a premature page break.
+  var LINE_H_PX = ${Math.round(lineHeight * fontSize * 96 / 72)};
+  CONTENT_H += LINE_H_PX * 0.5;
+
+  // ── Measurement probe ────────────────────────────────────────
+  // Lives inside #cyrl-src-inner so it inherits the exact same font
+  // properties and mm-based content width as the real page content area.
   var FONT_FAMILY = ${fontFamilyJs};
   var probe = document.createElement('div');
-  probe.style.position = 'absolute';
-  probe.style.left = '-9999px';
-  probe.style.top = '0';
-  probe.style.visibility = 'hidden';
-  probe.style.pointerEvents = 'none';
-  probe.style.fontFamily = FONT_FAMILY;
-  probe.style.fontSize = '${fontSize}pt';
-  probe.style.lineHeight = '${lineHeight}';
-  probe.style.letterSpacing = '${letterSpacing}em';
+  probe.style.cssText = 'position:absolute;left:-9999px;top:0;'
+    + 'visibility:hidden;pointer-events:none;'
+    + 'width:' + Math.round(CONTENT_W) + 'px;'
+    + 'font-family:' + FONT_FAMILY + ';'
+    + 'font-size:${fontSize}pt;'
+    + 'line-height:${lineHeight};'
+    + 'letter-spacing:${letterSpacing}em;';
   document.body.appendChild(probe);
 
-  // CONTENT_W / CONTENT_H are calibrated from a real page card after boot
-  // so they perfectly match whatever CSS mm resolution the browser uses.
-  var CONTENT_W = 0;
-  var CONTENT_H = 0;
-
   function calibrate() {
-    var cal = document.createElement('div');
-    cal.className = 'cyrl-page';
-    cal.style.position = 'absolute';
-    cal.style.left = '-9999px';
-    cal.style.visibility = 'hidden';
-    cal.style.zoom = '1';  // measure at natural (unzoomed) layout size
-    document.body.appendChild(cal);
-    var cs = window.getComputedStyle(cal);
-    CONTENT_H = cal.clientHeight
-      - parseFloat(cs.paddingTop)
-      - parseFloat(cs.paddingBottom);
-    CONTENT_W = cal.clientWidth
-      - parseFloat(cs.paddingLeft)
-      - parseFloat(cs.paddingRight);
-    document.body.removeChild(cal);
-    // Add ~1 line-height of buffer so trailing paragraph bottom-margins
-    // don't cause the paginator to start new pages prematurely
-    CONTENT_H = CONTENT_H + ${Math.round(lineHeight * fontSize * 96 / 72)};
-    probe.style.width = CONTENT_W + 'px';
+    // CONTENT_W and CONTENT_H are already set from mm values above.
+    // Nothing to measure from the DOM — this function is intentionally
+    // a no-op, kept for structural symmetry with boot().
   }
 
   function measureH(el) {
     var clone = el.cloneNode(true);
     probe.appendChild(clone);
     var cs = window.getComputedStyle(clone);
-    var h = clone.offsetHeight
+    var h = clone.getBoundingClientRect().height
             + (parseFloat(cs.marginTop) || 0)
             + (parseFloat(cs.marginBottom) || 0);
     probe.removeChild(clone);
