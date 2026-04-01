@@ -6,15 +6,13 @@ AI-powered desktop-only writing platform for authors. Built with React + TypeScr
 
 - **Dual Layout Engine** — Two independent PDF export modes:
   - **Latin Engine** (unchanged): Paged.js in browser, for EN/DE. Opens print dialog.
-  - **Cyrillic Engine**: Python Flask + WeasyPrint + Pyphen on port 3001. For RU/UK. Direct PDF download.
-  - **Two-Phase PDF Pipeline** (April 2026):
-    - **Phase 0** — `buildExportManifest` normalises all settings + chapter HTML into a typed `ExportManifest`.
-    - **Phase A** — `exportCoreDocument` renders book HTML _without_ designer pages via WeasyPrint (`/render-pdf`).
-    - **Phase B** — `injectDesignerPages` calls `/inject-designer-pages`: Python renders each image as a 1-page PDF using `file://` URI (no HTTP), extracts chapter anchors via `pypdf.named_destinations`, then merges with `PdfWriter` at the correct positions.
-    - Service files: `server/export/types.ts`, `utils.ts`, `buildExportManifest.ts`, `exportCoreDocument.ts`, `injectDesignerPages.ts`.
-    - Graceful degradation: if injection fails, the core PDF is returned so the export never hard-fails.
-    - `lineHeight` min clamped to `0.5` (was `1`) to match UI.
-  - Python dependencies: `flask`, `weasyprint`, `pyphen`, `pypdf>=6.0.0`.
+  - **Cyrillic Engine** (new): Python Flask + WeasyPrint + Pyphen on port 3001. For RU/UK. Direct PDF download.
+  - UI: "Layout Engine" section in layout-mode right sidebar — Latin/Cyrillic toggle, document language selector (ru/uk), hyphenation toggles (headings / TOC / links).
+  - ExportModal shows engine badge, language/engine mismatch warnings, font Cyrillic-safety check.
+  - Backend route: `POST /api/books/:id/export/pdf-cyrillic` — generates clean HTML (no paged.js, no JS) → forwards to Python service → returns PDF binary.
+  - Python service: `cyrillic-renderer/app.py` — Flask, WeasyPrint 68.1, Pyphen. Validates language (ru/uk), font whitelist, returns `application/pdf`.
+  - CSS: `hyphens: auto; hyphenate-character: "-"; hyphenate-limit-chars: 6 3 3; hyphenate-limit-zone: 8%` on body text. `hyphens: none` on headings, TOC, links.
+  - `use-book-settings.ts`: added `layoutEngine`, `documentLanguage`, `cyrillicHyphenation`, `cyrillicHyphenHeadings`, `cyrillicHyphenToc`, `cyrillicHyphenLinks`.
   - Workflow: `Cyrillic Renderer` runs `python3 cyrillic-renderer/app.py` on port 3001 (dev).
   - **Deployment**: `npm run build` installs Python deps via `python3 -m pip install`. `npm run start` → `bash start.sh` → starts Python service in background, then Node.js in foreground. Cleanup trap kills Python on SIGTERM.
   - Fallback: if renderer is down, returns 503 with user-friendly Russian error message.
