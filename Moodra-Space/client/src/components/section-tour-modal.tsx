@@ -3,7 +3,7 @@ import { X, ChevronRight, ChevronLeft, Sparkles, BookOpen, StickyNote, Lightbulb
 
 export type TourSectionId = "editor" | "notes" | "ideas" | "ai" | "drafts" | "layout";
 
-const STORAGE_KEY = (id: TourSectionId) => `moodra_tour_done_${id}`;
+const STORAGE_KEY = (id: TourSectionId) => `moodra_tour_done_v2_${id}`;
 
 const TOURS: Record<TourSectionId, {
   icon: React.ComponentType<any>;
