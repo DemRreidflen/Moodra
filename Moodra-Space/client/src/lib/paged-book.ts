@@ -724,11 +724,8 @@ function buildFrontMatter(
     const tfs = Math.min(tfsRaw, Math.max(12, latMaxTfs));
     parts.push(`
 <div class="front-matter-page title-page title-align-${align}" style="--t-fs:${tfs}pt;--s-fs:${sfs}pt;--a-fs:${afs}pt;--sp:${sp}em;--lh:${lh}">
-  ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
-  ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
   <h1 class="title-main">${esc(titleText)}</h1>
   ${tp.subtitle ? `<div class="title-sub">${esc(tp.subtitle)}</div>` : ""}
-  ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
   ${tp.author ? `<div class="title-author">${esc(tp.author)}</div>` : ""}
   <div class="title-bottom-block">
     ${tp.publisherName ? `<div class="title-publisher">${esc(tp.publisherName)}</div>` : ""}
@@ -1257,11 +1254,8 @@ export function generateCyrillicPreviewHtml(opts: PagedBookOptions): string {
     const tfs = Math.min(tfsRaw, Math.max(12, cyrMaxTfs));
     return `
 <div class="cyrl-fm-page title-page title-align-${align}" style="--t-fs:${tfs}pt;--s-fs:${sfs}pt;--a-fs:${afs}pt;--sp:${sp}em;--lh:${lh}">
-  ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
-  ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
   <h1 class="title-main">${esc(titleText)}</h1>
   ${tp.subtitle ? `<div class="title-sub">${esc(tp.subtitle)}</div>` : ""}
-  ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
   ${tp.author ? `<div class="title-author">${esc(tp.author)}</div>` : ""}
   <div class="title-bottom-block">
     ${tp.publisherName ? `<div class="title-publisher">${esc(tp.publisherName)}</div>` : ""}

@@ -715,15 +715,16 @@ export function LayoutMode({ bookId, book }: { bookId: number; book: Book }) {
               <h2 className="text-base font-bold text-foreground">Режим Cyrillic Engine</h2>
             </div>
             <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
-              <p className="text-sm">Кириллический движок находится в режиме бета-тестирования.</p>
-              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                <p className="font-semibold">О предпросмотре:</p>
-                <p>В превью текст может распределяться не совсем пропорционально — внизу страниц бывает больше пустого пространства, чем должно быть.</p>
-                <p className="font-medium mt-1">В итоговом PDF-файле этого нет — всё выглядит корректно.</p>
+              <p className="text-sm">Кириллический движок находится в режиме <span className="font-medium text-foreground">мягкого бета-теста</span>.</p>
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
+                <p className="font-semibold">Предпросмотр:</p>
+                <p>На страницах превью текст может располагаться непропорционально — внизу бывает больше пустого места, чем нужно. Это особенность движка предпросмотра.</p>
+                <p className="font-medium">В итоговом PDF-файле этого нет — всё выглядит корректно.</p>
               </div>
-              <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3 text-xs text-orange-800 dark:text-orange-300 space-y-1">
-                <p className="font-semibold">Дизайн-страницы (Designer Pages):</p>
-                <p>Добавление дизайн-страниц в Cyrillic Engine может работать некорректно. Если страница не попала в нужное место — вставьте её вручную в структуру PDF после скачивания с помощью любого PDF-редактора.</p>
+              <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3 text-xs text-orange-800 dark:text-orange-300 space-y-1.5">
+                <p className="font-semibold">Дизайн-страницы:</p>
+                <p>Добавление дизайн-страниц в этом режиме может работать некорректно.</p>
+                <p>Если файл не скачивается после добавления дизайн-страниц — удалите их, скачайте PDF без них, а затем вставьте нужные страницы вручную в любом PDF-редакторе.</p>
               </div>
             </div>
             <button

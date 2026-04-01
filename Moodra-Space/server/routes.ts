@@ -3486,11 +3486,8 @@ window.addEventListener('load', function () {
       const tfs = Math.min(tfsRaw, Math.max(12, maxTfsByWidth));
       return `
 <div class="cyrl-fm-page title-page title-align-${align}">
-  ${deco === "ornament" ? '<div class="title-ornament">✦</div>' : ""}
-  ${deco === "lines"    ? '<div class="title-top-line"></div>'   : ""}
   <h1 class="title-main" style="font-size:${tfs}pt;line-height:${lh};margin-bottom:${sp}em;hyphens:none;overflow-wrap:normal;white-space:nowrap">${escHtml(titleText)}</h1>
   ${tp.subtitle ? `<div class="title-sub" style="font-size:${sfs}pt;margin-bottom:${sp * 0.5}em">${escHtml(tp.subtitle)}</div>` : ""}
-  ${deco === "lines" ? '<div class="title-mid-line"></div>' : ""}
   ${tp.author ? `<div class="title-author" style="font-size:${afs}pt">${escHtml(tp.author)}</div>` : ""}
   <div class="title-spacer"></div>
   <div class="title-bottom-block">
