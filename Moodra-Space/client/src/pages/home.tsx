@@ -526,6 +526,8 @@ export default function Home() {
             <img
               src="/moodra-logo-new.png"
               alt="Moodra"
+              fetchPriority="high"
+              loading="eager"
               style={{ height: "38px", width: "auto", display: "block" }}
             />
           </div>
@@ -607,6 +609,7 @@ export default function Home() {
             <img
               src="/moodra-icon.png"
               alt="Moodra"
+              loading="lazy"
               className="w-20 h-20 mb-7"
               style={{ borderRadius: "28px", objectFit: "cover" }}
             />

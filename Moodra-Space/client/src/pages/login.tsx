@@ -1,4 +1,4 @@
-import { Feather, FlaskConical, Sparkles, Network, Check, AlertCircle } from "lucide-react";
+import { Feather, FlaskConical, Sparkles, Network, Check, AlertCircle, BookOpen, Zap, Star } from "lucide-react";
 import { LanguagePicker } from "@/components/language-picker";
 import { useLang } from "@/contexts/language-context";
 
@@ -13,134 +13,215 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex"
-      style={{ background: "hsl(30, 58%, 97%)" }}
+      style={{ background: "#0f0705" }}
     >
       {/* ── Left branding panel ── */}
       <div
         className="hidden lg:flex flex-col w-[56%] relative overflow-hidden"
         style={{
-          background: "linear-gradient(150deg, #fff9f4 0%, #ffeedd 55%, #fdd6aa 100%)",
+          background: "linear-gradient(135deg, #1a0a02 0%, #2d1008 40%, #F96D1C 100%)",
         }}
       >
-        {/* Decorative blobs */}
+        {/* Vivid radial glow top-left */}
         <div
-          className="absolute -top-48 -left-48 w-[580px] h-[580px] rounded-full opacity-20 pointer-events-none"
-          style={{ background: "radial-gradient(circle, #F96D1C 0%, transparent 65%)" }}
-        />
-        <div
-          className="absolute -bottom-32 -right-24 w-[420px] h-[420px] rounded-full opacity-12 pointer-events-none"
-          style={{ background: "radial-gradient(circle, #FF9640 0%, transparent 65%)" }}
-        />
-        {/* Subtle grid texture */}
-        <div
-          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          className="absolute -top-20 -left-20 pointer-events-none"
           style={{
-            backgroundImage: "repeating-linear-gradient(0deg, #8B4513 0, #8B4513 1px, transparent 0, transparent 50%), repeating-linear-gradient(90deg, #8B4513 0, #8B4513 1px, transparent 0, transparent 50%)",
-            backgroundSize: "40px 40px",
+            width: 520,
+            height: 520,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(255,120,30,0.45) 0%, transparent 65%)",
           }}
         />
+        {/* Bottom-right deep burn */}
+        <div
+          className="absolute -bottom-40 right-0 pointer-events-none"
+          style={{
+            width: 600,
+            height: 600,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(249,109,28,0.28) 0%, transparent 65%)",
+          }}
+        />
+        {/* Subtle dot grid overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.07]"
+          style={{
+            backgroundImage: "radial-gradient(circle, rgba(255,180,100,1) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+        {/* Floating decorative cards */}
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            top: "18%",
+            right: "8%",
+            width: 148,
+            background: "rgba(255,255,255,0.06)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 18,
+            padding: "14px 16px",
+            transform: "rotate(4deg)",
+          }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 10, background: "rgba(249,109,28,0.35)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+            <Sparkles style={{ width: 13, height: 13, color: "#FFB060" }} />
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.90)", marginBottom: 4 }}>AI Co-author</div>
+          <div style={{ fontSize: 9.5, color: "rgba(255,200,140,0.65)", lineHeight: 1.5 }}>Knows your whole book, not just the last line.</div>
+        </div>
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            bottom: "24%",
+            right: "12%",
+            width: 136,
+            background: "rgba(255,255,255,0.05)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 16,
+            padding: "12px 14px",
+            transform: "rotate(-3deg)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <Zap style={{ width: 11, height: 11, color: "#FFD080" }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Focus Mode</span>
+          </div>
+          <div style={{ display: "flex", gap: 3 }}>
+            {[1,2,3,4,5].map(i => (
+              <Star key={i} style={{ width: 9, height: 9, color: i <= 4 ? "#F96D1C" : "rgba(255,255,255,0.20)", fill: i <= 4 ? "#F96D1C" : "transparent" }} />
+            ))}
+          </div>
+          <div style={{ fontSize: 9, color: "rgba(255,200,140,0.55)", marginTop: 5, lineHeight: 1.4 }}>1,240 words today</div>
+        </div>
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            top: "52%",
+            left: "6%",
+            width: 124,
+            background: "rgba(255,255,255,0.05)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255,255,255,0.09)",
+            borderRadius: 14,
+            padding: "11px 13px",
+            transform: "rotate(-2deg)",
+          }}
+        >
+          <BookOpen style={{ width: 12, height: 12, color: "#FFB060", marginBottom: 6 }} />
+          <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.80)", marginBottom: 3 }}>Chapter 7</div>
+          <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.10)", marginBottom: 4, overflow: "hidden" }}>
+            <div style={{ width: "62%", height: "100%", background: "linear-gradient(90deg, #F96D1C, #FF9640)", borderRadius: 2 }} />
+          </div>
+          <div style={{ fontSize: 9, color: "rgba(255,200,140,0.50)" }}>62% complete</div>
+        </div>
 
         <div className="relative z-10 flex flex-col h-full px-16 py-14">
 
           {/* Logo */}
-          <div className="mb-12">
+          <div className="mb-14">
             <img
               src="/moodra-logo-full.png"
               alt="moodra"
-              style={{ height: "40px", width: "auto", objectFit: "contain", display: "block" }}
+              style={{ height: "38px", width: "auto", objectFit: "contain", display: "block", filter: "brightness(0) invert(1)", opacity: 0.92 }}
             />
           </div>
 
           {/* Eyebrow */}
           <div className="mb-4 flex items-center gap-2">
-            <div className="h-px w-6" style={{ background: "#F96D1C" }} />
+            <div className="h-px w-5" style={{ background: "rgba(249,109,28,0.80)" }} />
             <span
               className="text-[10px] font-bold tracking-[0.18em] uppercase"
-              style={{ color: "#F96D1C" }}
+              style={{ color: "rgba(249,109,28,0.90)" }}
             >
               {l.eyebrow}
             </span>
           </div>
 
           {/* Hero copy */}
-          <div className="mb-16">
+          <div className="mb-auto">
             <h2
-              className="font-bold leading-[1.1] mb-5"
+              className="font-bold leading-[1.07] mb-6"
               style={{
-                color: "#1a0d06",
+                color: "#fff",
                 fontFamily: "system-ui, -apple-system, sans-serif",
-                fontSize: "2.9rem",
-                letterSpacing: "-0.02em",
+                fontSize: "3.1rem",
+                letterSpacing: "-0.025em",
               }}
             >
               {l.headline1}<br />
-              <span style={{ color: "#F96D1C" }}>{l.headline2}</span>
+              <span style={{ color: "#FFB060" }}>{l.headline2}</span>
             </h2>
-            <p className="text-[0.96rem] leading-relaxed max-w-[400px]" style={{ color: "#7a5a44" }}>
+            <p className="text-[0.94rem] leading-relaxed max-w-[380px]" style={{ color: "rgba(255,210,160,0.72)" }}>
               {l.subheadline}
             </p>
+
+            {/* Checkmarks */}
+            <div className="flex flex-col gap-2.5 mt-8">
+              {l.highlights.map((h: string) => (
+                <div key={h} className="flex items-center gap-2.5">
+                  <div
+                    className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(249,109,28,0.30)", border: "1px solid rgba(249,109,28,0.50)" }}
+                  >
+                    <Check className="w-2.5 h-2.5" style={{ color: "#FFB060" }} strokeWidth={2.5} />
+                  </div>
+                  <span className="text-xs" style={{ color: "rgba(255,210,160,0.70)" }}>{h}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Feature cards 2×2 */}
-          <div className="grid grid-cols-2 gap-3 mb-10">
+          {/* Feature pills */}
+          <div className="flex flex-wrap gap-2 mb-10">
             {featureKeys.map((key, i) => {
               const Icon = featureIcons[i];
-              const feat = l.features[key];
               return (
                 <div
                   key={key}
-                  className="rounded-2xl p-4"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
                   style={{
-                    background: "rgba(255,255,255,0.6)",
-                    backdropFilter: "blur(20px)",
-                    border: "1px solid rgba(249,109,28,0.14)",
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.12)",
                   }}
                 >
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center mb-3"
-                    style={{ background: "rgba(249,109,28,0.12)" }}
-                  >
-                    <Icon className="w-4 h-4" style={{ color: "#F96D1C" }} strokeWidth={1.8} />
-                  </div>
-                  <div
-                    className="text-sm font-semibold mb-1 leading-snug"
-                    style={{ color: "#1a0d06", fontFamily: "system-ui, -apple-system, sans-serif" }}
-                  >
-                    {feat.title}
-                  </div>
-                  <div className="text-xs leading-relaxed" style={{ color: "#9a7060" }}>
-                    {feat.desc}
-                  </div>
+                  <Icon className="w-3 h-3" style={{ color: "#FFB060" }} strokeWidth={1.8} />
+                  <span className="text-[11px] font-medium" style={{ color: "rgba(255,220,170,0.80)" }}>
+                    {l.features[key].title}
+                  </span>
                 </div>
               );
             })}
           </div>
 
-          {/* Checkmarks */}
-          <div className="flex flex-col gap-2.5 mb-auto">
-            {l.highlights.map((h: string) => (
-              <div key={h} className="flex items-center gap-2.5">
-                <div
-                  className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(249,109,28,0.16)" }}
-                >
-                  <Check className="w-2.5 h-2.5" style={{ color: "#F96D1C" }} strokeWidth={2.5} />
-                </div>
-                <span className="text-xs" style={{ color: "#7a5a44" }}>{h}</span>
-              </div>
-            ))}
-          </div>
-
           {/* Footer */}
-          <p className="mt-14 text-xs" style={{ color: "#c0a080" }}>
+          <p className="text-xs" style={{ color: "rgba(255,180,100,0.35)" }}>
             © 2026 Moodra · {l.footer}
           </p>
         </div>
       </div>
 
       {/* ── Right sign-in panel ── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 py-16 relative">
-        <div className="absolute top-5 right-6">
+      <div
+        className="flex-1 flex flex-col items-center justify-center px-8 py-16 relative"
+        style={{ background: "linear-gradient(160deg, #140804 0%, #1e0e06 50%, #2a1208 100%)" }}
+      >
+        {/* Subtle ambient glow */}
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            top: "10%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 300,
+            height: 300,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(249,109,28,0.10) 0%, transparent 70%)",
+          }}
+        />
+        <div className="absolute top-5 right-6 z-10">
           <LanguagePicker />
         </div>
 
@@ -149,25 +230,28 @@ export default function LoginPage() {
           <img
             src="/moodra-logo-full.png"
             alt="moodra"
-            style={{ height: "34px", width: "auto", objectFit: "contain" }}
+            style={{ height: "32px", width: "auto", objectFit: "contain", filter: "brightness(0) invert(1)", opacity: 0.85 }}
           />
         </div>
 
-        <div className="w-full max-w-[300px] flex flex-col gap-8">
+        <div className="relative z-10 w-full max-w-[300px] flex flex-col gap-8">
 
           {/* Icon accent */}
-          <img
-            src="/moodra-icon-sketch.png"
-            alt="Moodra"
-            className="w-16 h-16 rounded-2xl"
-            style={{ objectFit: "cover" }}
-          />
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{
+              background: "linear-gradient(135deg, rgba(249,109,28,0.25) 0%, rgba(255,150,64,0.15) 100%)",
+              border: "1px solid rgba(249,109,28,0.30)",
+            }}
+          >
+            <Feather className="w-6 h-6" style={{ color: "#F96D1C" }} strokeWidth={1.6} />
+          </div>
 
           <div>
             <h1
               className="font-bold mb-2"
               style={{
-                color: "#1a0d06",
+                color: "#fff",
                 fontFamily: "system-ui, -apple-system, sans-serif",
                 fontSize: "1.75rem",
                 letterSpacing: "-0.02em",
@@ -178,7 +262,7 @@ export default function LoginPage() {
                 <span key={i}>{line}{i === 0 && <br />}</span>
               ))}
             </h1>
-            <p className="text-sm leading-relaxed" style={{ color: "#8a7a70" }}>
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,200,150,0.55)" }}>
               {l.signInSub.split("\n").map((line: string, i: number) => (
                 <span key={i}>{line}{i === 0 && <br />}</span>
               ))}
@@ -188,12 +272,12 @@ export default function LoginPage() {
           {authError && (
             <div
               className="flex items-start gap-2.5 rounded-2xl p-3.5"
-              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)" }}
+              style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.22)" }}
             >
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#ef4444" }} />
               <div>
-                <p className="font-semibold text-xs" style={{ color: "#dc2626" }}>Sign-in unavailable</p>
-                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "#b91c1c" }}>
+                <p className="font-semibold text-xs" style={{ color: "#ef4444" }}>Sign-in unavailable</p>
+                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "rgba(239,68,68,0.80)" }}>
                   Google OAuth is not configured. Add <strong>GOOGLE_CLIENT_ID</strong> and <strong>GOOGLE_CLIENT_SECRET</strong> as environment secrets to enable login.
                 </p>
               </div>
@@ -206,18 +290,18 @@ export default function LoginPage() {
               onClick={() => { window.location.href = "/api/login"; }}
               className="w-full py-3.5 px-5 rounded-2xl font-semibold text-sm flex items-center justify-center gap-3"
               style={{
-                background: "#fff",
+                background: "rgba(255,255,255,0.95)",
                 color: "#1a1a1a",
-                border: "1.5px solid rgba(0,0,0,0.09)",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                border: "none",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.08)",
                 transition: "box-shadow 0.2s ease, transform 0.15s ease",
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.boxShadow = "0 6px 24px rgba(0,0,0,0.13)";
-                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.12)";
+                e.currentTarget.style.transform = "translateY(-2px)";
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.08)";
+                e.currentTarget.style.boxShadow = "0 4px 24px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,255,255,0.08)";
                 e.currentTarget.style.transform = "translateY(0)";
               }}
             >
@@ -230,7 +314,7 @@ export default function LoginPage() {
               {l.continueGoogle}
             </button>
 
-            <p className="text-xs text-center leading-relaxed" style={{ color: "#b0a090" }}>
+            <p className="text-xs text-center leading-relaxed" style={{ color: "rgba(255,200,140,0.35)" }}>
               {l.terms.split("\n").map((line: string, i: number) => (
                 <span key={i}>{line}{i === 0 && <br />}</span>
               ))}
@@ -240,11 +324,11 @@ export default function LoginPage() {
           {/* Mobile feature list */}
           <div
             className="lg:hidden flex flex-col gap-2.5 pt-6"
-            style={{ borderTop: "1px solid rgba(0,0,0,0.07)" }}
+            style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
           >
             <p
               className="text-[10px] font-bold tracking-widest mb-1 uppercase"
-              style={{ color: "#c0b0a0" }}
+              style={{ color: "rgba(255,180,100,0.40)" }}
             >
               {l.whatYouGet}
             </p>
@@ -254,11 +338,11 @@ export default function LoginPage() {
                 <div key={key} className="flex items-center gap-2.5">
                   <div
                     className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(249,109,28,0.09)" }}
+                    style={{ background: "rgba(249,109,28,0.15)", border: "1px solid rgba(249,109,28,0.20)" }}
                   >
                     <Icon className="w-3 h-3" style={{ color: "#F96D1C" }} strokeWidth={1.8} />
                   </div>
-                  <span className="text-xs" style={{ color: "#5a4a40" }}>{l.features[key].title}</span>
+                  <span className="text-xs" style={{ color: "rgba(255,200,150,0.65)" }}>{l.features[key].title}</span>
                 </div>
               );
             })}
