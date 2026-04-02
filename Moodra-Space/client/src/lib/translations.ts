@@ -149,6 +149,7 @@ const t = {
         { q: "Can I use Moodra without AI?", a: "Absolutely. The block editor, idea board, and all organizational features work without any API key. AI is an enhancement, not a requirement." },
         { q: "What languages does Moodra support?", a: "The interface is available in English, Russian, Ukrainian, and German. When you choose a language, AI responses will also be in that language." },
         { q: "Can I export my book?", a: "Yes — you can export to PDF and EPUB from the book editor. Both formats preserve your chapter structure and formatting." },
+        { q: "Is Moodra open source?", a: "Yes. The codebase is open and self-hostable — you can run it on your own server with your own database." },
       ],
     },
     inspiration: {
@@ -718,6 +719,7 @@ const t = {
         { q: "Можно пользоваться Moodra без ИИ?", a: "Конечно. Блочный редактор, доска идей и все организационные инструменты работают без ключа API. ИИ — дополнение, а не обязательное условие." },
         { q: "Какие языки поддерживает Moodra?", a: "Интерфейс доступен на английском, русском, украинском и немецком. При выборе языка ИИ тоже будет отвечать на нём." },
         { q: "Можно экспортировать книгу?", a: "Да — из редактора книги доступен экспорт в PDF и EPUB. Оба формата сохраняют структуру глав и форматирование." },
+        { q: "Moodra с открытым кодом?", a: "Да. Код открыт и поддерживает самохостинг — вы можете запустить его на своём сервере с собственной базой данных." },
       ],
     },
     inspiration: {
@@ -1301,6 +1303,7 @@ const t = {
         { q: "Можна користуватись Moodra без ШІ?", a: "Звісно. Блочний редактор, дошка ідей та всі організаційні інструменти працюють без ключа API. ШІ — доповнення, а не обов'язкова умова." },
         { q: "Які мови підтримує Moodra?", a: "Інтерфейс доступний англійською, російською, українською та німецькою. При виборі мови ШІ також відповідатиме нею." },
         { q: "Можна експортувати книгу?", a: "Так — з редактора книги доступний експорт у PDF та EPUB. Обидва формати зберігають структуру розділів і форматування." },
+        { q: "Moodra з відкритим кодом?", a: "Так. Код відкритий і підтримує самохостинг — ви можете запустити його на власному сервері з власною базою даних." },
       ],
     },
     inspiration: {
@@ -1884,6 +1887,7 @@ const t = {
         { q: "Kann ich Moodra ohne KI nutzen?", a: "Natürlich. Der Block-Editor, das Ideenboard und alle Organisationswerkzeuge funktionieren ohne API-Schlüssel. KI ist eine Ergänzung, keine Voraussetzung." },
         { q: "Welche Sprachen unterstützt Moodra?", a: "Die Oberfläche ist auf Englisch, Russisch, Ukrainisch und Deutsch verfügbar. Bei Sprachwahl antworten KI-Funktionen ebenfalls in dieser Sprache." },
         { q: "Kann ich mein Buch exportieren?", a: "Ja — aus dem Buch-Editor heraus ist Export als PDF und EPUB möglich. Beide Formate bewahren Kapitelstruktur und Formatierung." },
+        { q: "Ist Moodra Open Source?", a: "Ja. Der Code ist offen und self-hostbar — du kannst es auf deinem eigenen Server mit eigener Datenbank betreiben." },
       ],
     },
     inspiration: {

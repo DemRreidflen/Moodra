@@ -139,7 +139,6 @@ export function BookLoader() {
           <img
             src="/moodra-logo-full.png"
             alt="moodra"
-            loading="eager"
             style={{ height: 22, width: "auto", objectFit: "contain", opacity: 0.4 }}
           />
           <div className="ml-hint" style={{ fontSize: 11, letterSpacing: "0.12em", color: "#c2a897", textTransform: "uppercase" }}>
