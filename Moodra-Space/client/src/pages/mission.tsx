@@ -9,29 +9,29 @@ const ACCENT = "#F96D1C";
 
 const TIMELINE = {
   en: [
-    { year: "2022", label: "The search", body: "Years of trying every tool that existed — and finding none of them fit the way a writer actually thinks." },
-    { year: "Late '22", label: "First lines of code", body: "Jastiffel and a small team in England began building an internal tool. Not to sell. Just to use." },
+    { year: "2026", label: "The search", body: "Years of trying every tool that existed — and finding none of them fit the way a writer actually thinks." },
+    { year: "Late '26", label: "First lines of code", body: "Jastiffel and a small team in Germany began building an internal tool. Not to sell. Just to use." },
     { year: "2023", label: "A year of silence", body: "A small circle of writers used it daily. The tool got better. Word spread quietly." },
     { year: "2024", label: "Going public", body: "Authors across Europe started using it for novels, memoirs, journalism, and scientific writing." },
     { year: "Now", label: "Still independent", body: "No VC. No growth hacking. No dark patterns. Just a tool that tries to be genuinely useful." },
   ],
   ru: [
-    { year: "2022", label: "Поиск", body: "Годы попыток найти инструмент, который подходит реальному писательскому процессу — и ни один не подошёл." },
-    { year: "Конец '22", label: "Первые строчки кода", body: "Jastiffel и небольшая команда из Англии начали строить внутренний инструмент. Не для продажи. Просто для себя." },
+    { year: "2026", label: "Поиск", body: "Годы попыток найти инструмент, который подходит реальному писательскому процессу — и ни один не подошёл." },
+    { year: "Конец '26", label: "Первые строчки кода", body: "Jastiffel и небольшая команда из Германии начали строить внутренний инструмент. Не для продажи. Просто для себя." },
     { year: "2023", label: "Год в тишине", body: "Небольшой круг авторов пользовался ежедневно. Инструмент становился лучше. Слух распространялся тихо." },
     { year: "2024", label: "Выход в открытый доступ", body: "Авторы по всей Европе начали использовать его для романов, мемуаров, журналистики и научных текстов." },
     { year: "Сейчас", label: "По-прежнему независимый", body: "Никаких венчурных инвестиций. Никакого гроу-хакинга. Никаких тёмных паттернов. Просто инструмент." },
   ],
   ua: [
-    { year: "2022", label: "Пошук", body: "Роки спроб знайти інструмент, що відповідає реальному письменницькому процесу — і жоден не підійшов." },
-    { year: "Кін. '22", label: "Перші рядки коду", body: "Jastiffel і невелика команда з Англії почали будувати внутрішній інструмент. Не для продажу. Просто для себе." },
+    { year: "2026", label: "Пошук", body: "Роки спроб знайти інструмент, що відповідає реальному письменницькому процесу — і жоден не підійшов." },
+    { year: "Кін. '26", label: "Перші рядки коду", body: "Jastiffel і невелика команда з Німеччини почали будувати внутрішній інструмент. Не для продажу. Просто для себе." },
     { year: "2023", label: "Рік у тиші", body: "Невелике коло авторів користувалося щодня. Інструмент ставав кращим. Слух поширювався тихо." },
     { year: "2024", label: "Вихід у відкритий доступ", body: "Автори по всій Європі почали використовувати його для романів, мемуарів, журналістики та наукових текстів." },
     { year: "Зараз", label: "Досі незалежний", body: "Жодних венчурних інвестицій. Жодного гроу-хакінгу. Жодних темних патернів. Просто інструмент." },
   ],
   de: [
-    { year: "2022", label: "Die Suche", body: "Jahre des Ausprobierens aller verfügbaren Tools — keines passte zur Art, wie ein Schriftsteller wirklich denkt." },
-    { year: "Ende '22", label: "Erste Codezeilen", body: "Jastiffel und ein kleines Team in England begannen, ein internes Werkzeug zu bauen. Nicht zum Verkauf. Nur zum Benutzen." },
+    { year: "2026", label: "Die Suche", body: "Jahre des Ausprobierens aller verfügbaren Tools — keines passte zur Art, wie ein Schriftsteller wirklich denkt." },
+    { year: "Ende '26", label: "Erste Codezeilen", body: "Jastiffel und ein kleines Team in Deutschland begannen, ein internes Werkzeug zu bauen. Nicht zum Verkauf. Nur zum Benutzen." },
     { year: "2023", label: "Ein Jahr der Stille", body: "Ein kleiner Kreis von Autoren nutzte es täglich. Das Werkzeug wurde besser. Das Wort verbreitete sich leise." },
     { year: "2024", label: "Der öffentliche Start", body: "Autoren in ganz Europa begannen es für Romane, Memoiren, Journalismus und wissenschaftliche Texte zu nutzen." },
     { year: "Jetzt", label: "Weiterhin unabhängig", body: "Kein Risikokapital. Kein Growth Hacking. Keine dunklen Muster. Nur ein wirklich nützliches Werkzeug." },
@@ -45,7 +45,7 @@ const PRINCIPLES = {
     { icon: Shield, title: "No dark patterns", body: "No artificial limits designed to upsell you. No data sold to anyone. No growth tricks at your expense.", color: "#10B981" },
     { icon: Heart, title: "Built with care", body: "Every feature exists because a real writer needed it. Not because a metric demanded it.", color: "#EF4444" },
     { icon: Target, title: "Opinionated, not rigid", body: "We have strong ideas about what good writing tools should do — but we listen when writers disagree.", color: "#F59E0B" },
-    { icon: Globe, title: "Made for Europe, open to all", body: "Born in England and Ukraine, used across the continent. Language and culture matter in how we build.", color: "#3B82F6" },
+    { icon: Globe, title: "Made for Europe, open to all", body: "Born in Germany and Ukraine, used across the continent. Language and culture matter in how we build.", color: "#3B82F6" },
   ],
   ru: [
     { icon: Feather, title: "Письмо — это мышление", body: "Писать — не значит записывать готовые мысли. Это значит их порождать. Moodra создана вокруг этой истины.", color: "#F96D1C" },
@@ -53,7 +53,7 @@ const PRINCIPLES = {
     { icon: Shield, title: "Никаких тёмных паттернов", body: "Никаких искусственных ограничений ради апсейла. Никакой продажи данных. Никаких трюков за ваш счёт.", color: "#10B981" },
     { icon: Heart, title: "Сделано с заботой", body: "Каждая функция существует потому, что реальному писателю она была нужна. Не потому что этого требовала метрика.", color: "#EF4444" },
     { icon: Target, title: "С позицией, но не жёсткий", body: "У нас есть чёткие идеи о том, каким должен быть хороший инструмент для письма — но мы слушаем, когда авторы не согласны.", color: "#F59E0B" },
-    { icon: Globe, title: "Создан в Европе, открыт для всех", body: "Рождён в Англии и Украине, используется по всему континенту. Язык и культура важны в том, как мы строим.", color: "#3B82F6" },
+    { icon: Globe, title: "Создан в Европе, открыт для всех", body: "Рождён в Германии и Украине, используется по всему континенту. Язык и культура важны в том, как мы строим.", color: "#3B82F6" },
   ],
   ua: [
     { icon: Feather, title: "Письмо — це мислення", body: "Писати — не означає записувати готові думки. Це означає їх породжувати. Moodra створена навколо цієї істини.", color: "#F96D1C" },
@@ -61,7 +61,7 @@ const PRINCIPLES = {
     { icon: Shield, title: "Жодних темних патернів", body: "Жодних штучних обмежень заради апсейлу. Жодного продажу даних. Жодних трюків за ваш рахунок.", color: "#10B981" },
     { icon: Heart, title: "Зроблено з турботою", body: "Кожна функція існує тому, що реальному письменнику вона була потрібна. Не тому, що цього вимагала метрика.", color: "#EF4444" },
     { icon: Target, title: "З позицією, але не жорсткий", body: "У нас є чіткі ідеї щодо того, яким має бути хороший інструмент для письма — але ми слухаємо, коли автори не погоджуються.", color: "#F59E0B" },
-    { icon: Globe, title: "Створений в Європі, відкритий для всіх", body: "Народжений в Англії та Україні, використовується по всьому континенту. Мова та культура важливі в тому, як ми будуємо.", color: "#3B82F6" },
+    { icon: Globe, title: "Створений в Європі, відкритий для всіх", body: "Народжений в Німеччині та Україні, використовується по всьому континенту. Мова та культура важливі в тому, як ми будуємо.", color: "#3B82F6" },
   ],
   de: [
     { icon: Feather, title: "Schreiben ist Denken", body: "Der Akt des Schreibens zeichnet nicht nur Ideen auf — er erzeugt sie. Moodra ist um diese Wahrheit herum gebaut.", color: "#F96D1C" },
@@ -69,7 +69,7 @@ const PRINCIPLES = {
     { icon: Shield, title: "Keine dunklen Muster", body: "Keine künstlichen Grenzen zum Upselling. Keine Datenweitergabe. Keine Wachstumstricks auf Ihre Kosten.", color: "#10B981" },
     { icon: Heart, title: "Mit Sorgfalt gebaut", body: "Jede Funktion existiert, weil ein echter Schriftsteller sie brauchte. Nicht weil eine Metrik es verlangte.", color: "#EF4444" },
     { icon: Target, title: "Meinungsstark, nicht starr", body: "Wir haben starke Ideen darüber, was gute Schreibwerkzeuge leisten sollen — aber wir hören zu, wenn Autoren anderer Meinung sind.", color: "#F59E0B" },
-    { icon: Globe, title: "In Europa gebaut, für alle offen", body: "In England und der Ukraine entstanden, auf dem ganzen Kontinent genutzt. Sprache und Kultur prägen unsere Arbeit.", color: "#3B82F6" },
+    { icon: Globe, title: "In Europa gebaut, für alle offen", body: "In Deutschland und der Ukraine entstanden, auf dem ganzen Kontinent genutzt. Sprache und Kultur prägen unsere Arbeit.", color: "#3B82F6" },
   ],
 };
 
@@ -89,25 +89,25 @@ const IS_LIST = {
 
 const STATS = {
   en: [
-    { value: "2022", label: "Founded" },
+    { value: "2026", label: "Founded" },
     { value: "4+", label: "Languages" },
     { value: "EU", label: "Based in Europe" },
     { value: "∞", label: "Words written" },
   ],
   ru: [
-    { value: "2022", label: "Основан" },
+    { value: "2026", label: "Основан" },
     { value: "4+", label: "Языков" },
     { value: "EU", label: "Европа" },
     { value: "∞", label: "Написанных слов" },
   ],
   ua: [
-    { value: "2022", label: "Засновано" },
+    { value: "2026", label: "Засновано" },
     { value: "4+", label: "Мов" },
     { value: "EU", label: "Європа" },
     { value: "∞", label: "Написаних слів" },
   ],
   de: [
-    { value: "2022", label: "Gegründet" },
+    { value: "2026", label: "Gegründet" },
     { value: "4+", label: "Sprachen" },
     { value: "EU", label: "Europa" },
     { value: "∞", label: "Geschriebene Wörter" },
@@ -117,28 +117,28 @@ const STATS = {
 const FAQS = {
   en: [
     { q: "Why not just use Notion, Word, or Scrivener?", a: "Those tools weren't built around how serious writing actually happens — specifically, how AI fits into that process. Moodra isn't a general-purpose tool. It's opinionated: block-based editing, book-aware AI, built-in habit tracking, and no filler features. If you've tried the others and they feel wrong, that's why we exist." },
-    { q: "Who is Jastiffel?", a: "A designer and writer between England and Ukraine. He built Moodra because he was frustrated with every tool that existed. He uses it every day — which means every bug he ignores is one he lives with too." },
+    { q: "Who is Jastiffel?", a: "Jastiffel Daltone is a concept marketer and creative copywriter from Eastern Europe (UA) with French roots. A student of Dr. Jordan Peterson and the author of the Masterfeel manifesto. CEO of the AI writing platform Moodra Studio — a project that emerged not as a startup, but as a response to a personal limitation: none of the existing tools allowed writing freely, without compressing thought into the constraints of interfaces. So he built his own — a system that doesn't limit writing, but opens its process, amplifying thinking, structure, and depth." },
     { q: "What about AI — doesn't it just write for you?", a: "Only if you let it. Moodra's AI knows your book, not just the last paragraph. You can ask it to continue, improve, expand, or rephrase — but nothing gets inserted without your review. The author is always you. The AI is the instrument." },
     { q: "Will Moodra ever be sold or shut down?", a: "We have no intention of either. No investors means no one can force an exit. We built this to use it ourselves. That's the most durable reason to keep something alive." },
     { q: "What does it actually cost?", a: "Moodra is free. If you want AI features, you can use our built-in free AI (no API key required) or connect your own OpenAI key for more powerful models. We don't take a cut. We don't upsell. We might add a premium tier someday — but only if it's worth it." },
   ],
   ru: [
     { q: "Почему не использовать Notion, Word или Scrivener?", a: "Эти инструменты не созданы вокруг того, как на самом деле происходит серьёзное письмо — особенно с учётом того, как AI вписывается в этот процесс. Moodra — не универсальный инструмент. У неё есть позиция: блочное редактирование, AI с осведомлённостью о книге, встроенный трекинг привычек и никаких лишних функций. Если вы пробовали другие и они ощущаются не так — именно для этого мы существуем." },
-    { q: "Кто такой Jastiffel?", a: "Дизайнер и писатель между Англией и Украиной. Он построил Moodra, потому что был разочарован всеми существующими инструментами. Он пользуется ею каждый день — это значит, что каждая ошибка, которую он игнорирует, — это ошибка, с которой он сам живёт." },
+    { q: "Кто такой Jastiffel?", a: "Jastiffel Daltone — концепт-маркетолог и креативный копирайтер из Восточной Европы (UA) с французскими корнями. Ученик Доктора Джордана Питерсона и автор манифеста Masterfeel. CEO AI-платформы для авторов Moodra Studio — проекта, который появился не как стартап, а как ответ на личное ограничение: ни один из существующих инструментов не позволял писать свободно, без сжатия мышления в рамки интерфейсов. Поэтому он создал свой — систему, которая не ограничивает письмо, а раскрывает его процесс, усиливая мышление, структуру и глубину текста." },
     { q: "А AI — разве он не просто пишет вместо тебя?", a: "Только если ты позволяешь. AI в Moodra знает твою книгу, а не только последний абзац. Ты можешь попросить его продолжить, улучшить, расширить или перефразировать — но ничто не вставляется без твоей проверки. Автор — всегда ты. AI — инструмент." },
     { q: "Будет ли Moodra когда-нибудь продана или закрыта?", a: "Ни того, ни другого мы не намерены. Нет инвесторов — значит, никто не может заставить сделать выход. Мы создали это для собственного использования. Это самая прочная причина держать что-то живым." },
     { q: "Сколько это реально стоит?", a: "Moodra бесплатна. Если хочешь AI-функции, можно использовать встроенный бесплатный AI (без ключа API) или подключить собственный ключ OpenAI для более мощных моделей. Мы не берём процент. Не делаем апсейл. Возможно, когда-нибудь появится премиум — но только если это будет того стоить." },
   ],
   ua: [
     { q: "Чому не використовувати Notion, Word або Scrivener?", a: "Ці інструменти не були побудовані навколо того, як насправді відбувається серйозне письмо — зокрема, як AI вписується в цей процес. Moodra — не універсальний інструмент. У неї є позиція: блочне редагування, AI з обізнаністю про книгу, вбудований трекінг звичок і жодних зайвих функцій. Якщо ви пробували інші й вони відчуваються не так — саме для цього ми існуємо." },
-    { q: "Хто такий Jastiffel?", a: "Дизайнер і письменник між Англією та Україною. Він побудував Moodra, бо був розчарований усіма існуючими інструментами. Він користується нею щодня — це означає, що кожна помилка, яку він ігнорує, — це помилка, з якою він сам живе." },
+    { q: "Хто такий Jastiffel?", a: "Jastiffel Daltone — концепт-маркетолог і креативний копірайтер зі Східної Європи (UA) з французьким корінням. Учень Доктора Джордана Пітерсона та автор маніфесту Masterfeel. CEO AI-платформи для авторів Moodra Studio — проекту, що з'явився не як стартап, а як відповідь на особисте обмеження: жоден із існуючих інструментів не дозволяв писати вільно, без стиснення мислення у рамки інтерфейсів. Тому він створив свій — систему, яка не обмежує письмо, а розкриває його процес, посилюючи мислення, структуру та глибину тексту." },
     { q: "А AI — хіба він просто не пише замість тебе?", a: "Лише якщо ти дозволяєш. AI у Moodra знає твою книгу, а не лише останній абзац. Ти можеш попросити його продовжити, покращити, розширити або перефразувати — але нічого не вставляється без твоєї перевірки. Автор — завжди ти. AI — інструмент." },
     { q: "Чи буде Moodra колись продано або закрито?", a: "Ні того, ні іншого ми не плануємо. Немає інвесторів — значить, ніхто не може змусити зробити вихід. Ми створили це для власного використання. Це найміцніша причина тримати щось живим." },
     { q: "Скільки це реально коштує?", a: "Moodra безплатна. Якщо хочеш AI-функції, можна використовувати вбудований безплатний AI (без ключа API) або підключити власний ключ OpenAI для потужніших моделей. Ми не беремо відсоток. Не робимо апсейл. Можливо, колись з'явиться преміум — але лише якщо це буде того варте." },
   ],
   de: [
     { q: "Warum nicht Notion, Word oder Scrivener verwenden?", a: "Diese Tools wurden nicht darum herum gebaut, wie ernsthaftes Schreiben wirklich passiert — insbesondere, wie KI in diesen Prozess passt. Moodra ist kein Allzweckwerkzeug. Es hat eine klare Haltung: Block-basiertes Editieren, buchbewusste KI, eingebautes Gewohnheits-Tracking, keine Füll-Features. Wenn du die anderen ausprobiert hast und sie sich falsch anfühlen — deshalb existieren wir." },
-    { q: "Wer ist Jastiffel?", a: "Ein Designer und Schriftsteller zwischen England und der Ukraine. Er baute Moodra, weil er von jedem existierenden Tool frustriert war. Er nutzt es täglich — was bedeutet, dass jeder Fehler, den er ignoriert, ein Fehler ist, mit dem er selbst lebt." },
+    { q: "Wer ist Jastiffel?", a: "Jastiffel Daltone ist ein Konzept-Marketer und kreativer Texter aus Osteuropa (UA) mit französischen Wurzeln. Schüler von Dr. Jordan Peterson und Autor des Masterfeel-Manifests. CEO der KI-Schreibplattform Moodra Studio — ein Projekt, das nicht als Startup entstand, sondern als Antwort auf eine persönliche Einschränkung: Kein existierendes Tool erlaubte es, frei zu schreiben, ohne das Denken in die Grenzen von Interfaces zu pressen. Also baute er sein eigenes — ein System, das Schreiben nicht einschränkt, sondern seinen Prozess öffnet und Denken, Struktur und Tiefe stärkt." },
     { q: "Schreibt KI nicht einfach für einen?", a: "Nur wenn man es zulässt. Die KI in Moodra kennt dein Buch, nicht nur den letzten Absatz. Du kannst sie bitten, fortzusetzen, zu verbessern, zu erweitern oder umzuformulieren — aber nichts wird ohne deine Überprüfung eingefügt. Der Autor bist immer du. KI ist das Werkzeug." },
     { q: "Wird Moodra jemals verkauft oder abgeschaltet?", a: "Beides planen wir nicht. Keine Investoren bedeutet, dass niemand einen Exit erzwingen kann. Wir haben das für den eigenen Gebrauch gebaut. Das ist der dauerhafteste Grund, etwas am Leben zu erhalten." },
     { q: "Was kostet es wirklich?", a: "Moodra ist kostenlos. Für KI-Funktionen kannst du unsere eingebaute freie KI nutzen (kein API-Schlüssel nötig) oder einen eigenen OpenAI-Schlüssel für leistungsstärkere Modelle verbinden. Wir nehmen keine Provision. Kein Upselling. Vielleicht gibt es irgendwann eine Premium-Stufe — aber nur wenn sie es wert ist." },
