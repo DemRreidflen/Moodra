@@ -67,9 +67,9 @@ const t = {
       },
       highlights: [
         "Your API key, your model — zero markup on AI costs",
-        "7 AI agents that know your whole book, not just the last paragraph",
+        "Self-hosted: your drafts never leave your server",
         "Privacy by design, not by policy",
-        "Block-based editor built for how serious writing actually works",
+        "Open source and built to last",
       ],
     },
     home: {
@@ -636,9 +636,9 @@ const t = {
       },
       highlights: [
         "Ваш ключ API, ваша модель — без наценки на ИИ",
-        "7 ИИ-агентов, знающих всю вашу книгу, а не только последний абзац",
+        "Самохостинг: черновики не покидают ваш сервер",
         "Приватность по умолчанию, не декларативно",
-        "Блочный редактор — для того, как серьёзное письмо устроено на самом деле",
+        "Открытый код и долгосрочная поддержка",
       ],
     },
     home: {
@@ -1219,9 +1219,9 @@ const t = {
       },
       highlights: [
         "Ваш API-ключ, ваша модель — без націнки на ШІ",
-        "7 ШІ-агентів, що знають всю вашу книгу, а не лише останній абзац",
+        "Самохостинг: чернетки не залишають ваш сервер",
         "Приватність за замовчуванням, не декларативно",
-        "Блочний редактор — для того, як серйозне письмо насправді відбувається",
+        "Відкритий код і довгострокова підтримка",
       ],
     },
     home: {
@@ -1802,9 +1802,9 @@ const t = {
       },
       highlights: [
         "Dein API-Schlüssel, dein Modell — kein KI-Aufschlag",
-        "7 KI-Agenten, die dein ganzes Buch kennen, nicht nur den letzten Absatz",
+        "Self-Hosting: Entwürfe verlassen nie deinen Server",
         "Datenschutz by Design, nicht by Deklaration",
-        "Block-basierter Editor — gebaut für ernsthafte Schreibprozesse",
+        "Open Source und langfristig wartbar",
       ],
     },
     home: {
